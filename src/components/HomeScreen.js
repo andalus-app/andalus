@@ -25,17 +25,24 @@ function getPrayerStatus(times, nowSec) {
   const fajrSec = secs['Fajr'];
   const status  = {};
 
-  // Midnight window wraps midnight: active from midSec until Fajr
+  // Midnight window: from midSec until Fajr next day
+  // e.g. Midnight=22:49, Fajr=04:05 → active if nowSec>=22:49 OR nowSec<04:05
   const inMidnightWindow = midSec > fajrSec
     ? (nowSec >= midSec || nowSec < fajrSec)
     : (nowSec >= midSec && nowSec < fajrSec);
 
   if (inMidnightWindow) {
-    order.forEach(n => { status[n] = n === 'Midnight' ? 'active' : 'passed'; });
+    // During midnight window: Midnight is active, ALL others are future (new day approaching)
+    // They should look bright/upcoming, not dimmed
+    order.forEach(n => {
+      if (n === 'Midnight') status[n] = 'active';
+      else status[n] = 'future'; // NOT passed — new day is coming
+    });
     return status;
   }
 
-  // Normal daytime: find last countable prayer that has started
+  // Between Fajr and Midnight: normal daytime logic
+  // Before Fajr (e.g. 03:00): activeIdx=-1, everything is future
   const countable = ['Fajr', 'Dhuhr', 'Asr', 'Maghrib', 'Isha'];
   let activeIdx = -1;
   for (let i = 0; i < countable.length; i++) {
@@ -43,15 +50,19 @@ function getPrayerStatus(times, nowSec) {
   }
 
   order.forEach(n => {
-    if (n === 'Sunrise') { status[n] = secs[n] <= nowSec ? 'passed' : 'future'; return; }
+    if (n === 'Sunrise') {
+      // Shuruq: never active, just passed or future
+      status[n] = secs[n] <= nowSec ? 'passed' : 'future';
+      return;
+    }
     if (n === 'Midnight') { status[n] = 'future'; return; }
     const idx = countable.indexOf(n);
-    if (idx < activeIdx)      status[n] = 'passed';
-    else if (idx === activeIdx) status[n] = 'active';
-    else                        status[n] = 'future';
+    if (activeIdx === -1)         status[n] = 'future';   // before Fajr: all future
+    else if (idx < activeIdx)     status[n] = 'passed';
+    else if (idx === activeIdx)   status[n] = 'active';
+    else                          status[n] = 'future';
   });
 
-  if (activeIdx === -1) order.forEach(n => { status[n] = 'future'; });
   return status;
 }
 
