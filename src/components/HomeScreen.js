@@ -173,47 +173,76 @@ export default function HomeScreen() {
     if (location) loadPrayers(location, settings.calculationMethod, settings.school);
   }, [location, settings.calculationMethod, settings.school, loadPrayers]);
 
-  // ── GPS — only on first load if no saved location ──────────────────────
-  const silentDetect = useCallback(() => {
-    if (!navigator.geolocation) return;
+  // ── GPS — smart cache strategy ───────────────────────────────────────────
+  // 1. On open: use cached location instantly (already in AppContext from localStorage)
+  // 2. First background check: waits 10s then runs, updates only if moved >5km
+  // 3. Repeat check: every 30 minutes, silent, same 5km threshold
+  // No watchPosition — GPS never runs continuously
+
+  const GPS_INTERVAL_MS  = 30 * 60 * 1000; // 30 minutes
+  const GPS_STARTUP_MS   = 10 * 1000;       // 10 second delay on start
+  const GPS_CACHE_KEY    = 'gps-last-check';
+  const GPS_MOVE_THRESH  = 0.045;           // ~5km in degrees
+
+  const runGpsCheck = useCallback(() => {
+    if (!navigator.geolocation || !settings.autoLocation) return;
     navigator.geolocation.getCurrentPosition(
       async (pos) => {
-        try {
-          const { latitude, longitude } = pos.coords;
-          const geo = await reverseGeocode(latitude, longitude);
-          dispatch({ type: 'SET_LOCATION', payload: { latitude, longitude, ...geo } });
-        } catch { /* silent */ }
-      },
-      () => {},
-      { enableHighAccuracy: false, maximumAge: 300000, timeout: 10000 }
-    );
-  }, [dispatch]);
-
-  useEffect(() => {
-    if (!location) silentDetect();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  // ── GPS watch — only updates location when moved >500m, no geocoding spam ──
-  const lastCoordsRef = useRef(null);
-  useEffect(() => {
-    if (!navigator.geolocation || !settings.autoLocation) return;
-    const watchId = navigator.geolocation.watchPosition(
-      async (pos) => {
         const { latitude, longitude } = pos.coords;
-        const prev = lastCoordsRef.current;
-        // ~500m threshold in degrees
-        if (prev && Math.abs(latitude - prev.lat) < 0.005 && Math.abs(longitude - prev.lng) < 0.005) return;
-        lastCoordsRef.current = { lat: latitude, lng: longitude };
+        if (location) {
+          const dlat = Math.abs(latitude  - location.latitude);
+          const dlng = Math.abs(longitude - location.longitude);
+          if (dlat < GPS_MOVE_THRESH && dlng < GPS_MOVE_THRESH) {
+            localStorage.setItem(GPS_CACHE_KEY, Date.now().toString());
+            return;
+          }
+        }
         try {
           const geo = await reverseGeocode(latitude, longitude);
           dispatch({ type: 'SET_LOCATION', payload: { latitude, longitude, ...geo } });
+          localStorage.setItem(GPS_CACHE_KEY, Date.now().toString());
         } catch { /* silent */ }
       },
-      () => {},
-      { enableHighAccuracy: false, maximumAge: 120000, timeout: 15000 }
+      () => { /* silent fail — keep existing location */ },
+      { enableHighAccuracy: false, maximumAge: 60000, timeout: 10000 }
     );
-    return () => navigator.geolocation.clearWatch(watchId);
+  }, [settings.autoLocation, location, dispatch]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    if (!settings.autoLocation) return;
+
+    // No location at all — wait 10s then fetch
+    if (!location) {
+      const t = setTimeout(runGpsCheck, GPS_STARTUP_MS);
+      return () => clearTimeout(t);
+    }
+
+    // Check how long since last GPS check
+    const lastCheck = parseInt(localStorage.getItem(GPS_CACHE_KEY) || '0', 10);
+    const elapsed   = Date.now() - lastCheck;
+
+    let startupTimer = null;
+    let intervalId   = null;
+
+    if (elapsed >= GPS_INTERVAL_MS) {
+      // Overdue — wait 10s then run, then schedule repeating
+      startupTimer = setTimeout(() => {
+        runGpsCheck();
+        intervalId = setInterval(runGpsCheck, GPS_INTERVAL_MS);
+      }, GPS_STARTUP_MS);
+    } else {
+      // Not overdue — schedule first check at remaining time, then every 30 min
+      const remaining = GPS_INTERVAL_MS - elapsed;
+      startupTimer = setTimeout(() => {
+        runGpsCheck();
+        intervalId = setInterval(runGpsCheck, GPS_INTERVAL_MS);
+      }, remaining);
+    }
+
+    return () => {
+      clearTimeout(startupTimer);
+      clearInterval(intervalId);
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [settings.autoLocation]);
 

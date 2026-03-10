@@ -43,7 +43,7 @@ export function useQibla(location) {
   const wasAligned  = useRef(false);
   const qiblaDirRef = useRef(null);
 
-  // ── Fetch Qibla direction once per location ──
+  // ── Fetch Qibla direction once per location ──────────────────────────────
   useEffect(() => {
     if (!location) return;
     let cancelled = false;
@@ -64,9 +64,10 @@ export function useQibla(location) {
     return () => { cancelled = true; };
   }, [location]);
 
-  // ── Attach orientation listeners — runs every mount, cleans up on unmount ──
-  // This is the key fix: useEffect with NO deps so it runs fresh every time
-  // QiblaScreen mounts (i.e. every tab switch to Qibla).
+  // ── Orientation listener — attached once on mount, removed on unmount ────
+  // useEffect with [] runs exactly once when QiblaScreen mounts, and the
+  // cleanup runs when it unmounts (tab switch). The handler reads qiblaDirRef
+  // so it always has the latest value without needing to re-register.
   useEffect(() => {
     if (!('DeviceOrientationEvent' in window)) return;
 
@@ -92,39 +93,36 @@ export function useQibla(location) {
       }
     };
 
-    // iOS — needs explicit permission
-    if (typeof DeviceOrientationEvent.requestPermission === 'function') {
-      if (localStorage.getItem(PERM_KEY) === 'granted') {
-        window.addEventListener('deviceorientationabsolute', handleOrientation, true);
-        window.addEventListener('deviceorientation',         handleOrientation, true);
-        setCompassAvail(true);
-      }
-      // else: wait for permission button — requestPermission will call attachListener
-    } else {
-      // Android / desktop
+    const attach = () => {
       window.addEventListener('deviceorientationabsolute', handleOrientation, true);
       window.addEventListener('deviceorientation',         handleOrientation, true);
       setCompassAvail(true);
-    }
+    };
 
-    return () => {
+    const detach = () => {
       window.removeEventListener('deviceorientationabsolute', handleOrientation, true);
       window.removeEventListener('deviceorientation',         handleOrientation, true);
       setCompassAvail(false);
     };
-  }); // ← intentionally NO dependency array = runs on every mount/unmount
 
-  // ── Permission request (iOS only) ──
+    // iOS needs explicit permission
+    if (typeof DeviceOrientationEvent.requestPermission === 'function') {
+      if (localStorage.getItem(PERM_KEY) === 'granted') attach();
+      // else: user must press button — requestPermission handles attach
+    } else {
+      attach();
+    }
+
+    return detach;
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── Permission request (iOS only) ────────────────────────────────────────
   const requestPermission = useCallback(async () => {
     try {
       const result = await DeviceOrientationEvent.requestPermission();
       localStorage.setItem(PERM_KEY, result);
       setPermState(result);
-      if (result === 'granted') {
-        // Force re-mount of the effect by toggling a flag would be complex —
-        // easiest: just reload the page once permission is granted
-        window.location.reload();
-      }
+      if (result === 'granted') window.location.reload();
     } catch {
       localStorage.setItem(PERM_KEY, 'denied');
       setPermState('denied');
