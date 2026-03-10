@@ -200,7 +200,7 @@ export default function HomeScreen() {
               transition:'opacity .4s, background .4s',
             }}>
               <div style={{ display:'flex', alignItems:'center', gap:8 }}>
-                <div style={{ fontSize:16, fontWeight:700, color: isActive ? (T.isDark?''#000'':'#fff') : T.text }}>
+                <div style={{ fontSize:16, fontWeight:700, color: isActive ? (T.isDark?'#000':'#fff') : T.text }}>
                   {PRAYER_SWEDISH[name]}
                 </div>
                 {isActive && (
@@ -214,7 +214,7 @@ export default function HomeScreen() {
               </div>
               <div style={{
                 fontSize:17, fontWeight:700, fontFamily:"'DM Mono','Courier New',monospace",
-                color: isActive ? (T.isDark?''#000'':'#fff') : T.textSecondary,
+                color: isActive ? (T.isDark?'#000':'#fff') : T.textSecondary,
               }}>
                 {fmt24(times[name])}
               </div>
@@ -280,7 +280,7 @@ export default function HomeScreen() {
           </div>
           <button onClick={detectLocation} style={{
             padding:'12px 26px', borderRadius:13, background:T.accent,
-            color:T.isDark?''#000'':'#fff', fontSize:14, fontWeight:700, border:'none', cursor:'pointer',
+            color:T.isDark?'#000':'#fff', fontSize:14, fontWeight:700, border:'none', cursor:'pointer',
           }}>Hitta min plats</button>
         </div>
       )}
@@ -298,17 +298,17 @@ export default function HomeScreen() {
       {prayerTimes && nextPrayer && (
         <div style={{
           background:T.bgSecondary, border:`1px solid ${T.border}`, borderRadius:15,
-          padding:'11px 14px 10px', textAlign:'center', marginBottom:10,
-          position:'relative', overflow:'hidden',
+          padding:'14px 14px 12px', textAlign:'center', marginBottom:10,
+          position:'relative',
         }}>
-          <div style={{ position:'absolute', bottom:0, left:0, right:0, height:2, background:T.accent, opacity:.6 }}/>
-          <div style={{ fontSize:9, fontWeight:700, letterSpacing:'1.5px', textTransform:'uppercase', color:T.textMuted, marginBottom:3 }}>
+          <div style={{ position:'absolute', bottom:0, left:0, right:0, height:2, background:T.accent, opacity:.6, borderRadius:'0 0 15px 15px' }}/>
+          <div style={{ fontSize:9, fontWeight:700, letterSpacing:'1.5px', textTransform:'uppercase', color:T.textMuted, marginBottom:6 }}>
             Tid kvar till {PRAYER_SWEDISH[nextPrayer]}
           </div>
-          <div style={{ fontSize:38, fontWeight:800, color:T.text, letterSpacing:'2px', lineHeight:1, fontFamily:"'DM Mono','Courier New',monospace" }}>
+          <div style={{ fontSize:40, fontWeight:800, color:T.text, letterSpacing:'3px', lineHeight:'1.1', fontFamily:"'DM Mono','Courier New',monospace", display:'block' }}>
             {fmtCountdown(secondsUntil)}
           </div>
-          <div style={{ fontSize:11, color:T.textMuted, marginTop:4 }}>
+          <div style={{ fontSize:11, color:T.textMuted, marginTop:6 }}>
             {PRAYER_SWEDISH[nextPrayer]} kl. {fmt24(prayerTimes[nextPrayer])}
           </div>
         </div>
