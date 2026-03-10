@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React from 'react';
 import { useApp } from '../context/AppContext';
 import { useTheme } from '../context/ThemeContext';
 import { useQibla } from '../hooks/useQibla';
@@ -12,26 +12,7 @@ export default function QiblaScreen() {
     compassAvail, loading, error, needsPermission, requestPermission,
   } = useQibla(location);
 
-  // Smooth animation for compass rose rotation
-  const animRef   = useRef(needleAngle);
-  const [animVal, setAnimVal] = useState(needleAngle);
-  useEffect(() => {
-    let frame;
-    const target = needleAngle;
-    const animate = () => {
-      let diff = target - animRef.current;
-      if (diff > 180)  diff -= 360;
-      if (diff < -180) diff += 360;
-      if (Math.abs(diff) < 0.3) { animRef.current = target; setAnimVal(target); return; }
-      animRef.current += diff * 0.12;
-      setAnimVal(animRef.current);
-      frame = requestAnimationFrame(animate);
-    };
-    frame = requestAnimationFrame(animate);
-    return () => cancelAnimationFrame(frame);
-  }, [needleAngle]);
-
-  const compassSize = Math.min(window.innerWidth - 32, 310);
+  const compassSize = Math.min(window.innerWidth - 60, 300);
 
   return (
     <div style={{ padding:'16px 16px 24px', background:T.bg, minHeight:'100%', display:'flex', flexDirection:'column', alignItems:'center' }}>
@@ -55,31 +36,24 @@ export default function QiblaScreen() {
 
       {location && (
         <>
-          {/* Permission prompt — shown once, cached */}
           {needsPermission && (
             <div style={{
               width:'100%', marginBottom:16,
               background:T.card, border:`1px solid ${T.border}`,
               borderRadius:14, padding:'16px',
             }}>
-              <div style={{ fontSize:15, fontWeight:700, color:T.text, marginBottom:6 }}>
-                🧭 Kompass-åtkomst
-              </div>
+              <div style={{ fontSize:15, fontWeight:700, color:T.text, marginBottom:6 }}>🧭 Kompass-åtkomst</div>
               <div style={{ fontSize:13, color:T.textMuted, lineHeight:1.5, marginBottom:12 }}>
-                För att live-kompassen ska fungera behöver appen åtkomst till enhetens rörelsesensorer.
-                Vi frågar bara en gång.
+                För att live-kompassen ska fungera behöver appen åtkomst till enhetens rörelsesensorer. Vi frågar bara en gång.
               </div>
               <button onClick={requestPermission} style={{
                 width:'100%', padding:'12px', borderRadius:11,
                 background:T.accent, color:T.isDark?'#000':'#fff',
                 fontSize:14, fontWeight:700, border:'none', cursor:'pointer',
-              }}>
-                Tillåt kompass
-              </button>
+              }}>Tillåt kompass</button>
             </div>
           )}
 
-          {/* Loading */}
           {loading && (
             <div style={{ marginBottom:12, display:'flex', alignItems:'center', gap:10, color:T.textMuted }}>
               <div style={{ width:16, height:16, borderRadius:8, border:`2px solid ${T.border}`, borderTopColor:T.accent, animation:'spin .8s linear infinite' }}/>
@@ -87,12 +61,11 @@ export default function QiblaScreen() {
             </div>
           )}
 
-          {/* Compass */}
+          {/* Compass — heading drives ring rotation, qiblaDir places Kaaba */}
           <div style={{ marginBottom:14 }}>
             <CompassSVG
-              animNeedle={animVal}
-              qiblaDir={qiblaDir}
               heading={heading}
+              qiblaDir={qiblaDir}
               isAligned={isAligned}
               theme={T}
               size={compassSize}

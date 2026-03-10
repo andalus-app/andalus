@@ -5,7 +5,7 @@ const ThemeContext = createContext({ theme: dark, isDark: true, setMode: () => {
 
 export function ThemeProvider({ children }) {
   const [mode, setModeState] = useState(() => {
-    return localStorage.getItem('salatTheme') || 'dark';
+    return localStorage.getItem('bonetiderTheme') || 'dark';
   });
 
   const systemDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
@@ -14,7 +14,7 @@ export function ThemeProvider({ children }) {
 
   const setMode = (m) => {
     setModeState(m);
-    localStorage.setItem('salatTheme', m);
+    localStorage.setItem('bonetiderTheme', m);
   };
 
   useEffect(() => {

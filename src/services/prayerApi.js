@@ -72,7 +72,7 @@ export async function fetchQiblaDirection(lat, lng) {
 export async function reverseGeocode(lat, lng) {
   const res = await fetch(
     `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json&zoom=14`,
-    { headers: { 'User-Agent': 'SalatWebApp/1.0' } }
+    { headers: { 'User-Agent': 'BonetiderApp/1.0' } }
   );
   if (!res.ok) throw new Error('Geocoding failed');
   const json = await res.json();
@@ -106,7 +106,7 @@ export async function reverseGeocode(lat, lng) {
 export async function searchCity(query) {
   const res = await fetch(
     `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query)}&format=json&limit=6&addressdetails=1`,
-    { headers: { 'User-Agent': 'SalatWebApp/1.0' } }
+    { headers: { 'User-Agent': 'BonetiderApp/1.0' } }
   );
   if (!res.ok) throw new Error('Search failed');
   const json = await res.json();

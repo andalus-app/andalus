@@ -36,10 +36,10 @@ const STORAGE_VERSION = 4; // bump = wipes old cached state
 export function AppProvider({ children }) {
   const [state, dispatch] = useReducer(reducer, initialState, (init) => {
     try {
-      const raw = JSON.parse(localStorage.getItem('salatState') || '{}');
+      const raw = JSON.parse(localStorage.getItem('bonetiderState') || '{}');
       if (!raw.version || raw.version < STORAGE_VERSION) {
         // Wipe all cached state — force fresh API fetch with correct settings
-        localStorage.removeItem('salatState');
+        localStorage.removeItem('bonetiderState');
         return init;
       }
       return {
@@ -51,7 +51,7 @@ export function AppProvider({ children }) {
   });
 
   useEffect(() => {
-    localStorage.setItem('salatState', JSON.stringify({
+    localStorage.setItem('bonetiderState', JSON.stringify({
       version:  STORAGE_VERSION,
       location: state.location,
       settings: state.settings,
