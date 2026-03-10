@@ -39,11 +39,9 @@ export function useQibla(location) {
     () => localStorage.getItem(PERM_KEY) || null
   );
 
-  const smoothedRef    = useRef(0);
-  const wasAligned     = useRef(false);
-  const qiblaDirRef    = useRef(null);
-  const listenerActive = useRef(false);
-  const cleanupRef     = useRef(null);
+  const smoothedRef = useRef(0);
+  const wasAligned  = useRef(false);
+  const qiblaDirRef = useRef(null);
 
   // ── Fetch Qibla direction once per location ──
   useEffect(() => {
@@ -66,69 +64,55 @@ export function useQibla(location) {
     return () => { cancelled = true; };
   }, [location]);
 
-  // ── Orientation handler (stable ref, never changes) ──
-  const handleOrientation = useRef((e) => {
-    let h = 0;
-    if (e.webkitCompassHeading != null) {
-      h = e.webkitCompassHeading;
-    } else if (e.alpha != null) {
-      h = (360 - e.alpha) % 360;
-    } else return;
-
-    smoothedRef.current = circularSmooth(smoothedRef.current, h, 0.15);
-    const smoothed = Math.round(smoothedRef.current * 10) / 10;
-    setHeading(smoothed);
-
-    if (qiblaDirRef.current !== null) {
-      const delta = angleDelta(smoothed, qiblaDirRef.current);
-      setAlignDelta(delta);
-      const aligned = delta <= ALIGN_TOL;
-      setIsAligned(aligned);
-      if (aligned && !wasAligned.current && navigator.vibrate) navigator.vibrate([60, 30, 60]);
-      wasAligned.current = aligned;
-    }
-  });
-
-  // ── Attach/detach compass listeners ──
-  const attachListener = useCallback(() => {
-    if (listenerActive.current) return;
-    listenerActive.current = true;
-    const fn = handleOrientation.current;
-    window.addEventListener('deviceorientationabsolute', fn, true);
-    window.addEventListener('deviceorientation',         fn, true);
-    setCompassAvail(true);
-
-    // Store cleanup so we can call it later
-    cleanupRef.current = () => {
-      window.removeEventListener('deviceorientationabsolute', fn, true);
-      window.removeEventListener('deviceorientation',         fn, true);
-      listenerActive.current = false;
-    };
-  }, []);
-
-  // ── Attach on mount based on permission cache ──
+  // ── Attach orientation listeners — runs every mount, cleans up on unmount ──
+  // This is the key fix: useEffect with NO deps so it runs fresh every time
+  // QiblaScreen mounts (i.e. every tab switch to Qibla).
   useEffect(() => {
     if (!('DeviceOrientationEvent' in window)) return;
 
-    // iOS — needs explicit permission
-    if (typeof DeviceOrientationEvent?.requestPermission === 'function') {
-      if (localStorage.getItem(PERM_KEY) === 'granted') {
-        attachListener();
-      }
-      // else: wait for user to press button
-    } else {
-      // Android/desktop — no permission needed
-      attachListener();
-    }
+    const handleOrientation = (e) => {
+      let h = 0;
+      if (e.webkitCompassHeading != null) {
+        h = e.webkitCompassHeading;
+      } else if (e.alpha != null) {
+        h = (360 - e.alpha) % 360;
+      } else return;
 
-    // Cleanup when leaving Qibla tab
-    return () => {
-      if (cleanupRef.current) {
-        cleanupRef.current();
-        cleanupRef.current = null;
+      smoothedRef.current = circularSmooth(smoothedRef.current, h, 0.15);
+      const smoothed = Math.round(smoothedRef.current * 10) / 10;
+      setHeading(smoothed);
+
+      if (qiblaDirRef.current !== null) {
+        const delta = angleDelta(smoothed, qiblaDirRef.current);
+        setAlignDelta(delta);
+        const aligned = delta <= ALIGN_TOL;
+        setIsAligned(aligned);
+        if (aligned && !wasAligned.current && navigator.vibrate) navigator.vibrate([60, 30, 60]);
+        wasAligned.current = aligned;
       }
     };
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+    // iOS — needs explicit permission
+    if (typeof DeviceOrientationEvent.requestPermission === 'function') {
+      if (localStorage.getItem(PERM_KEY) === 'granted') {
+        window.addEventListener('deviceorientationabsolute', handleOrientation, true);
+        window.addEventListener('deviceorientation',         handleOrientation, true);
+        setCompassAvail(true);
+      }
+      // else: wait for permission button — requestPermission will call attachListener
+    } else {
+      // Android / desktop
+      window.addEventListener('deviceorientationabsolute', handleOrientation, true);
+      window.addEventListener('deviceorientation',         handleOrientation, true);
+      setCompassAvail(true);
+    }
+
+    return () => {
+      window.removeEventListener('deviceorientationabsolute', handleOrientation, true);
+      window.removeEventListener('deviceorientation',         handleOrientation, true);
+      setCompassAvail(false);
+    };
+  }); // ← intentionally NO dependency array = runs on every mount/unmount
 
   // ── Permission request (iOS only) ──
   const requestPermission = useCallback(async () => {
@@ -136,12 +120,16 @@ export function useQibla(location) {
       const result = await DeviceOrientationEvent.requestPermission();
       localStorage.setItem(PERM_KEY, result);
       setPermState(result);
-      if (result === 'granted') attachListener();
+      if (result === 'granted') {
+        // Force re-mount of the effect by toggling a flag would be complex —
+        // easiest: just reload the page once permission is granted
+        window.location.reload();
+      }
     } catch {
       localStorage.setItem(PERM_KEY, 'denied');
       setPermState('denied');
     }
-  }, [attachListener]);
+  }, []);
 
   const needsPermission = typeof DeviceOrientationEvent?.requestPermission === 'function'
     && permState !== 'granted';
