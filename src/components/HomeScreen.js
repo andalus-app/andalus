@@ -224,7 +224,7 @@ export default function HomeScreen() {
                   {PRAYER_SWEDISH[name]}
                 </div>
                 {iconName && (
-                  <SvgIcon name={iconName} size={13} color={isActive ? rowColor : T.textMuted} style={{ opacity: isActive ? 0.7 : 0.45 }} />
+                  <SvgIcon name={iconName} size={16} color={isActive ? rowColor : T.accent} style={{ opacity: isActive ? 0.85 : 0.7 }} />
                 )}
               </div>
               <div style={{
