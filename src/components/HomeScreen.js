@@ -255,17 +255,17 @@ export default function HomeScreen() {
       {/* Header */}
       <div style={{ marginBottom:16, textAlign:'center', position:'relative' }}>
 
-        {/* Logo — top-left, theme-aware color */}
+        {/* Logo — theme-aware color */}
         <img
           src={IslamNuLogo}
           alt=""
           style={{
             position:'absolute', top:0, left:8,
             width:88, height:88,
-            opacity: T.isDark ? 0.18 : 0.22,
+            opacity: T.isDark ? 0.18 : 1,
             filter: T.isDark
               ? 'sepia(1) saturate(3) hue-rotate(5deg) brightness(1.1)'
-              : 'sepia(1) saturate(6) hue-rotate(118deg) brightness(0.55)',
+              : 'sepia(1) saturate(8) hue-rotate(118deg) brightness(0.5)',
             pointerEvents:'none',
             userSelect:'none',
           }}

@@ -75,12 +75,13 @@ export default function CompassSVG({ heading, qiblaDir, isAligned, alignDelta, t
           const is10 = d % 10 === 0;
           const tl = is90 ? 18 : is30 ? 13 : is10 ? 8 : 4;
           const sw = is90 ? 2.5 : is30 ? 1.5 : 0.8;
-          const col = is90 ? '#fff' : is30 ? 'rgba(255,255,255,0.6)' : 'rgba(255,255,255,0.25)';
+          const col = is90 ? T.text : is30 ? T.textSecondary : T.textMuted;
+          const op  = is90 ? 1 : is30 ? 0.6 : 0.25;
           return (
             <line key={d}
               x1={px(d, TR - 1)} y1={py(d, TR - 1)}
               x2={px(d, TR - tl)} y2={py(d, TR - tl)}
-              stroke={col} strokeWidth={sw} />
+              stroke={col} strokeWidth={sw} opacity={op} />
           );
         })}
 
@@ -91,7 +92,8 @@ export default function CompassSVG({ heading, qiblaDir, isAligned, alignDelta, t
             textAnchor="middle"
             fontSize={d % 90 === 0 ? 13 : 11}
             fontWeight={d % 90 === 0 ? 700 : 400}
-            fill={d % 90 === 0 ? '#fff' : 'rgba(255,255,255,0.55)'}
+            fill={d % 90 === 0 ? T.text : T.textMuted}
+            opacity={d % 90 === 0 ? 1 : 0.6}
             fontFamily="'Inter',system-ui,sans-serif"
             transform={`rotate(${d}, ${px(d,OR-4)}, ${py(d,OR-4)})`}>
             {d}
@@ -103,7 +105,7 @@ export default function CompassSVG({ heading, qiblaDir, isAligned, alignDelta, t
           <text key={l}
             x={px(d, TI + 20)} y={py(d, TI + 20) + 6}
             textAnchor="middle" fontSize="20" fontWeight="800"
-            fill={l==='N' ? (isAligned ? green : '#fff') : '#fff'}
+            fill={l==='N' ? (isAligned ? green : T.accent) : T.text}
             fontFamily="'Inter',system-ui,sans-serif"
             transform={`rotate(${d}, ${px(d,TI+20)}, ${py(d,TI+20)})`}>
             {l}
@@ -138,14 +140,14 @@ export default function CompassSVG({ heading, qiblaDir, isAligned, alignDelta, t
       {/* Heading display in center */}
       <text x={C} y={C - 10}
         textAnchor="middle" fontSize="32" fontWeight="800"
-        fill={isAligned ? green : '#fff'}
+        fill={isAligned ? green : T.text}
         fontFamily="'Inter',system-ui,sans-serif"
         filter={isAligned ? 'url(#cglow)' : undefined}>
         {Math.round(((heading % 360) + 360) % 360)}°
       </text>
       <text x={C} y={C + 14}
         textAnchor="middle" fontSize="10" fontWeight="500"
-        fill="rgba(255,255,255,0.45)"
+        fill={T.textMuted}
         fontFamily="'Inter',system-ui,sans-serif">
         {qiblaDir != null ? `Qibla: ${Math.round(qiblaDir)}°` : ''}
       </text>
@@ -158,7 +160,7 @@ export default function CompassSVG({ heading, qiblaDir, isAligned, alignDelta, t
         return (
           <text x={C} y={C + 30}
             textAnchor="middle" fontSize="13" fontWeight="700"
-            fill={isAligned ? green : 'rgba(255,255,255,0.7)'}
+            fill={isAligned ? green : T.textSecondary}
             fontFamily="'Inter',system-ui,sans-serif">
             {label}
           </text>

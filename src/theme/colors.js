@@ -15,17 +15,17 @@ export const dark = {
 };
 
 export const light = {
-  bg:           '#F0F3FF',
-  bgSecondary:  '#E2E8FF',
+  bg:           '#F5F8F7',
+  bgSecondary:  '#E8F0EF',
   card:         '#FFFFFF',
-  cardElevated: '#EEF1FF',
-  text:         '#0A0F2C',
-  textSecondary:'#1A2561',
-  textMuted:    '#6B7280',
-  accent:       '#B8902A',
-  accentGlow:   'rgba(184,144,42,0.15)',
-  border:       '#E2E6F3',
-  success:      '#2E9E68',
+  cardElevated: '#EDF4F3',
+  text:         '#0D1F1E',
+  textSecondary:'#1A3533',
+  textMuted:    '#5A7472',
+  accent:       '#24645d',
+  accentGlow:   'rgba(36,100,93,0.15)',
+  border:       '#D0E2E0',
+  success:      '#24645d',
   error:        '#D93025',
   isDark:       false,
 };

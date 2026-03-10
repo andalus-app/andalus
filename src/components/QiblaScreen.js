@@ -85,16 +85,16 @@ export default function QiblaScreen() {
 
           {/* Big heading + direction text — like reference image */}
           <div style={{ textAlign:'center', marginTop:24, marginBottom:4 }}>
-            <div style={{ fontSize:52, fontWeight:800, color:'#fff', lineHeight:1, letterSpacing:'-1px' }}>
+            <div style={{ fontSize:52, fontWeight:800, color:T.text, lineHeight:1, letterSpacing:'-1px' }}>
               {Math.round(((heading % 360) + 360) % 360)}°{' '}
               {(() => {
                 const h = Math.round(((heading % 360) + 360) % 360);
                 return ['N','NÖ','Ö','SÖ','S','SV','V','NV'][Math.round(h/45)%8];
               })()}
             </div>
-            <div style={{ fontSize:13, color:'rgba(255,255,255,0.45)', marginTop:6 }}>
+            <div style={{ fontSize:13, color:T.textMuted, marginTop:6 }}>
               Qiblas riktning är{' '}
-              <strong style={{ color:'rgba(255,255,255,0.75)' }}>
+              <strong style={{ color:T.textSecondary }}>
                 {qiblaDir != null ? `${Math.round(qiblaDir)} °` : '—'}
               </strong>
             </div>
@@ -103,11 +103,11 @@ export default function QiblaScreen() {
           {/* Aligned or rotation hint */}
           <div style={{ minHeight:32, textAlign:'center', marginTop:6 }}>
             {isAligned ? (
-              <div style={{ fontSize:17, fontWeight:700, color:'#4CAF82' }}>
+              <div style={{ fontSize:17, fontWeight:700, color:T.success }}>
                 Du är vänd mot rätt håll.
               </div>
             ) : hint ? (
-              <div style={{ fontSize:15, fontWeight:500, color:'rgba(255,255,255,0.75)' }}>
+              <div style={{ fontSize:15, fontWeight:500, color:T.textSecondary }}>
                 {hint}
               </div>
             ) : null}
