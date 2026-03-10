@@ -45,22 +45,22 @@ function Shell() {
       {/* ── FLOATING TAB BAR ── */}
       <div style={{
         position: 'absolute',
-        bottom: `calc(env(safe-area-inset-bottom, 0px) + 14px)`,
+        bottom: `calc(env(safe-area-inset-bottom, 0px) + 8px)`,
         left: '50%',
         transform: 'translateX(-50%)',
         width: 'calc(100% - 32px)',
         maxWidth: 420,
         display: 'flex',
         background: T.isDark
-          ? 'rgba(22,22,22,0.92)'
-          : 'rgba(255,255,255,0.92)',
-        backdropFilter: 'blur(20px)',
-        WebkitBackdropFilter: 'blur(20px)',
+          ? 'rgba(18,18,18,0.75)'
+          : 'rgba(245,248,247,0.75)',
+        backdropFilter: 'blur(24px)',
+        WebkitBackdropFilter: 'blur(24px)',
         borderRadius: 28,
         border: `1px solid ${T.border}`,
         boxShadow: T.isDark
-          ? '0 8px 32px rgba(0,0,0,0.5), 0 2px 8px rgba(0,0,0,0.3)'
-          : '0 8px 32px rgba(0,0,0,0.12), 0 2px 8px rgba(0,0,0,0.06)',
+          ? '0 4px 24px rgba(0,0,0,0.4)'
+          : '0 4px 24px rgba(0,0,0,0.08)',
         padding: '6px 4px',
         zIndex: 200,
       }}>
