@@ -204,40 +204,21 @@ export default function HomeScreen({ onMonthlyPress }) {
   }, [settings.autoLocation, location, dispatch]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
-    if (!settings.autoLocation) return;
+    // App.js GPS prompt handles the first-time case (no location).
+    // HomeScreen only manages background refresh for existing locations.
+    if (!settings.autoLocation || !location) return;
 
-    // No location at all — run GPS immediately, no delay
-    if (!location) {
-      runGpsCheck();
-      return;
-    }
-
-    // Check how long since last GPS check
     const lastCheck = parseInt(localStorage.getItem(GPS_CACHE_KEY) || '0', 10);
     const elapsed   = Date.now() - lastCheck;
+    const delay     = elapsed >= GPS_INTERVAL_MS ? GPS_STARTUP_MS : GPS_INTERVAL_MS - elapsed;
 
-    let startupTimer = null;
-    let intervalId   = null;
+    const startupTimer = setTimeout(() => {
+      runGpsCheck();
+      const intervalId = setInterval(runGpsCheck, GPS_INTERVAL_MS);
+      return () => clearInterval(intervalId);
+    }, delay);
 
-    if (elapsed >= GPS_INTERVAL_MS) {
-      // Overdue — wait 10s then run, then schedule repeating
-      startupTimer = setTimeout(() => {
-        runGpsCheck();
-        intervalId = setInterval(runGpsCheck, GPS_INTERVAL_MS);
-      }, GPS_STARTUP_MS);
-    } else {
-      // Not overdue — schedule first check at remaining time, then every 30 min
-      const remaining = GPS_INTERVAL_MS - elapsed;
-      startupTimer = setTimeout(() => {
-        runGpsCheck();
-        intervalId = setInterval(runGpsCheck, GPS_INTERVAL_MS);
-      }, remaining);
-    }
-
-    return () => {
-      clearTimeout(startupTimer);
-      clearInterval(intervalId);
-    };
+    return () => clearTimeout(startupTimer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [settings.autoLocation]);
 
