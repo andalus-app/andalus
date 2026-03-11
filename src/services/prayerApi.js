@@ -104,31 +104,16 @@ export async function reverseGeocode(lat, lng) {
 }
 
 export async function searchCity(query) {
-  // Use featuretype=city + namedetails for better prefix matching
-  // Also try with wildcard-style: append * to help partial matching
-  const q = query.trim();
   const res = await fetch(
-    `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(q)}&format=json&limit=10&addressdetails=1&featuretype=city&namedetails=1`,
+    `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query)}&format=json&limit=6&addressdetails=1`,
     { headers: { 'User-Agent': 'BonetiderApp/1.0' } }
   );
   if (!res.ok) throw new Error('Search failed');
   const json = await res.json();
-
-  // Filter to only city/town/village/suburb results and deduplicate by city name
-  const seen = new Set();
-  const results = [];
-  for (const r of json) {
-    const city = r.address?.city || r.address?.town || r.address?.village || r.address?.suburb || r.display_name.split(',')[0];
-    const key = city.toLowerCase();
-    if (seen.has(key)) continue;
-    seen.add(key);
-    results.push({
-      latitude:  parseFloat(r.lat),
-      longitude: parseFloat(r.lon),
-      city,
-      country:   r.address?.country || '',
-    });
-    if (results.length >= 6) break;
-  }
-  return results;
+  return json.map(r => ({
+    latitude:  parseFloat(r.lat),
+    longitude: parseFloat(r.lon),
+    city:      r.address?.city || r.address?.town || r.address?.village || r.display_name.split(',')[0],
+    country:   r.address?.country || '',
+  }));
 }

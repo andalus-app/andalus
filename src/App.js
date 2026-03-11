@@ -290,8 +290,8 @@ function Shell() {
                   filter: active
                     ? svgColorFilter(T.isDark)
                     : T.isDark
-                      ? 'invert(48%) sepia(60%) saturate(400%) hue-rotate(120deg) brightness(90%)'  // green at full opacity in dark
-                      : 'invert(0%) opacity(0.6)',   // muted in light
+                      ? 'invert(48%) sepia(60%) saturate(400%) hue-rotate(120deg) brightness(90%)'
+                      : 'none',   // full opacity black in light mode when inactive
                     transition: 'filter .2s',
                   }}
                 />
@@ -300,8 +300,8 @@ function Shell() {
                   <SvgIcon
                     name={t.iconName}
                     size={22}
-                    color={active ? T.accent : T.isDark ? T.accent : T.textMuted}
-                    style={{ opacity: active ? 1 : T.isDark ? 0.75 : 0.65, transition: 'all .2s' }}
+                    color={active ? T.accent : T.isDark ? T.accent : T.text}
+                    style={{ opacity: active ? 1 : T.isDark ? 0.75 : 1, transition: 'all .2s' }}
                   />
                   {t.id === 'home' && isLive && (
                     <div style={{
@@ -317,8 +317,8 @@ function Shell() {
               <span style={{
                 fontSize: 9, fontWeight: active ? 700 : 500,
                 letterSpacing: '.3px',
-                color: active ? T.accent : T.isDark ? T.accent : T.textMuted,
-                opacity: active ? 1 : T.isDark ? 0.7 : 0.65,
+                color: active ? T.accent : T.isDark ? T.accent : T.text,
+                opacity: active ? 1 : T.isDark ? 0.7 : 1,
                 whiteSpace: 'nowrap',
                 transition: 'all .2s',
               }}>{t.label}</span>
