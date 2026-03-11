@@ -206,10 +206,10 @@ export default function HomeScreen({ onMonthlyPress }) {
   useEffect(() => {
     if (!settings.autoLocation) return;
 
-    // No location at all — wait 10s then fetch
+    // No location at all — run GPS immediately, no delay
     if (!location) {
-      const t = setTimeout(runGpsCheck, GPS_STARTUP_MS);
-      return () => clearTimeout(t);
+      runGpsCheck();
+      return;
     }
 
     // Check how long since last GPS check
