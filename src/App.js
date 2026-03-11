@@ -6,11 +6,12 @@ import PrayerScreen   from './components/HomeScreen';
 import MonthlyScreen  from './components/MonthlyScreen';
 import QiblaScreen    from './components/QiblaScreen';
 import EbooksScreen   from './components/EbooksScreen';
-import SettingsScreen from './components/SettingsScreen';
 import SvgIcon        from './components/SvgIcon';
 import KabaIcon       from './icons/kaba.svg';
 import PrayerTimesIcon from './icons/prayer-times.svg';
 import { reverseGeocode } from './services/prayerApi';
+import MoreScreen        from './components/MoreScreen';
+import MoreAppIcon       from './icons/more-app-svgrepo-com.svg';
 import { useYoutubeLive } from './hooks/useYoutubeLive';
 
 function svgColorFilter(isDark) {
@@ -20,11 +21,11 @@ function svgColorFilter(isDark) {
 }
 
 const TABS = [
-  { id: 'home',     type: 'icon',   iconName: 'home',     label: 'Hem'           },
-  { id: 'prayer',   type: 'custom', icon: 'prayer',       label: 'Bönetider'     },
-  { id: 'qibla',    type: 'custom', icon: 'kaba',         label: 'Qibla'         },
-  { id: 'ebooks',   type: 'icon',   iconName: 'book',     label: 'E-böcker'      },
-  { id: 'settings', type: 'icon',   iconName: 'settings', label: 'Inställningar' },
+  { id: 'home',     type: 'icon',   iconName: 'home',   label: 'Hem'        },
+  { id: 'prayer',   type: 'custom', icon: 'prayer',     label: 'Bönetider'  },
+  { id: 'qibla',    type: 'custom', icon: 'kaba',       label: 'Qibla'      },
+  { id: 'ebooks',   type: 'icon',   iconName: 'book',   label: 'E-böcker'   },
+  { id: 'more',     type: 'custom', icon: 'more',       label: 'Visa mer'   },
 ];
 
 const GPS_PROMPT_KEY = 'gps-prompt-shown'; // set to 'done' once user responded
@@ -162,7 +163,7 @@ function Shell() {
             resetToLibrary={ebooksReset}
           />
         );
-      case 'settings': return <SettingsScreen />;
+      case 'more':     return <MoreScreen />;
       default:         return <NewHomeScreen />;
     }
   };
@@ -248,7 +249,7 @@ function Shell() {
             >
               {t.type === 'custom' ? (
                 <img
-                  src={t.icon === 'kaba' ? KabaIcon : PrayerTimesIcon}
+                  src={t.icon === 'kaba' ? KabaIcon : t.icon === 'more' ? MoreAppIcon : PrayerTimesIcon}
                   alt={t.label}
                   style={{
                     width: 24, height: 24, objectFit: 'contain',

@@ -37,7 +37,7 @@ function ModalSheet({ title, onClose, children, T }) {
   );
 }
 
-export default function SettingsScreen() {
+export default function SettingsScreen({ onBack }) {
   const { theme: T, mode, setMode } = useTheme();
   const { location, settings, dispatch } = useApp();
 
@@ -133,9 +133,17 @@ export default function SettingsScreen() {
     <div style={{ padding:'20px 16px 50px', background:T.bg, minHeight:'100%',
       fontFamily:"'Inter',system-ui,sans-serif" }}>
 
-      <div style={{ fontSize:24, fontWeight:800, color:T.text, letterSpacing:'-0.4px',
-        marginBottom:24, animation:'fadeUp .4s ease both' }}>
-        Inställningar
+      <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:24, animation:'fadeUp .4s ease both' }}>
+        {onBack && (
+          <button onClick={onBack} style={{
+            background:'none', border:'none', cursor:'pointer', padding:'4px 8px 4px 0',
+            color:T.accent, fontSize:22, lineHeight:1, fontWeight:300,
+            WebkitTapHighlightColor:'transparent',
+          }}>‹</button>
+        )}
+        <div style={{ fontSize:24, fontWeight:800, color:T.text, letterSpacing:'-0.4px' }}>
+          Inställningar
+        </div>
       </div>
 
       {/* PLATS */}

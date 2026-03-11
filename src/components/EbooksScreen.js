@@ -169,10 +169,13 @@ function PdfReader({ book, onClose, onSetPage, onAddBookmark, onRemoveBookmark, 
 
   // ── Render page ─────────────────────────────────────────────────────────
   const renderPage = useCallback(async (pageNum, extraScale = 1) => {
-    if (!pdfDocRef.current || renderingRef.current) return;
-    renderingRef.current = true;
+    if (!pdfDocRef.current) return;
+    // Use a token to cancel stale renders — fixes blurry-page bug
+    const token = Symbol();
+    renderingRef.current = token;
     try {
       const pdfPage   = await pdfDocRef.current.getPage(pageNum);
+      if (renderingRef.current !== token) return; // superseded
       const canvas    = canvasRef.current;
       if (!canvas) return;
       const viewport0 = pdfPage.getViewport({ scale: 1 });
@@ -189,16 +192,30 @@ function PdfReader({ book, onClose, onSetPage, onAddBookmark, onRemoveBookmark, 
       canvas.style.height = viewport.height + 'px';
       const ctx = canvas.getContext('2d');
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      if (renderingRef.current !== token) return; // check again before draw
       await pdfPage.render({ canvasContext: ctx, viewport }).promise;
     } catch (e) {
       console.error('Render error', e);
-    } finally {
-      renderingRef.current = false;
     }
   }, []);
 
   useEffect(() => {
     if (status === 'ready') renderPage(page, scale);
+  }, [status, page, scale, renderPage]);
+
+  // Re-render on orientation/resize change
+  useEffect(() => {
+    const handler = () => {
+      if (status === 'ready') {
+        setTimeout(() => renderPage(page, scale), 120); // wait for layout
+      }
+    };
+    window.addEventListener('resize', handler);
+    window.addEventListener('orientationchange', handler);
+    return () => {
+      window.removeEventListener('resize', handler);
+      window.removeEventListener('orientationchange', handler);
+    };
   }, [status, page, scale, renderPage]);
 
   // ── Page navigation with animation ──────────────────────────────────────
@@ -468,14 +485,19 @@ function PdfReader({ book, onClose, onSetPage, onAddBookmark, onRemoveBookmark, 
       )}
 
       {/* CANVAS AREA */}
-      <div style={{ flex:1, position:'relative', background:'#111', display:'flex', alignItems:'center', justifyContent:'center', overflow:'hidden' }}>
+      <div style={{
+        flex:1, position:'relative', background:'#111',
+        display:'flex', alignItems:'center', justifyContent:'center',
+        overflow: scale > 1.05 ? 'auto' : 'hidden',
+        WebkitOverflowScrolling: 'touch',
+      }}>
         <canvas
           key={pageAnimKey}
           ref={canvasRef}
           style={{
             display: status === 'ready' ? 'block' : 'none',
-            maxWidth:'100%', maxHeight:'100%', objectFit:'contain',
             willChange: 'transform, opacity',
+            imageRendering: 'crisp-edges',
             ...canvasAnimStyle,
           }}
         />

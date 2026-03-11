@@ -3,6 +3,8 @@ import { useApp } from '../context/AppContext';
 import { useTheme } from '../context/ThemeContext';
 import { fetchMonthlyTimes, calcMidnight } from '../services/prayerApi';
 import { fmt24, swedishMonthYear } from '../utils/prayerUtils';
+import { generatePrayerPdf } from '../utils/generatePrayerPdf';
+import DownloadIcon from '../icons/download-svgrepo-com.svg';
 
 const COLS = [
   { key:'Fajr',    label:'Fajr'         },
@@ -60,6 +62,10 @@ export default function MonthlyScreen({ onBack }) {
     }}>{label}</button>
   );
 
+  const downloadPdf = useCallback(() => {
+    generatePrayerPdf({ days, location, month, year });
+  }, [days, location, month, year]);
+
   // Column widths — day col + 7 prayer cols
   const DAY_W  = 28;
   const COL_W  = `calc((100% - ${DAY_W}px) / 7)`;
@@ -93,9 +99,25 @@ export default function MonthlyScreen({ onBack }) {
               WebkitTapHighlightColor:'transparent',
             }}>‹</button>
           )}
-          <div style={{ fontSize:20, fontWeight:800, color:T.text, letterSpacing:'-0.3px' }}>
+          <div style={{ fontSize:20, fontWeight:800, color:T.text, letterSpacing:'-0.3px', flex:1 }}>
             Månadsöversikt
           </div>
+          {days.length > 0 && (
+            <button
+              onClick={downloadPdf}
+              style={{
+                display:'flex', alignItems:'center', gap:6,
+                background:T.accent, border:'none', borderRadius:20,
+                padding:'7px 14px', cursor:'pointer',
+                WebkitTapHighlightColor:'transparent',
+              }}
+            >
+              <img src={DownloadIcon} alt="" style={{ width:15, height:15, filter:'brightness(0) invert(1)' }}/>
+              <span style={{ fontSize:12, fontWeight:700, color:'#fff', fontFamily:'system-ui', whiteSpace:'nowrap' }}>
+                Ladda ned PDF
+              </span>
+            </button>
+          )}
         </div>
         <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between' }}>
           {navBtn('‹', prevMonth)}
