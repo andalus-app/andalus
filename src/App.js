@@ -11,6 +11,7 @@ import SvgIcon        from './components/SvgIcon';
 import KabaIcon       from './icons/kaba.svg';
 import PrayerTimesIcon from './icons/prayer-times.svg';
 import { reverseGeocode } from './services/prayerApi';
+import { useYoutubeLive } from './hooks/useYoutubeLive';
 
 function svgColorFilter(isDark) {
   return isDark
@@ -95,6 +96,7 @@ function Shell() {
   const [ebooksReset, setEbooksReset] = useState(0); // bump to reset ebooks to library
   const [showGpsPrompt, setShowGpsPrompt] = useState(false);
   const [gpsLoading, setGpsLoading] = useState(false);
+  const { isLive, stream } = useYoutubeLive();
 
   // Show GPS prompt only if: never shown before AND no cached location
   useEffect(() => {
@@ -149,7 +151,7 @@ function Shell() {
   const renderScreen = () => {
     if (tab === 'prayer' && showMonthly) return <MonthlyScreen onBack={() => setShowMonthly(false)} />;
     switch (tab) {
-      case 'home':     return <NewHomeScreen />;
+      case 'home':     return <NewHomeScreen stream={stream} />;
       case 'prayer':   return <PrayerScreen onMonthlyPress={() => setShowMonthly(true)} />;
       case 'qibla':    return <QiblaScreen />;
       case 'ebooks':
@@ -224,6 +226,7 @@ function Shell() {
         zIndex: 200,
         transition: 'transform 0.35s cubic-bezier(0.4, 0, 0.2, 1)',
       }}>
+        <style>{`@keyframes liveDot{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.5;transform:scale(.7)}}`}</style>
         {TABS.map(t => {
           const active = tab === t.id;
           return (
@@ -254,12 +257,23 @@ function Shell() {
                   }}
                 />
               ) : (
-                <SvgIcon
-                  name={t.iconName}
-                  size={22}
-                  color={active ? T.accent : T.textMuted}
-                  style={{ opacity: active ? 1 : 0.45, transition: 'all .2s' }}
-                />
+                <div style={{ position: 'relative', display: 'inline-flex' }}>
+                  <SvgIcon
+                    name={t.iconName}
+                    size={22}
+                    color={active ? T.accent : T.textMuted}
+                    style={{ opacity: active ? 1 : 0.45, transition: 'all .2s' }}
+                  />
+                  {t.id === 'home' && isLive && (
+                    <div style={{
+                      position: 'absolute', top: -2, right: -3,
+                      width: 8, height: 8, borderRadius: '50%',
+                      background: '#FF0000',
+                      border: `1.5px solid ${T.isDark ? 'rgba(18,18,18,0.9)' : 'rgba(245,248,247,0.9)'}`,
+                      animation: 'liveDot 1.4s ease-in-out infinite',
+                    }} />
+                  )}
+                </div>
               )}
               <span style={{
                 fontSize: 9, fontWeight: active ? 700 : 500,
