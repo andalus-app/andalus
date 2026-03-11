@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useReducer, useEffect } from 'react';
+import React, { createContext, useContext, useReducer, useEffect, useMemo } from 'react';
 
 const AppContext = createContext(null);
 
@@ -59,8 +59,9 @@ export function AppProvider({ children }) {
     }));
   }, [state.location, state.settings]);
 
+  const contextValue = useMemo(() => ({ ...state, dispatch }), [state, dispatch]);
   return (
-    <AppContext.Provider value={{ ...state, dispatch }}>
+    <AppContext.Provider value={contextValue}>
       {children}
     </AppContext.Provider>
   );

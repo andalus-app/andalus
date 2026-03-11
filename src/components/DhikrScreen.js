@@ -1,7 +1,16 @@
 import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import { useTheme } from '../context/ThemeContext';
 import rawData from '../data/dhikr.json';
-// (icon imports removed — all icons are now inline SVG)
+// Category icons — uploaded SVG files
+import IkonMorgon      from '../icons/morgon-kvall.svg';
+import IkonBonen       from '../icons/bonen.svg';
+import IkonDagligt     from '../icons/dagligt-liv.svg';
+import IkonSvarigheter from '../icons/svarigheter-och-skydd.svg';
+import IkonSomn        from '../icons/somn.svg';
+import IkonResa        from '../icons/resa.svg';
+import IkonPilgrim     from '../icons/pilgrimsfard.svg';
+import IkonBegravning  from '../icons/sjukdom-begravning.svg';
+import IkonOvrigt      from '../icons/familj-och-ovrigt.svg';
 
 // ─────────────────────────────────────────────────────────────
 // DATA: Group raw categories into 9 visual super-groups
@@ -166,7 +175,7 @@ function AudioPlayer({ url, T }) {
 // ─────────────────────────────────────────────────────────────
 // DHIKR DETAIL CARD
 // ─────────────────────────────────────────────────────────────
-function DhikrCard({ d, T, favorites, bookmarks, onToggleFav, onToggleBm }) {
+function DhikrCard({ d, T, favorites, bookmarks, onToggleFav, onToggleBm, onGoToCat }) {
   const tabs = [
     d.arabisk_text && {id:'ara', label:'عربي'},
     d.svensk_text && {id:'swe', label:'Svenska'},
@@ -185,11 +194,15 @@ function DhikrCard({ d, T, favorites, bookmarks, onToggleFav, onToggleBm }) {
       <div style={{display:'flex', alignItems:'flex-start', gap:10, marginBottom:12}}>
         <div style={{flex:1}}>
           <div style={{fontSize:17, fontWeight:700, color:T.text, lineHeight:1.4, fontFamily:'system-ui'}}>{d.titel}</div>
-          {/* Breadcrumb */}
+          {/* Breadcrumb — båda klickbara */}
           <div style={{display:'flex', alignItems:'center', gap:4, marginTop:5, flexWrap:'wrap'}}>
-            <span style={{fontSize:10, color:T.accent, fontFamily:'system-ui', fontWeight:600, background:T.isDark?'rgba(36,100,93,.2)':'rgba(36,100,93,.1)', padding:'2px 8px', borderRadius:20}}>{d._kategori}</span>
+            <button onClick={() => onGoToCat && onGoToCat(d._kategori, null)} style={{background:T.isDark?'rgba(36,100,93,.2)':'rgba(36,100,93,.1)', border:'none', cursor:'pointer', padding:'2px 8px', borderRadius:20, WebkitTapHighlightColor:'transparent', lineHeight:1.4}}>
+              <span style={{fontSize:10, color:T.accent, fontFamily:'system-ui', fontWeight:600}}>{d._kategori}</span>
+            </button>
             <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke={T.textMuted} strokeWidth="2.5" strokeLinecap="round"><path d="M9 18l6-6-6-6"/></svg>
-            <span style={{fontSize:10, color:T.textMuted, fontFamily:'system-ui', fontWeight:500, background:T.isDark?'rgba(255,255,255,.06)':'rgba(0,0,0,.05)', padding:'2px 8px', borderRadius:20}}>{d._undersida}</span>
+            <button onClick={() => onGoToCat && onGoToCat(d._kategori, d._undersida)} style={{background:T.isDark?'rgba(255,255,255,.06)':'rgba(0,0,0,.05)', border:'none', cursor:'pointer', padding:'2px 8px', borderRadius:20, WebkitTapHighlightColor:'transparent', lineHeight:1.4}}>
+              <span style={{fontSize:10, color:T.textMuted, fontFamily:'system-ui', fontWeight:500}}>{d._undersida}</span>
+            </button>
           </div>
         </div>
         <button onClick={() => onToggleFav(key)} style={{background:'none',border:'none',cursor:'pointer',padding:6,WebkitTapHighlightColor:'transparent',flexShrink:0}}>
@@ -282,153 +295,28 @@ function iconFilter(isDark) {
 }
 
 // Alla ikoner inline — pixel-perfekta kopior av referensbildernas stil
-const FILE_ICONS = {};
-
-const INLINE_ICONS = {
-
-  // ── Morgon & Kväll: Daily Dhikr — pärlband (bild 2, överst) ──────────────
-  morgon: (c, s) => (
-    <svg width={s} height={s} viewBox="0 0 24 24" fill="none" stroke={c} strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round">
-      {/* Pärlcirkel */}
-      <circle cx="12"  cy="2.8"  r="1.15"/>
-      <circle cx="16.5" cy="4.2"  r="1.15"/>
-      <circle cx="19.7" cy="7.5"  r="1.15"/>
-      <circle cx="21"  cy="12"   r="1.15"/>
-      <circle cx="19.7" cy="16.5" r="1.15"/>
-      <circle cx="16.5" cy="19.8" r="1.15"/>
-      <circle cx="12"  cy="21.2" r="1.15"/>
-      <circle cx="7.5" cy="19.8" r="1.15"/>
-      <circle cx="4.3" cy="16.5" r="1.15"/>
-      <circle cx="3"   cy="12"   r="1.15"/>
-      <circle cx="4.3" cy="7.5"  r="1.15"/>
-      <circle cx="7.5" cy="4.2"  r="1.15"/>
-      {/* Handtag uppåt */}
-      <line x1="12" y1="4.0" x2="12" y2="7.2" strokeWidth="1.2"/>
-      {/* Stor pärla i mitten av handtaget */}
-      <circle cx="12" cy="9.5" r="2.3"/>
-    </svg>
-  ),
-
-  // ── Bönen: Praying person (bild 3, Prayer) — person i sujood/ruku ────────
-  bonen: (c, s) => (
-    <svg width={s} height={s} viewBox="0 0 24 24" fill="none" stroke={c} strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round">
-      {/* Huvud */}
-      <circle cx="17" cy="4.5" r="1.8"/>
-      {/* Ruku-position: böjd person */}
-      <path d="M19 7c0 0-1 1.5-3 2L9 11"/>
-      <path d="M9 11l-4 2"/>
-      <path d="M9 11l1 5"/>
-      <path d="M10 16l-2 4"/>
-      <path d="M10 16l2 4"/>
-      {/* Mark */}
-      <line x1="2" y1="22" x2="22" y2="22"/>
-    </svg>
-  ),
-
-  // ── Dagligt liv: Home (bild 3) ────────────────────────────────────────────
-  dagligt: (c, s) => (
-    <svg width={s} height={s} viewBox="0 0 24 24" fill="none" stroke={c} strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M3 9.5L12 3l9 6.5V21a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9.5z"/>
-      <path d="M9 22V13h6v9"/>
-      {/* Fönster */}
-      <rect x="10" y="9" width="4" height="3" rx="0.5"/>
-    </svg>
-  ),
-
-  // ── Svårigheter & Skydd: Protection / Shield (bild 2) ────────────────────
-  svarigheter: (c, s) => (
-    <svg width={s} height={s} viewBox="0 0 24 24" fill="none" stroke={c} strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M12 2L4 6v6c0 5.5 3.5 10 8 12 4.5-2 8-6.5 8-12V6L12 2z"/>
-    </svg>
-  ),
-
-  // ── Sömn: Sleeping / Bed (bild 3) ────────────────────────────────────────
-  somn: (c, s) => (
-    <svg width={s} height={s} viewBox="0 0 24 24" fill="none" stroke={c} strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round">
-      {/* Säng */}
-      <path d="M2 19v-7a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v7"/>
-      <line x1="2" y1="19" x2="22" y2="19"/>
-      <line x1="2" y1="12" x2="2" y2="8"/>
-      <line x1="22" y1="12" x2="22" y2="8"/>
-      {/* Ben */}
-      <line x1="4" y1="19" x2="4" y2="22"/>
-      <line x1="20" y1="19" x2="20" y2="22"/>
-      {/* Kudde */}
-      <rect x="5" y="8" width="6" height="4" rx="1"/>
-    </svg>
-  ),
-
-  // ── Resa: Travel / Airplane (bild 3) ─────────────────────────────────────
-  resa: (c, s) => (
-    <svg width={s} height={s} viewBox="0 0 24 24" fill="none" stroke={c} strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M22 16.5H2"/>
-      <path d="M22 19.5H2"/>
-      <path d="M5 16.5V5a2 2 0 0 1 2-2h1l3 7h3l3-7h1a2 2 0 0 1 2 2v11.5"/>
-    </svg>
-  ),
-
-  // ── Pilgrimsfärd: Hajj / Umrah — Kaaba (bild 1) ──────────────────────────
-  pilgrim: (c, s) => (
-    <svg width={s} height={s} viewBox="0 0 24 24" fill="none" stroke={c} strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round">
-      {/* Kaaba-kubform */}
-      <rect x="4" y="8" width="16" height="13" rx="0.5"/>
-      {/* Tak-perspektiv */}
-      <path d="M4 8L12 4l8 4"/>
-      {/* Dörr */}
-      <rect x="9.5" y="15" width="5" height="6"/>
-      {/* Flaggstång */}
-      <line x1="12" y1="4" x2="12" y2="1.5"/>
-      <line x1="12" y1="1.5" x2="15" y2="2.5"/>
-    </svg>
-  ),
-
-  // ── Sjukdom & Begravning: Health/Illness — stetoskop (bild 2) ────────────
-  begravning: (c, s) => (
-    <svg width={s} height={s} viewBox="0 0 24 24" fill="none" stroke={c} strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round">
-      {/* Stetoskop — lur */}
-      <path d="M5 4a2 2 0 0 0-2 2v3a5 5 0 0 0 10 0V6a2 2 0 0 0-2-2"/>
-      <line x1="8" y1="4" x2="8" y2="7"/>
-      <line x1="11" y1="4" x2="11" y2="7"/>
-      {/* Slang */}
-      <path d="M8 14a7 7 0 0 0 7 7"/>
-      {/* Öronbit */}
-      <circle cx="16" cy="21" r="2"/>
-      <line x1="18" y1="21" x2="20" y2="19"/>
-      <circle cx="20.5" cy="18.5" r="1"/>
-    </svg>
-  ),
-
-  // ── Familj & Övrigt: Family (bild 2) ─────────────────────────────────────
-  ovrigt: (c, s) => (
-    <svg width={s} height={s} viewBox="0 0 24 24" fill="none" stroke={c} strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round">
-      {/* Vuxen man */}
-      <circle cx="7" cy="5" r="2"/>
-      <path d="M4 22v-5a3 3 0 0 1 6 0v5"/>
-      {/* Vuxen kvinna */}
-      <circle cx="17" cy="5" r="2"/>
-      <path d="M14 22v-5a3 3 0 0 1 6 0v5"/>
-      {/* Barn i mitten */}
-      <circle cx="12" cy="8" r="1.5"/>
-      <path d="M10 22v-4a2 2 0 0 1 4 0v4"/>
-    </svg>
-  ),
+// Alla kategoriikoner mappade till importerade SVG-filer
+const CATEGORY_ICONS = {
+  morgon:      IkonMorgon,
+  bonen:       IkonBonen,
+  dagligt:     IkonDagligt,
+  svarigheter: IkonSvarigheter,
+  somn:        IkonSomn,
+  resa:        IkonResa,
+  pilgrim:     IkonPilgrim,
+  begravning:  IkonBegravning,
+  ovrigt:      IkonOvrigt,
 };
 
-// Renderar rätt ikon beroende på om det är fil eller inline
+// Renderar kategoriikon — alltid fil-baserad, färgas med CSS filter
 function CategoryIcon({ id, namn, size, filter }) {
-  if (FILE_ICONS[id]) {
-    return (
-      <img src={FILE_ICONS[id]} alt={namn}
-        style={{ width: size, height: size, objectFit: 'contain', filter }}
-      />
-    );
-  }
-  if (INLINE_ICONS[id]) {
-    // Inline-SVG: extrahera färg från filter-strängen — använd accent direkt via currentColor trick
-    // Vi skickar in färgen via style på wrappern
-    return INLINE_ICONS[id]('currentColor', size);
-  }
-  return null;
+  const src = CATEGORY_ICONS[id];
+  if (!src) return null;
+  return (
+    <img src={src} alt={namn}
+      style={{ width: size, height: size, objectFit: 'contain', filter }}
+    />
+  );
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -586,6 +474,17 @@ function AccordionPanel({ us, onSelectDhikr, favorites, bookmarks, T, isOpen }) 
 function CatDetail({ g, onSelectDhikr, favorites, bookmarks, T }) {
   const [openIdx, setOpenIdx] = useState(null);
   const toggle = (i) => setOpenIdx(prev => prev === i ? null : i);
+
+  // Lyssna på openUndersida-event från breadcrumb-klick
+  useEffect(() => {
+    const handler = (e) => {
+      const titel = e.detail;
+      const idx = g.undersidor.findIndex(us => us.titel === titel);
+      if (idx !== -1) setOpenIdx(idx);
+    };
+    window.addEventListener('openUndersida', handler);
+    return () => window.removeEventListener('openUndersida', handler);
+  }, [g.undersidor]);
 
   return (
     <div style={{paddingBottom:32}}>
@@ -769,7 +668,9 @@ function SearchView({ query, onSelectDhikr, onSelectGrupp, T }) {
                 background:'none', border:'none', borderBottom:`1px solid ${T.border}`,
                 padding:'12px 16px', cursor:'pointer', textAlign:'left', WebkitTapHighlightColor:'transparent',
               }}>
-                <div style={{width:36,height:36,borderRadius:10,flexShrink:0,background:`linear-gradient(135deg,${g.gradient[0]},${g.gradient[1]})`,display:'flex',alignItems:'center',justifyContent:'center',fontSize:18}}>{g.emoji}</div>
+                <div style={{width:36,height:36,borderRadius:10,flexShrink:0,background:T.isDark?'rgba(36,100,93,.20)':'rgba(36,100,93,.10)',display:'flex',alignItems:'center',justifyContent:'center'}}>
+                  <CategoryIcon id={g.id} namn={g.namn} size={22} filter={iconFilter(T.isDark)} />
+                </div>
                 <div style={{flex:1}}>
                   <div style={{fontSize:14,fontWeight:700,color:T.text,fontFamily:'system-ui'}}>{g.namn}</div>
                   <div style={{fontSize:11,color:T.textMuted,fontFamily:'system-ui'}}>{cnt} dhikr</div>
@@ -1005,7 +906,25 @@ export default function DhikrScreen({ onBack }) {
         {/* DHIKR DETAIL */}
         {view==='dhikr' && selDhikr && (
           <div style={{padding:'16px 14px 48px', animation:'dhFade .2s ease both'}}>
-            <DhikrCard d={selDhikr} T={T} favorites={favorites} bookmarks={bookmarks} onToggleFav={toggleFav} onToggleBm={toggleBm}/>
+            <DhikrCard d={selDhikr} T={T} favorites={favorites} bookmarks={bookmarks} onToggleFav={toggleFav} onToggleBm={toggleBm}
+              onGoToCat={(kategoriNamn, undersidaTitel) => {
+                const grupp = GRUPPER.find(g =>
+                  g.undersidor.some(us => us.dhikr_poster.some(dp => dp._kategori === kategoriNamn))
+                );
+                if (grupp) {
+                  setSelGrupp(grupp);
+                  setView('cat');
+                  setSelDhikr(null);
+                  scrollTop();
+                  // Om undersida angavs: öppna den sektionen direkt via event
+                  if (undersidaTitel) {
+                    setTimeout(() => {
+                      window.dispatchEvent(new CustomEvent('openUndersida', { detail: undersidaTitel }));
+                    }, 80);
+                  }
+                }
+              }}
+            />
           </div>
         )}
       </div>

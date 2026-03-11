@@ -6,7 +6,13 @@ import { searchCity, reverseGeocode } from '../services/prayerApi';
 import SvgIcon from './SvgIcon';
 
 // ── Standalone modal — defined OUTSIDE component so React never remounts it ──
-function ModalSheet({ title, onClose, children, T }) {
+function ModalSheet({ title, onClose, children, T, topContent }) {
+  // Lock body scroll when open
+  useEffect(() => {
+    document.body.style.overflow = 'hidden';
+    return () => { document.body.style.overflow = ''; };
+  }, []);
+
   return (
     <div
       style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.65)', zIndex:9999,
@@ -16,22 +22,36 @@ function ModalSheet({ title, onClose, children, T }) {
     >
       <div style={{
         background:T.bgSecondary, borderRadius:'22px 22px 0 0', width:'100%', maxWidth:500,
-        padding:'18px 18px max(48px,env(safe-area-inset-bottom))', maxHeight:'88vh', overflowY:'auto',
+        /* Fixed height — never jumps */
+        height:'72dvh', display:'flex', flexDirection:'column',
         animation:'fadeUp .25s ease both',
       }}
         onMouseDown={e => e.stopPropagation()}
         onTouchStart={e => e.stopPropagation()}
       >
-        <div style={{ width:36, height:4, borderRadius:2, background:T.border, margin:'0 auto 16px' }}/>
-        <div style={{ fontSize:19, fontWeight:700, color:T.text, marginBottom:14,
-          fontFamily:"'Inter',system-ui,sans-serif" }}>{title}</div>
-        {children}
-        <button onClick={onClose} style={{
-          width:'100%', padding:'14px', borderRadius:12, border:`1px solid ${T.border}`,
-          background:'none', color:T.textMuted, fontSize:15, fontWeight:600, cursor:'pointer',
-          marginTop:14, fontFamily:"'Inter',system-ui,sans-serif",
-          WebkitTapHighlightColor:'transparent',
-        }}>Avbryt</button>
+        {/* Handle */}
+        <div style={{ flexShrink:0, padding:'14px 18px 0' }}>
+          <div style={{ width:36, height:4, borderRadius:2, background:T.border, margin:'0 auto 14px' }}/>
+          <div style={{ fontSize:19, fontWeight:700, color:T.text, marginBottom:12,
+            fontFamily:"'Inter',system-ui,sans-serif" }}>{title}</div>
+          {/* Sticky top content (search input etc) */}
+          {topContent && (
+            <div style={{ marginBottom:8 }}>{topContent}</div>
+          )}
+        </div>
+        {/* Scrollable content */}
+        <div style={{ flex:1, overflowY:'auto', WebkitOverflowScrolling:'touch', padding:'0 18px' }}>
+          {children}
+        </div>
+        {/* Avbryt */}
+        <div style={{ flexShrink:0, padding:'10px 18px max(20px,env(safe-area-inset-bottom))' }}>
+          <button onClick={onClose} style={{
+            width:'100%', padding:'14px', borderRadius:12, border:`1px solid ${T.border}`,
+            background:'none', color:T.textMuted, fontSize:15, fontWeight:600, cursor:'pointer',
+            fontFamily:"'Inter',system-ui,sans-serif",
+            WebkitTapHighlightColor:'transparent',
+          }}>Avbryt</button>
+        </div>
       </div>
     </div>
   );
@@ -237,21 +257,27 @@ export default function SettingsScreen({ onBack }) {
 
       {cityModal && (
         <ModalSheet T={T} title="Byt stad"
-          onClose={() => { setCityModal(false); setQuery(''); setResults([]); }}>
-          <div style={{ display:'flex', gap:8, marginBottom:10 }}>
-            <input value={query} onChange={e => setQuery(e.target.value)}
-              onKeyDown={e => e.key==='Enter' && doSearch()}
-              placeholder="Sök stad…" autoFocus
-              style={{ flex:1, padding:'12px 14px', borderRadius:10,
-                border:`1px solid ${T.border}`, background:T.card, color:T.text,
-                fontSize:15, fontFamily:"'Inter',system-ui,sans-serif",
-                outline:'none' }}/>
-            {searching && (
-            <div style={{display:'flex',alignItems:'center',justifyContent:'center',width:42,flexShrink:0}}>
-              <div style={{width:18,height:18,borderRadius:'50%',border:`2px solid ${T.border}`,borderTopColor:T.accent,animation:'spin .7s linear infinite'}}/>
+          onClose={() => { setCityModal(false); setQuery(''); setResults([]); }}
+          topContent={
+            <div style={{ display:'flex', alignItems:'center', gap:8 }}>
+              <input value={query} onChange={e => setQuery(e.target.value)}
+                onKeyDown={e => e.key==='Enter' && doSearch()}
+                placeholder="Sök stad…" autoFocus
+                style={{ flex:1, padding:'12px 14px', borderRadius:10,
+                  border:`1px solid ${T.border}`, background:T.card, color:T.text,
+                  fontSize:15, fontFamily:"'Inter',system-ui,sans-serif",
+                  outline:'none' }}/>
+              {searching && (
+                <div style={{width:18,height:18,flexShrink:0,borderRadius:'50%',border:`2px solid ${T.border}`,borderTopColor:T.accent,animation:'spin .7s linear infinite'}}/>
+              )}
+            </div>
+          }
+        >
+          {results.length === 0 && !searching && query.trim().length > 0 && (
+            <div style={{ padding:'20px 0', textAlign:'center', color:T.textMuted, fontSize:14, fontFamily:"'Inter',system-ui,sans-serif" }}>
+              Inga träffar för "{query}"
             </div>
           )}
-          </div>
           {results.map((r, i) => (
             <div key={i} onClick={() => selectCity(r)}
               style={{ padding:'12px 4px', borderBottom:`1px solid ${T.border}`, cursor:'pointer' }}>

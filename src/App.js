@@ -15,8 +15,7 @@ import MoreScreen        from './components/MoreScreen';
 import MoreAppIcon       from './icons/more-app-svgrepo-com.svg';
 import { useYoutubeLive } from './hooks/useYoutubeLive';
 
-// Dhikr tab icon — inline SVG as data URI (rosary beads)
-const DhikrDailyIcon = `data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'><circle cx='12' cy='2.5' r='1.2'/><circle cx='16.2' cy='3.9' r='1.2'/><circle cx='19.5' cy='7.2' r='1.2'/><circle cx='21' cy='11.5' r='1.2'/><circle cx='19.5' cy='15.8' r='1.2'/><circle cx='16.2' cy='19.1' r='1.2'/><circle cx='12' cy='21' r='1.2'/><circle cx='7.8' cy='19.1' r='1.2'/><circle cx='4.5' cy='15.8' r='1.2'/><circle cx='3' cy='11.5' r='1.2'/><circle cx='4.5' cy='7.2' r='1.2'/><circle cx='7.8' cy='3.9' r='1.2'/><line x1='12' y1='3.8' x2='12' y2='6.2' stroke-width='1.2'/><circle cx='12' cy='8.5' r='2.4'/></svg>`;
+import DhikrMenuIcon     from './icons/dhikr-tab.svg';
 
 function svgColorFilter(isDark) {
   return isDark
@@ -98,11 +97,19 @@ function Shell() {
   const [tab, setTab]               = useState('home');
   const [showMonthly, setShowMonthly] = useState(false);
   const [tabBarVisible, setTabBarVisible] = useState(true);
-  const [ebooksReset, setEbooksReset] = useState(0); // bump to reset ebooks to library
-  const [moreResetKey, setMoreResetKey]   = useState(0); // bump to reset MoreScreen to menu
+  const [ebooksReset, setEbooksReset] = useState(0);
+  const [moreResetKey, setMoreResetKey]   = useState(0);
   const [showGpsPrompt, setShowGpsPrompt] = useState(false);
   const [gpsLoading, setGpsLoading] = useState(false);
+  const scrollContainerRef = useRef(null);
   const { isLive, stream } = useYoutubeLive();
+
+  // Reset scroll to top when tab or monthly view changes
+  useEffect(() => {
+    if (scrollContainerRef.current) {
+      scrollContainerRef.current.scrollTop = 0;
+    }
+  }, [tab, showMonthly]);
 
   // Show GPS prompt only if: never shown before AND no cached location
   useEffect(() => {
@@ -221,7 +228,7 @@ function Shell() {
         </div>
       )}
 
-      <div key={tab + (showMonthly ? '-monthly' : '')} style={{
+      <div ref={scrollContainerRef} style={{
         flex: 1, overflowY: 'auto', overflowX: 'hidden',
         WebkitOverflowScrolling: 'touch',
         paddingBottom: tabBarVisible ? 90 : 0,
@@ -272,7 +279,7 @@ function Shell() {
             >
               {t.type === 'custom' ? (
                 <img
-                  src={t.icon === 'kaba' ? KabaIcon : t.icon === 'dhikr' ? DhikrDailyIcon : t.icon === 'more' ? MoreAppIcon : PrayerTimesIcon}
+                  src={t.icon === 'kaba' ? KabaIcon : t.icon === 'dhikr' ? DhikrMenuIcon : t.icon === 'more' ? MoreAppIcon : PrayerTimesIcon}
                   alt={t.label}
                   style={{
                     width: 24, height: 24, objectFit: 'contain',

@@ -24,17 +24,52 @@ function loadPdfJs() {
   return loadPromise;
 }
 
-// Cache rendered covers so we don't re-render on every mount
-const coverCache = {};
+// ── Cache version — bump this number to invalidate ALL cached thumbnails ──
+// e.g. when a PDF file is replaced or cover quality needs refresh
+const COVER_CACHE_VERSION = 2;
+
+// ── Cache: in-memory (session) + localStorage (persistent) ────────────────
+// Cache key includes pdfPath so if the file changes (new upload), cache busts
+const MEM_CACHE = {};
+
+function getCacheKey(bookId, pdfPath) {
+  // Simple hash: bookId + last segment of path (filename) + version
+  const fileName = pdfPath.split('/').pop();
+  return `pdfcover_v${COVER_CACHE_VERSION}_${bookId}_${fileName}`;
+}
+
+function loadFromStorage(key) {
+  try { return localStorage.getItem(key); } catch { return null; }
+}
+
+function saveToStorage(key, dataUrl) {
+  try { localStorage.setItem(key, dataUrl); } catch {
+    // localStorage full — clear old covers and try again
+    try {
+      Object.keys(localStorage)
+        .filter(k => k.startsWith('pdfcover_'))
+        .forEach(k => localStorage.removeItem(k));
+      localStorage.setItem(key, dataUrl);
+    } catch { /* ignore */ }
+  }
+}
 
 export default function PdfCover({ pdfPath, bookId, width, height, fallback, style }) {
-  const canvasRef = useRef(null);
-  const [status, setStatus] = useState(coverCache[bookId] ? 'done' : 'loading');
-  const [dataUrl, setDataUrl] = useState(coverCache[bookId] || null);
+  const cacheKey = getCacheKey(bookId, pdfPath);
+
+  // Check memory cache first, then localStorage
+  const initialUrl = MEM_CACHE[cacheKey] || loadFromStorage(cacheKey);
+
+  const [status, setStatus] = useState(initialUrl ? 'done' : 'loading');
+  const [dataUrl, setDataUrl] = useState(initialUrl || null);
 
   useEffect(() => {
-    if (coverCache[bookId]) {
-      setDataUrl(coverCache[bookId]);
+    if (MEM_CACHE[cacheKey]) return; // already in memory
+
+    const stored = loadFromStorage(cacheKey);
+    if (stored) {
+      MEM_CACHE[cacheKey] = stored;
+      setDataUrl(stored);
       setStatus('done');
       return;
     }
@@ -48,7 +83,6 @@ export default function PdfCover({ pdfPath, bookId, width, height, fallback, sty
         const page = await pdf.getPage(1);
 
         const viewport = page.getViewport({ scale: 1 });
-        // Scale to fit our target size
         const scale = Math.max(width / viewport.width, height / viewport.height) * window.devicePixelRatio;
         const scaledViewport = page.getViewport({ scale });
 
@@ -60,8 +94,9 @@ export default function PdfCover({ pdfPath, bookId, width, height, fallback, sty
         await page.render({ canvasContext: ctx, viewport: scaledViewport }).promise;
 
         if (!cancelled) {
-          const url = canvas.toDataURL('image/jpeg', 0.85);
-          coverCache[bookId] = url;
+          const url = canvas.toDataURL('image/jpeg', 0.82);
+          MEM_CACHE[cacheKey] = url;
+          saveToStorage(cacheKey, url);
           setDataUrl(url);
           setStatus('done');
         }
@@ -72,7 +107,7 @@ export default function PdfCover({ pdfPath, bookId, width, height, fallback, sty
 
     render();
     return () => { cancelled = true; };
-  }, [pdfPath, bookId, width, height]);
+  }, [cacheKey, pdfPath, bookId, width, height]);
 
   const containerStyle = {
     width,
@@ -96,7 +131,6 @@ export default function PdfCover({ pdfPath, bookId, width, height, fallback, sty
     );
   }
 
-  // Loading or error — show fallback (CSS cover)
   return (
     <div style={containerStyle}>
       {fallback}
