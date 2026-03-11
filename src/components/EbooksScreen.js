@@ -618,7 +618,11 @@ const navBtnStyle = { background:'rgba(255,255,255,.12)', border:'none', borderR
 /* ─────────────────────────────────────────────────────────────
    BOOK DETAIL
 ───────────────────────────────────────────────────────────── */
-function BookDetail({ book, allBooks, onBack, onRead, onToggleFav, T }) {
+function BookDetail({ book, allBooks, onBack, onRead, onToggleFav, onSelectRelated, T }) {
+  const detailRef = useRef(null);
+  useEffect(() => {
+    if (detailRef.current) detailRef.current.scrollTop = 0;
+  }, [book.id]);
   const hasProgress = book.progressPercent > 0 && book.lastReadPage > 1;
   const related = allBooks.filter(b => b.category === book.category && b.id !== book.id && b.available).slice(0, 4);
   // ~1.5 min per page for a PDF e-book (slower than prose)
@@ -630,7 +634,7 @@ function BookDetail({ book, allBooks, onBack, onRead, onToggleFav, T }) {
     : null;
 
   return (
-    <div style={{ background:T.bg, minHeight:'100%', fontFamily:"'Georgia',serif" }}>
+    <div ref={detailRef} style={{ background:T.bg, height:'100%', overflowY:'auto', WebkitOverflowScrolling:'touch', fontFamily:"'Georgia',serif" }}>
       <div style={{ background:`linear-gradient(180deg, ${book.coverColor}dd 0%, ${book.coverColor}44 60%, ${T.bg} 100%)`, paddingBottom:28 }}>
         <div style={{ display:'flex', justifyContent:'space-between', padding:'14px 14px 0', paddingTop:'max(14px,env(safe-area-inset-top))' }}>
           <button onClick={onBack} style={{ background:'rgba(0,0,0,.3)', border:'none', borderRadius:10, padding:'8px 12px', cursor:'pointer', color:'#fff', display:'flex', alignItems:'center', gap:6, WebkitTapHighlightColor:'transparent' }}>
@@ -728,10 +732,10 @@ function BookDetail({ book, allBooks, onBack, onRead, onToggleFav, T }) {
             <SectionLabel label="Fler böcker i kategorin" T={T} />
             <div style={{ display:'flex', gap:12, overflowX:'auto', paddingBottom:4, scrollbarWidth:'none' }}>
               {related.map(b => (
-                <div key={b.id} style={{ flexShrink:0 }}>
+                <button key={b.id} onClick={() => onSelectRelated(b)} style={{ flexShrink:0, background:'none', border:'none', cursor:'pointer', padding:0, textAlign:'left', WebkitTapHighlightColor:'transparent' }}>
                   <Cover book={b} w={70} h={98} T={T} />
                   <div style={{ width:70, fontSize:10, color:T.textMuted, marginTop:4, lineHeight:1.3, fontFamily:'system-ui', overflow:'hidden', display:'-webkit-box', WebkitLineClamp:2, WebkitBoxOrient:'vertical' }}>{b.title}</div>
-                </div>
+                </button>
               ))}
             </div>
           </div>
@@ -930,7 +934,7 @@ function BookRow({ book, onSelect, T, idx }) {
    ROOT SCREEN
    Passes isReaderOpen up so App.js can hide/show the tab bar.
 ───────────────────────────────────────────────────────────── */
-export default function EbooksScreen({ onReaderOpen, onReaderClose, resetToLibrary }) {
+export default function EbooksScreen({ onReaderOpen, onReaderClose, resetToLibrary, onTabBarHide, onTabBarShow }) {
   const { theme: T } = useTheme();
   const { books, toggleFavorite, setLastReadPage, addBookmark, removeBookmark, markOpened } = useBooks();
 
@@ -960,12 +964,14 @@ export default function EbooksScreen({ onReaderOpen, onReaderClose, resetToLibra
     setReaderPage(startPage);
     setView('reader');
     onReaderOpen?.();
+    onTabBarHide?.();
   }, [onReaderOpen]);
 
   const closeReader = useCallback(() => {
     setView('detail');
     setReaderPage(null);
     onReaderClose?.();
+    onTabBarShow?.();
   }, [onReaderClose]);
 
   const readerBook = useMemo(() => {
@@ -995,6 +1001,7 @@ export default function EbooksScreen({ onReaderOpen, onReaderClose, resetToLibra
         onBack={() => setView('library')}
         onRead={(pg) => openReader(pg)}
         onToggleFav={toggleFavorite}
+        onSelectRelated={(b) => { markOpened(b.id); setSelectedId(b.id); }}
         T={T}
       />
     );

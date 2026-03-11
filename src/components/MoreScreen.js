@@ -24,8 +24,9 @@ const MENU_ITEMS = [
     label: 'E-böcker',
     sublabel: 'Islamisk litteratur',
     svgIcon: (accent) => (
-      <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke={accent} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-        <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>
+      <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke={accent} strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M2 6s2-2 5-2 5 2 5 2v14s-2-1-5-1-5 1-5 1V6z"/>
+        <path d="M12 6s2-2 5-2 5 2 5 2v14s-2-1-5-1-5 1-5 1V6z"/>
       </svg>
     ),
     accentColor: '#3A86C8',
@@ -74,8 +75,8 @@ function GridCard({ item, onPress, T }) {
             src={item.imgSrc}
             alt={item.label}
             style={{
-              width: item.id === 'dhikr' ? 42 : 30,
-              height: item.id === 'dhikr' ? 42 : 30,
+              width: 30,
+              height: 30,
               objectFit: 'contain',
               filter: T.isDark
                 ? 'invert(1) opacity(0.85)'
@@ -96,12 +97,12 @@ function GridCard({ item, onPress, T }) {
   );
 }
 
-export default function MoreScreen() {
+export default function MoreScreen({ onTabBarHide, onTabBarShow }) {
   const { theme: T } = useTheme();
   const [view, setView] = useState('menu');
 
   if (view === 'settings') return <SettingsScreen onBack={() => setView('menu')} />;
-  if (view === 'ebooks')   return <EbooksScreen onReaderOpen={() => {}} onReaderClose={() => {}} resetToLibrary={false} onBack={() => setView('menu')} />;
+  if (view === 'ebooks')   return <EbooksScreen onReaderOpen={() => {}} onReaderClose={() => {}} resetToLibrary={false} onTabBarHide={onTabBarHide} onTabBarShow={onTabBarShow} />;
   if (view === 'about')    return <AboutScreen    onBack={() => setView('menu')} />;
 
   return (

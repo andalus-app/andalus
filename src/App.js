@@ -13,7 +13,8 @@ import { reverseGeocode } from './services/prayerApi';
 import DhikrScreen       from './components/DhikrScreen';
 import MoreScreen        from './components/MoreScreen';
 import MoreAppIcon       from './icons/more-app-svgrepo-com.svg';
-import TasbihIcon        from './icons/tasbih.svg';
+// Dhikr tab icon — inline SVG as data URI (rosary beads)
+const DhikrDailyIcon = `data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'><circle cx='12' cy='2.5' r='1.2'/><circle cx='16.2' cy='3.9' r='1.2'/><circle cx='19.5' cy='7.2' r='1.2'/><circle cx='21' cy='11.5' r='1.2'/><circle cx='19.5' cy='15.8' r='1.2'/><circle cx='16.2' cy='19.1' r='1.2'/><circle cx='12' cy='21' r='1.2'/><circle cx='7.8' cy='19.1' r='1.2'/><circle cx='4.5' cy='15.8' r='1.2'/><circle cx='3' cy='11.5' r='1.2'/><circle cx='4.5' cy='7.2' r='1.2'/><circle cx='7.8' cy='3.9' r='1.2'/><line x1='12' y1='3.8' x2='12' y2='6.2' stroke-width='1.2'/><circle cx='12' cy='8.5' r='2.4'/></svg>`;
 import { useYoutubeLive } from './hooks/useYoutubeLive';
 
 function svgColorFilter(isDark) {
@@ -162,13 +163,35 @@ function Shell() {
       case 'prayer':   return <PrayerScreen onMonthlyPress={() => setShowMonthly(true)} />;
       case 'qibla':    return <QiblaScreen />;
       case 'dhikr':   return <DhikrScreen />;
-      case 'more':     return <MoreScreen key={moreResetKey} />;
+      case 'more':     return <MoreScreen key={moreResetKey} onTabBarHide={() => setTabBarVisible(false)} onTabBarShow={() => setTabBarVisible(true)} />;
       default:         return <NewHomeScreen />;
     }
   };
 
+  // ── Edge swipe back ─────────────────────────────────
+  const swipeRef = useRef(null);
+  const handleTouchStart = useCallback((e) => {
+    const t = e.touches[0];
+    if (t.clientX < 28) swipeRef.current = { x: t.clientX, y: t.clientY };
+    else swipeRef.current = null;
+  }, []);
+  const handleTouchEnd = useCallback((e) => {
+    if (!swipeRef.current) return;
+    const t = e.changedTouches[0];
+    const dx = t.clientX - swipeRef.current.x;
+    const dy = Math.abs(t.clientY - swipeRef.current.y);
+    if (dx > 60 && dy < 80) {
+      // Trigger back — dispatch a custom event that child components can listen to
+      window.dispatchEvent(new CustomEvent('edgeSwipeBack'));
+    }
+    swipeRef.current = null;
+  }, []);
+
   return (
-    <div style={{
+    <div
+      onTouchStart={handleTouchStart}
+      onTouchEnd={handleTouchEnd}
+      style={{
       height: '100dvh', width: '100vw',
       background: T.bg,
       display: 'flex', flexDirection: 'column',
@@ -248,7 +271,7 @@ function Shell() {
             >
               {t.type === 'custom' ? (
                 <img
-                  src={t.icon === 'kaba' ? KabaIcon : t.icon === 'dhikr' ? TasbihIcon : t.icon === 'more' ? MoreAppIcon : PrayerTimesIcon}
+                  src={t.icon === 'kaba' ? KabaIcon : t.icon === 'dhikr' ? DhikrDailyIcon : t.icon === 'more' ? MoreAppIcon : PrayerTimesIcon}
                   alt={t.label}
                   style={{
                     width: 24, height: 24, objectFit: 'contain',

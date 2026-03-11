@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
 import { useTheme } from '../context/ThemeContext';
 import { CALC_METHODS } from '../utils/prayerUtils';
@@ -9,14 +9,14 @@ import SvgIcon from './SvgIcon';
 function ModalSheet({ title, onClose, children, T }) {
   return (
     <div
-      style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.65)', zIndex:1000,
+      style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.65)', zIndex:9999,
         display:'flex', alignItems:'flex-end', justifyContent:'center' }}
       onMouseDown={e => { if (e.target === e.currentTarget) onClose(); }}
       onTouchStart={e => { if (e.target === e.currentTarget) onClose(); }}
     >
       <div style={{
         background:T.bgSecondary, borderRadius:'22px 22px 0 0', width:'100%', maxWidth:500,
-        padding:'18px 18px 48px', maxHeight:'82vh', overflowY:'auto',
+        padding:'18px 18px max(48px,env(safe-area-inset-bottom))', maxHeight:'88vh', overflowY:'auto',
         animation:'fadeUp .25s ease both',
       }}
         onMouseDown={e => e.stopPropagation()}
@@ -49,13 +49,20 @@ export default function SettingsScreen({ onBack }) {
   const [searching,   setSearching]   = useState(false);
   const [detecting,   setDetecting]   = useState(false);
 
-  const doSearch = async () => {
-    if (!query.trim()) return;
+  const doSearch = async (q = query) => {
+    if (!q.trim()) { setResults([]); return; }
     setSearching(true);
-    try { setResults(await searchCity(query)); }
+    try { setResults(await searchCity(q)); }
     catch { setResults([]); }
     finally { setSearching(false); }
   };
+
+  // Instant search as user types — debounced 350ms
+  useEffect(() => {
+    if (!query.trim()) { setResults([]); return; }
+    const timer = setTimeout(() => doSearch(query), 350);
+    return () => clearTimeout(timer);
+  }, [query]); // eslint-disable-line
 
   const detectLocation = () => {
     if (!navigator.geolocation) return alert('Platsåtkomst ej tillgänglig');
@@ -239,12 +246,11 @@ export default function SettingsScreen({ onBack }) {
                 border:`1px solid ${T.border}`, background:T.card, color:T.text,
                 fontSize:15, fontFamily:"'Inter',system-ui,sans-serif",
                 outline:'none' }}/>
-            <button onClick={doSearch} style={{
-              padding:'12px 18px', borderRadius:10, background:T.accent,
-              color:'#fff', fontSize:15, fontWeight:700,
-              border:'none', cursor:'pointer' }}>
-              {searching ? '…' : '🔍'}
-            </button>
+            {searching && (
+            <div style={{display:'flex',alignItems:'center',justifyContent:'center',width:42,flexShrink:0}}>
+              <div style={{width:18,height:18,borderRadius:'50%',border:`2px solid ${T.border}`,borderTopColor:T.accent,animation:'spin .7s linear infinite'}}/>
+            </div>
+          )}
           </div>
           {results.map((r, i) => (
             <div key={i} onClick={() => selectCity(r)}
