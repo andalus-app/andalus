@@ -136,6 +136,19 @@ function SupportScreen({ onBack, T }) {
         <span style={{ fontSize: 18, fontWeight: 700, color: T.text }}>Stöd oss</span>
       </div>
 
+      {/* Intro text */}
+      <div style={{ padding: '24px 20px 8px', textAlign: 'center' }}>
+        <h2 style={{ fontSize: 22, fontWeight: 800, color: T.text, margin: '0 0 12px', letterSpacing: '-.3px' }}>
+          Stöd oss
+        </h2>
+        <p style={{ fontSize: 15, color: T.textMuted, lineHeight: 1.7, margin: '0 0 10px' }}>
+          Var med och sprid gott genom att bli månadsgivare eller donera en gåva.
+        </p>
+        <p style={{ fontSize: 14, color: T.textMuted, lineHeight: 1.7, margin: 0 }}>
+          Kom ihåg att du belönas för det arbete vi kan utföra tack vare ditt bidrag! Profeten (ﷺ) sade: <em>"Den som vägleder till gott får samma belöning som den som utför handlingen"</em>. [Muslim]
+        </p>
+      </div>
+
       {/* Payment methods */}
       <div style={{ flex: 1, overflowY: 'auto', paddingBottom: 32 }}>
         <div style={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: 18, margin: '20px 16px', overflow: 'hidden' }}>
