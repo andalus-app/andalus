@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { useTheme } from '../context/ThemeContext';
 import IslamNuLogoTeal from '../icons/islamnu-logga-light.svg';
 
@@ -19,6 +19,14 @@ const SECTIONS = [
 
 export default function AboutScreen({ onBack }) {
   const { theme: T } = useTheme();
+
+  useEffect(() => {
+    if (!onBack) return;
+    const handler = () => onBack();
+    window.addEventListener('edgeSwipeBack', handler);
+    return () => window.removeEventListener('edgeSwipeBack', handler);
+  }, [onBack]);
+
   return (
     <div style={{ background: T.bg, minHeight: '100%', fontFamily: 'system-ui, sans-serif' }}>
       {/* Header */}

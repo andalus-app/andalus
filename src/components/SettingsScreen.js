@@ -71,6 +71,14 @@ export default function SettingsScreen({ onBack }) {
   const [searching,   setSearching]   = useState(false);
   const [detecting,   setDetecting]   = useState(false);
 
+  // Edge swipe back
+  useEffect(() => {
+    if (!onBack) return;
+    const handler = () => onBack();
+    window.addEventListener('edgeSwipeBack', handler);
+    return () => window.removeEventListener('edgeSwipeBack', handler);
+  }, [onBack]);
+
   const doSearch = async (q = query) => {
     if (!q.trim()) { setResults([]); return; }
     setSearching(true);
