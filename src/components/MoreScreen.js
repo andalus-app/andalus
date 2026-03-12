@@ -5,6 +5,8 @@ import AboutScreen from './AboutScreen';
 import EbooksScreen from './EbooksScreen';
 import AboutIcon from '../icons/about-svgrepo-com.svg';
 import CharityIcon from '../icons/charity-svgrepo-com.svg';
+import SwishLogo from '../icons/swish-logo.svg';
+import BankgirotLogo from '../icons/bankgirot-logo.svg';
 
 const MENU_ITEMS = [
   {
@@ -183,20 +185,7 @@ function SupportScreen({ onBack, T }) {
 
           {/* Swish */}
           <PaymentBlock>
-            {/* Swish logo inline */}
-            <svg width="90" height="30" viewBox="0 0 90 30" xmlns="http://www.w3.org/2000/svg">
-              <defs>
-                <linearGradient id="sg" x1="0%" y1="0%" x2="100%" y2="100%">
-                  <stop offset="0%" stopColor="#F8A01E"/>
-                  <stop offset="50%" stopColor="#E9417A"/>
-                  <stop offset="100%" stopColor="#8B45B6"/>
-                </linearGradient>
-              </defs>
-              <path d="M15 4 C8 4 4 9 4 15 C4 21 8 26 15 26 C18 26 20.5 25 22.5 23.2 C20 21.5 18.5 19 18.5 16 C18.5 12 21 9.5 24 9.5 C25 9.5 26 9.8 26.8 10.3 C25.2 6.7 20.5 4 15 4Z" fill="url(#sg)"/>
-              <path d="M24 9.5 C21 9.5 18.5 12 18.5 16 C18.5 19 20 21.5 22.5 23.2 C24.2 21.8 26 19 26 15.5 C26 13 25.2 11 24 9.5Z" fill="url(#sg)" opacity="0.7"/>
-              <text x="32" y="20" fontFamily="system-ui, -apple-system, sans-serif" fontSize="15" fontWeight="700" fill={T.isDark ? '#fff' : '#1a1a1a'}>swish</text>
-              <text x="75" y="14" fontFamily="system-ui" fontSize="8" fill={T.isDark ? '#aaa' : '#888'}>®</text>
-            </svg>
+            <img src={SwishLogo} alt="Swish" style={{ height: 40, objectFit: 'contain' }} />
             <a
               href="https://app.swish.nu/1/p/sw/?sw=1236433940&msg=&src=qr"
               target="_blank"
@@ -216,12 +205,7 @@ function SupportScreen({ onBack, T }) {
 
           {/* Bankgirot */}
           <PaymentBlock>
-            {/* Bankgirot logo inline */}
-            <svg width="120" height="28" viewBox="0 0 120 28" xmlns="http://www.w3.org/2000/svg">
-              <rect x="2" y="4" width="22" height="20" rx="3" fill="#C8102E"/>
-              <text x="5" y="19" fontFamily="serif" fontSize="13" fontWeight="900" fill="white">bg</text>
-              <text x="30" y="19" fontFamily="system-ui, -apple-system, sans-serif" fontSize="14" fontWeight="700" fill={T.isDark ? '#fff' : '#1a1a1a'}>bankgirot</text>
-            </svg>
+            <img src={BankgirotLogo} alt="Bankgirot" style={{ height: 36, objectFit: 'contain' }} />
             <span style={{ fontSize: 22, fontWeight: 800, color: T.text, letterSpacing: '1px' }}>
               5323-2344
             </span>
