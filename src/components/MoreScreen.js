@@ -185,7 +185,9 @@ function SupportScreen({ onBack, T }) {
 
           {/* Swish */}
           <PaymentBlock>
-            <img src={SwishLogo} alt="Swish" style={{ height: 40, objectFit: 'contain' }} />
+            <div style={{ background: '#fff', borderRadius: 10, padding: '6px 14px', display: 'inline-flex', alignItems: 'center' }}>
+              <img src={SwishLogo} alt="Swish" style={{ height: 32, objectFit: 'contain' }} />
+            </div>
             <a
               href="https://app.swish.nu/1/p/sw/?sw=1236433940&msg=&src=qr"
               target="_blank"
