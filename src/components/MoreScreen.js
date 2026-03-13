@@ -3,6 +3,7 @@ import { useTheme } from '../context/ThemeContext';
 import SettingsScreen from './SettingsScreen';
 import AboutScreen from './AboutScreen';
 import EbooksScreen from './EbooksScreen';
+import BookingScreen from './BookingScreen';
 import AboutIcon from '../icons/about-svgrepo-com.svg';
 import CharityIcon from '../icons/charity-svgrepo-com.svg';
 import SwishLogo from '../icons/swish-logo.svg';
@@ -20,6 +21,22 @@ const MENU_ITEMS = [
       </svg>
     ),
     accentColor: '#3A86C8',
+  },
+  {
+    id: 'booking',
+    label: 'Boka lokal',
+    sublabel: 'Boka en tid hos oss',
+    svgIcon: (accent) => (
+      <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke={accent} strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
+        <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
+        <line x1="16" y1="2" x2="16" y2="6"/>
+        <line x1="8" y1="2" x2="8" y2="6"/>
+        <line x1="3" y1="10" x2="21" y2="10"/>
+        <line x1="9" y1="15" x2="15" y2="15"/>
+        <line x1="12" y1="12" x2="12" y2="18"/>
+      </svg>
+    ),
+    accentColor: '#2D8B78',
   },
   {
     id: 'support',
@@ -248,6 +265,7 @@ export default function MoreScreen({ onTabBarHide, onTabBarShow }) {
   if (view === 'ebooks')   return <EbooksScreen onReaderOpen={() => {}} onReaderClose={() => {}} resetToLibrary={false} onTabBarHide={onTabBarHide} onTabBarShow={onTabBarShow} onBack={() => setView('menu')} />;
   if (view === 'about')    return <AboutScreen onBack={() => setView('menu')} />;
   if (view === 'support')  return <SupportScreen onBack={() => setView('menu')} T={T} />;
+  if (view === 'booking')  return <BookingScreen onBack={() => setView('menu')} />;
 
   return (
     <div style={{ background: T.bg, minHeight: '100%', fontFamily: 'system-ui, sans-serif' }}>
@@ -277,7 +295,7 @@ export default function MoreScreen({ onTabBarHide, onTabBarShow }) {
         {/* Grid layout */}
         <div style={{
           display: 'grid',
-          gridTemplateColumns: 'repeat(3, 1fr)',
+          gridTemplateColumns: 'repeat(2, 1fr)',
           gap: 10,
         }}>
           {MENU_ITEMS.map(item => (
