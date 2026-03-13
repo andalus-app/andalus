@@ -33,63 +33,21 @@ const TABS = [
 
 const GPS_PROMPT_KEY = 'gps-prompt-shown'; // set to 'done' once user responded
 
-/* ── GPS permission dialog ────────────────────────────────────── */
-function LocationPrompt({ onAllow, onDeny, T }) {
-  return (
-    <div style={{
-      position: 'fixed', inset: 0, zIndex: 9999,
-      background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(6px)',
-      display: 'flex', alignItems: 'flex-end', justifyContent: 'center',
-      padding: '0 16px 32px',
-      animation: 'promptIn .3s cubic-bezier(0.25,0.46,0.45,0.94)',
-    }}>
-      <style>{`@keyframes promptIn{from{opacity:0;transform:translateY(40px)}to{opacity:1;transform:translateY(0)}}`}</style>
-      <div style={{
-        width: '100%', maxWidth: 460,
-        background: T.card, borderRadius: 24,
-        padding: '28px 24px 24px',
-        boxShadow: '0 20px 60px rgba(0,0,0,0.4)',
-        border: `1px solid ${T.border}`,
-      }}>
-        <div style={{ fontSize: 40, textAlign: 'center', marginBottom: 16 }}>📍</div>
-        <h2 style={{
-          fontSize: 19, fontWeight: 800, color: T.text, textAlign: 'center',
-          margin: '0 0 10px', fontFamily: "'Inter', system-ui, sans-serif",
-        }}>Dela din plats</h2>
-        <p style={{
-          fontSize: 14, color: T.textSecondary, textAlign: 'center',
-          lineHeight: 1.65, margin: '0 0 24px',
-          fontFamily: 'system-ui, sans-serif',
-        }}>
-          Appen behöver din plats för att visa korrekta bönetider för din stad.
-          Din plats sparas bara lokalt på din enhet.
-        </p>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-          <button
-            onClick={onAllow}
-            style={{
-              padding: '15px', borderRadius: 14, background: T.accent,
-              color: '#fff', border: 'none', cursor: 'pointer',
-              fontSize: 15, fontWeight: 700,
-              fontFamily: 'system-ui, sans-serif',
-              WebkitTapHighlightColor: 'transparent',
-            }}
-          >Tillåt platsdelning</button>
-          <button
-            onClick={onDeny}
-            style={{
-              padding: '13px', borderRadius: 14, background: 'none',
-              color: T.textMuted, border: `1px solid ${T.border}`,
-              cursor: 'pointer', fontSize: 14, fontWeight: 600,
-              fontFamily: 'system-ui, sans-serif',
-              WebkitTapHighlightColor: 'transparent',
-            }}
-          >Inte nu — välj stad manuellt</button>
-        </div>
-      </div>
-    </div>
-  );
+/* ── Haversine distance (km) between two coordinates ─────────── */
+function haversineKm(lat1, lon1, lat2, lon2) {
+  const R = 6371;
+  const dLat = (lat2 - lat1) * Math.PI / 180;
+  const dLon = (lon2 - lon1) * Math.PI / 180;
+  const a =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(lat1 * Math.PI / 180) *
+    Math.cos(lat2 * Math.PI / 180) *
+    Math.sin(dLon / 2) ** 2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
+
+const SILENT_UPDATE_THRESHOLD_KM = 30;
+
 
 function Shell() {
   const { theme: T } = useTheme();
@@ -102,8 +60,6 @@ function Shell() {
   const [tabBarVisible, setTabBarVisible] = useState(true);
   const [ebooksReset, setEbooksReset] = useState(0);
   const [moreResetKey, setMoreResetKey]   = useState(0);
-  const [showGpsPrompt, setShowGpsPrompt] = useState(false);
-  const [gpsLoading, setGpsLoading] = useState(false);
   const scrollContainerRef = useRef(null);
   const { isLive, stream } = useYoutubeLive();
 
@@ -114,39 +70,38 @@ function Shell() {
     }
   }, [tab, showMonthly]);
 
-  // Show GPS prompt only if: never shown before AND no cached location
+  // Silent background location update on every app open.
+  // Runs after 10 s if user has already granted GPS permission.
+  // Only updates if new position is >30 km from cached location.
   useEffect(() => {
-    const alreadyShown = localStorage.getItem(GPS_PROMPT_KEY);
-    if (!alreadyShown && !location) {
-      // Small delay so app renders first
-      const t = setTimeout(() => setShowGpsPrompt(true), 600);
-      return () => clearTimeout(t);
-    }
+    const alreadyGranted = localStorage.getItem(GPS_PROMPT_KEY) === 'done';
+    if (!alreadyGranted || !navigator.geolocation) return;
+
+    const t = setTimeout(async () => {
+      navigator.geolocation.getCurrentPosition(
+        async (pos) => {
+          try {
+            const { latitude, longitude } = pos.coords;
+            const dist = location
+              ? haversineKm(location.latitude, location.longitude, latitude, longitude)
+              : Infinity;
+
+            if (dist >= SILENT_UPDATE_THRESHOLD_KM) {
+              const geo = await reverseGeocode(latitude, longitude);
+              dispatch({ type: 'SET_LOCATION', payload: { latitude, longitude, ...geo } });
+            }
+          } catch {
+            // Fail silently — never show any error to user
+          }
+        },
+        () => { /* Denied or timed out — fail silently */ },
+        { enableHighAccuracy: false, maximumAge: 0, timeout: 10000 }
+      );
+    }, 10000);
+
+    return () => clearTimeout(t);
   }, []); // eslint-disable-line
 
-  const handleAllowGps = () => {
-    setShowGpsPrompt(false);
-    localStorage.setItem(GPS_PROMPT_KEY, 'done');
-    setGpsLoading(true);
-    if (!navigator.geolocation) { setGpsLoading(false); return; }
-    navigator.geolocation.getCurrentPosition(
-      async (pos) => {
-        try {
-          const { latitude, longitude } = pos.coords;
-          const geo = await reverseGeocode(latitude, longitude);
-          dispatch({ type: 'SET_LOCATION', payload: { latitude, longitude, ...geo } });
-        } catch {}
-        setGpsLoading(false);
-      },
-      () => setGpsLoading(false),
-      { enableHighAccuracy: false, maximumAge: 60000, timeout: 10000 }
-    );
-  };
-
-  const handleDenyGps = () => {
-    setShowGpsPrompt(false);
-    localStorage.setItem(GPS_PROMPT_KEY, 'done');
-  };
 
   const handleTabPress = (id) => {
     if (id === 'ebooks') {
@@ -210,27 +165,6 @@ function Shell() {
       overflow: 'hidden', maxWidth: 500, margin: '0 auto',
       position: 'relative',
     }}>
-      {/* GPS location prompt */}
-      {showGpsPrompt && (
-        <LocationPrompt onAllow={handleAllowGps} onDeny={handleDenyGps} T={T} />
-      )}
-
-      {/* GPS loading indicator */}
-      {gpsLoading && (
-        <div style={{
-          position: 'fixed', top: 'max(12px, env(safe-area-inset-top))', left: '50%',
-          transform: 'translateX(-50%)', zIndex: 999,
-          background: T.card, border: `1px solid ${T.border}`,
-          borderRadius: 20, padding: '8px 16px', fontSize: 12,
-          color: T.textSecondary, fontFamily: 'system-ui',
-          boxShadow: '0 4px 16px rgba(0,0,0,.15)',
-          display: 'flex', alignItems: 'center', gap: 8,
-        }}>
-          <div style={{ width: 12, height: 12, borderRadius: '50%', border: `2px solid ${T.border}`, borderTopColor: T.accent, animation: 'spin .7s linear infinite' }} />
-          Hämtar din plats…
-          <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
-        </div>
-      )}
 
       <div ref={scrollContainerRef} style={{
         flex: 1, overflowY: 'auto', overflowX: 'hidden',
