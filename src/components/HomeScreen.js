@@ -110,6 +110,7 @@ export default function HomeScreen({ onMonthlyPress }) {
   const [showModal,        setShowModal]        = useState(false);
   const [detectedLocation, setDetectedLocation] = useState(null);
   const [detecting,        setDetecting]        = useState(false);
+  const [gpsDenied,        setGpsDenied]        = useState(false);
   const [slideIndex,       setSlideIndex]       = useState(0);
   const touchStartX = useRef(null);
 
@@ -172,20 +173,39 @@ export default function HomeScreen({ onMonthlyPress }) {
   }, [location, settings.calculationMethod, settings.school, loadPrayers]);
 
   // ── Manual location tap ───────────────────────────────────────────────────
-  const detectLocation = () => {
-    if (!navigator.geolocation) { setDetectedLocation(null); setShowModal(true); return; }
+  // Auto-detect location on first visit (no location in cache yet)
+  useEffect(() => {
+    if (location || !navigator.geolocation) return;
     setDetecting(true);
     navigator.geolocation.getCurrentPosition(
       async (pos) => {
         try {
           const { latitude, longitude } = pos.coords;
           const geo = await reverseGeocode(latitude, longitude);
-          setDetectedLocation({ latitude, longitude, ...geo });
-          setShowModal(true);
+          dispatch({ type: 'SET_LOCATION', payload: { latitude, longitude, ...geo } });
+        } catch { /* silent */ }
+        setDetecting(false);
+      },
+      () => { setDetecting(false); setGpsDenied(true); },
+      { enableHighAccuracy: false, maximumAge: 0, timeout: 10000 }
+    );
+  }, []); // eslint-disable-line
+
+  const detectLocation = () => {
+    if (!navigator.geolocation) { setDetectedLocation(null); setShowModal(true); return; }
+    setDetecting(true);
+    setGpsDenied(false);
+    navigator.geolocation.getCurrentPosition(
+      async (pos) => {
+        try {
+          const { latitude, longitude } = pos.coords;
+          const geo = await reverseGeocode(latitude, longitude);
+          // Dispatch directly — no confirmation modal needed
+          dispatch({ type: 'SET_LOCATION', payload: { latitude, longitude, ...geo } });
         } catch { setDetectedLocation(null); setShowModal(true); }
         finally { setDetecting(false); }
       },
-      () => { setDetectedLocation(null); setShowModal(true); setDetecting(false); }
+      () => { setDetectedLocation(null); setShowModal(true); setDetecting(false); setGpsDenied(true); }
     );
   };
 
@@ -319,7 +339,7 @@ export default function HomeScreen({ onMonthlyPress }) {
         </div>
       )}
 
-      {/* No location */}
+      {/* No location — auto-detecting or GPS denied */}
       {!location && !isLoading && (
         <div style={{ textAlign:'center', paddingTop:40 }}>
           <div style={{ marginBottom:10, display:'flex', justifyContent:'center' }}>
@@ -329,13 +349,25 @@ export default function HomeScreen({ onMonthlyPress }) {
               color={T.isDark ? '#C9A84C' : '#4a9e8e'}
             />
           </div>
-          <div style={{ fontSize:18, fontWeight:700, color:T.text, marginBottom:8 }}>Ange din plats</div>
-          <div style={{ fontSize:13, color:T.textMuted, lineHeight:1.6, maxWidth:260, margin:'0 auto 20px' }}>
-            Vi behöver din plats för att visa korrekta bönetider.
-          </div>
-          <button onClick={detectLocation} style={{ padding:'12px 26px', borderRadius:13, background:T.accent, color:'#fff', fontSize:14, fontWeight:700, border:'none', cursor:'pointer' }}>
-            Hitta min plats
-          </button>
+          {detecting ? (
+            <>
+              <div style={{ fontSize:16, fontWeight:700, color:T.text, marginBottom:8 }}>Hämtar din plats…</div>
+              <div style={{ display:'flex', justifyContent:'center', marginTop:12 }}>
+                <div style={{ width:22, height:22, borderRadius:'50%', border:`3px solid ${T.border}`, borderTopColor:T.accent, animation:'spin .7s linear infinite' }} />
+                <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
+              </div>
+            </>
+          ) : (
+            <>
+              <div style={{ fontSize:18, fontWeight:700, color:T.text, marginBottom:8 }}>Ange din plats</div>
+              <div style={{ fontSize:13, color:T.textMuted, lineHeight:1.6, maxWidth:260, margin:'0 auto 20px' }}>
+                Vi behöver din plats för att visa korrekta bönetider.
+              </div>
+              <button onClick={detectLocation} style={{ padding:'12px 26px', borderRadius:13, background:T.accent, color:'#fff', fontSize:14, fontWeight:700, border:'none', cursor:'pointer' }}>
+                Hitta min plats
+              </button>
+            </>
+          )}
         </div>
       )}
 
