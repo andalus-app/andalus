@@ -518,7 +518,6 @@ function MyBookings({bookings, onViewConfirmation, onEdit, onCancel, onBack, T})
           const canEdit   = isPending || isApproved;
           // Ta bort: pending/edit_pending=direkt utan förklaring, approved=kräver förklaring
           const canDelete = isPending || isEditPending || isApproved;
-          const deleteNeedsReason = isApproved;
           return <div key={b.id} style={{background:T.card,border:`1px solid ${b.status==='cancelled'?'#64748b33':b.status==='edited'?'#3b82f633':b.status==='edit_pending'?'#f9731633':T.border}`,borderRadius:14,padding:'14px 16px'}}>
             <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:4}}>
               <div style={{fontSize:14,fontWeight:700,color:T.text}}>{b.time_slot}</div>
@@ -903,7 +902,7 @@ export default function BookingScreen({onBack, activateForDevice}){
     activateForDevice?.(); // aktivera notis-polling för denna enhet
     showToast(rows.length>1?`${rows.length} bokningsförfrågningar skickade!`:'Bokningsförfrågan skickad!');
     setView('my-bookings');
-  },[showToast,deviceId]);
+  },[showToast, deviceId, activateForDevice]);
 
   /* Besökare återkallar/avbokar
      - pending / edit_pending → direkt, ingen förklaring krävs
