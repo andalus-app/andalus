@@ -505,7 +505,7 @@ function CalendarView({bookings,onSelectSlot,isAdmin,T}){
 function BookingForm({date,slotLabel:slot,durationHours,onSubmit,onBack,loading,bookings,T}){
   const [form,setForm]=useState({name:'',phone:'',email:'',activity:''});
   const [recurrence,setRecurrence]=useState('none');
-  const [recurCount,setRecurCount]=useState(NO_END);
+  const [recurCount,setRecurCount]=useState(2);
   const [error,setError]=useState('');
   const set=f=>v=>setForm(p=>({...p,[f]:v}));
   const recurDates=useMemo(()=>recurrence==='none'?[toISO(date)]:getRecurDates(toISO(date),recurrence,recurCount),[date,recurrence,recurCount]);
@@ -534,7 +534,7 @@ function BookingForm({date,slotLabel:slot,durationHours,onSubmit,onBack,loading,
       <Input label="E-POST" value={form.email} onChange={set('email')} placeholder="din@epost.se" required T={T} type="email"/>
       <Textarea label="AKTIVITET" value={form.activity} onChange={set('activity')} placeholder="Beskriv aktiviteten kort..." required T={T}/>
       <div style={{background:T.card,border:`1px solid ${T.border}`,borderRadius:14,padding:'14px'}}>
-        <RecurrencePicker recurrence={recurrence} onChange={r=>{setRecurrence(r);setRecurCount(NO_END);}} recurCount={recurCount} onRecurCountChange={setRecurCount} T={T}/>
+        <RecurrencePicker recurrence={recurrence} onChange={r=>{setRecurrence(r);setRecurCount(2);}} recurCount={recurCount} onRecurCountChange={setRecurCount} T={T}/>
         {recurrence!=='none'&&recurDates.length>0&&<div style={{marginTop:12}}>
           <div style={{fontSize:11,fontWeight:700,color:T.textMuted,letterSpacing:'.3px',marginBottom:8}}>UPPREPNING GÄLLER</div>
           <div style={{background:T.cardElevated,borderRadius:10,padding:'10px 12px',display:'flex',flexDirection:'column',gap:6}}>
@@ -687,99 +687,138 @@ function ConfirmationScreen({booking,onBack,T}){
 
 /* ── MyBookings ── */
 function MyBookings({bookings, onViewConfirmation, onEdit, onCancel, onBack, T}){
+  const [selectedGroup, setSelectedGroup] = useState(null);
+
   const sorted=bookings.slice().sort((a,b)=>b.created_at-a.created_at);
   const groups=useMemo(()=>{
     const map={};
-    sorted.forEach(b=>{const key=b.recurrence_group_id||b.id;if(!map[key]) map[key]={group_id:key,bookings:[],recurrence:b.recurrence};map[key].bookings.push(b);});
+    sorted.forEach(b=>{const key=b.recurrence_group_id||b.id;if(!map[key]) map[key]={group_id:key,bookings:[],recurrence:b.recurrence,name:b.name,activity:b.activity};map[key].bookings.push(b);});
     return Object.values(map);
   },[sorted]);
 
+  // Representativ status för gruppen
+  const groupStatus=(grp)=>{
+    const ss=grp.bookings.map(b=>b.status);
+    for(const s of ['pending','edit_pending','approved','edited','rejected','cancelled']) if(ss.includes(s)) return s;
+    return ss[0];
+  };
+
   const StatusInfo=({b})=>{
-    if(b.status==='cancelled'){
-      return <div style={{marginTop:8,background:'#64748b18',borderRadius:8,padding:'8px 10px'}}>
-        <div style={{fontSize:11,fontWeight:700,color:'#64748b',marginBottom:3}}>INSTÄLLD</div>
-        {b.admin_comment&&<div style={{fontSize:12,color:'#64748b'}}>{b.admin_comment}</div>}
-      </div>;
-    }
-    if(b.status==='rejected'){
-      return <div style={{marginTop:8,background:'#ef444418',borderRadius:8,padding:'8px 10px'}}>
-        <div style={{fontSize:11,fontWeight:700,color:'#ef4444',marginBottom:3}}>AVBÖJD</div>
-        {b.admin_comment&&<div style={{fontSize:12,color:'#ef4444'}}>{b.admin_comment}</div>}
-      </div>;
-    }
-    if(b.status==='edit_pending'){
-      return <div style={{marginTop:8,background:'#f9731618',borderRadius:8,padding:'8px 10px'}}>
-        <div style={{fontSize:11,fontWeight:700,color:'#f97316',marginBottom:3}}>ÄNDRINGSFÖRFRÅGAN VÄNTAR</div>
-        <div style={{fontSize:12,color:'#f97316'}}>Din ändring granskas av admin.</div>
-      </div>;
-    }
-    if(b.status==='edited'){
-      return <div style={{marginTop:8,background:'#3b82f618',borderRadius:8,padding:'8px 10px'}}>
-        <div style={{fontSize:11,fontWeight:700,color:'#3b82f6',marginBottom:3}}>ÄNDRAD AV ADMIN</div>
-        {b.admin_comment&&<div style={{fontSize:12,color:'#3b82f6'}}>{b.admin_comment}</div>}
-      </div>;
-    }
+    if(b.status==='cancelled') return <div style={{marginTop:8,background:'#64748b18',borderRadius:8,padding:'8px 10px'}}><div style={{fontSize:11,fontWeight:700,color:'#64748b',marginBottom:3}}>INSTÄLLD</div>{b.admin_comment&&<div style={{fontSize:12,color:'#64748b'}}>{b.admin_comment}</div>}</div>;
+    if(b.status==='rejected')  return <div style={{marginTop:8,background:'#ef444418',borderRadius:8,padding:'8px 10px'}}><div style={{fontSize:11,fontWeight:700,color:'#ef4444',marginBottom:3}}>AVBÖJD</div>{b.admin_comment&&<div style={{fontSize:12,color:'#ef4444'}}>{b.admin_comment}</div>}</div>;
+    if(b.status==='edit_pending') return <div style={{marginTop:8,background:'#f9731618',borderRadius:8,padding:'8px 10px'}}><div style={{fontSize:11,fontWeight:700,color:'#f97316',marginBottom:3}}>ÄNDRINGSFÖRFRÅGAN VÄNTAR</div><div style={{fontSize:12,color:'#f97316'}}>Din ändring granskas av admin.</div></div>;
+    if(b.status==='edited')    return <div style={{marginTop:8,background:'#3b82f618',borderRadius:8,padding:'8px 10px'}}><div style={{fontSize:11,fontWeight:700,color:'#3b82f6',marginBottom:3}}>ÄNDRAD AV ADMIN</div>{b.admin_comment&&<div style={{fontSize:12,color:'#3b82f6'}}>{b.admin_comment}</div>}</div>;
     return null;
   };
 
+  // ── Detaljvy för vald grupp ──
+  if(selectedGroup){
+    const grp=selectedGroup;
+    const isRecur=grp.bookings.length>1;
+    const status=groupStatus(grp);
+    const sortedB=grp.bookings.slice().sort((a,b)=>a.date.localeCompare(b.date));
+    const rep=sortedB[0]; // representativ bokning för info
+    const isPending    =status==='pending';
+    const isEditPending=status==='edit_pending';
+    const isApproved   =status==='approved'||status==='edited';
+    const canEdit  =!isRecur&&(isPending||isApproved);
+    const canDelete=isPending||isEditPending||isApproved;
+
+    return <div style={{padding:'20px 16px',fontFamily:'system-ui'}}>
+      <BackButton onBack={()=>setSelectedGroup(null)} T={T}/>
+      <div style={{fontSize:20,fontWeight:800,color:T.text,marginTop:16,marginBottom:16}}>Bokningsdetaljer</div>
+
+      {/* Info-kort */}
+      <div style={{background:T.card,border:`1px solid ${T.border}`,borderRadius:16,padding:'16px',marginBottom:12}}>
+        <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:12}}>
+          <Badge status={status}/>
+          {isRecur&&<RecurBadge/>}
+        </div>
+        {[['Aktivitet',rep.activity],['Tid',rep.time_slot],['Längd',`${rep.duration_hours||1} timmar`]].map(([l,v])=>(
+          <div key={l} style={{marginBottom:10,paddingBottom:10,borderBottom:`1px solid ${T.border}`}}>
+            <div style={{fontSize:10,fontWeight:700,color:T.textMuted,letterSpacing:'.5px',marginBottom:2}}>{l.toUpperCase()}</div>
+            <div style={{fontSize:14,color:T.text}}>{v}</div>
+          </div>
+        ))}
+        {rep.admin_comment&&<div style={{padding:'8px 10px',background:`${T.accent}11`,borderRadius:8}}>
+          <div style={{fontSize:10,fontWeight:700,color:T.textMuted,letterSpacing:'.5px',marginBottom:2}}>KOMMENTAR FRÅN ADMIN</div>
+          <div style={{fontSize:13,color:T.text}}>{rep.admin_comment}</div>
+        </div>}
+      </div>
+
+      {/* Alla tillfällen */}
+      {isRecur&&<div style={{background:T.card,border:'1px solid #8b5cf644',borderRadius:14,padding:'14px',marginBottom:12}}>
+        <div style={{fontSize:11,fontWeight:700,color:'#8b5cf6',marginBottom:10,letterSpacing:'.3px'}}>ALLA TILLFÄLLEN ({grp.bookings.length} st)</div>
+        <div style={{display:'flex',flexDirection:'column',gap:4,maxHeight:280,overflowY:'auto'}}>
+          {sortedB.map(b=>(
+            <div key={b.id} style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'7px 10px',background:T.cardElevated,borderRadius:8,cursor:b.status==='approved'?'pointer':'default'}}
+              onClick={()=>b.status==='approved'&&onViewConfirmation(b)}>
+              <span style={{fontSize:12,color:T.text}}>{isoToDisplay(b.date)} · {b.time_slot}</span>
+              <Badge status={b.status}/>
+            </div>
+          ))}
+        </div>
+      </div>}
+
+      {/* Enkel bokning — datum + statusinfo */}
+      {!isRecur&&<div style={{background:T.card,border:`1px solid ${T.border}`,borderRadius:14,padding:'14px',marginBottom:12}}>
+        <div style={{fontSize:12,color:T.textMuted,marginBottom:4}}>{isoToDisplay(rep.date)}</div>
+        <StatusInfo b={rep}/>
+        {isApproved&&<div onClick={()=>onViewConfirmation(rep)} style={{marginTop:10,fontSize:12,color:T.accent,fontWeight:600,display:'flex',alignItems:'center',gap:4,cursor:'pointer'}}>
+          Visa bekräftelse <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+        </div>}
+      </div>}
+
+      {/* Inforuta */}
+      {isPending&&!isRecur&&<div style={{marginBottom:12,fontSize:11,color:T.accent,background:`${T.accent}11`,borderRadius:8,padding:'8px 12px'}}>Du kan ändra eller ta bort fritt — bokningen är ej bekräftad.</div>}
+      {isApproved&&!isRecur&&<div style={{marginBottom:12,fontSize:11,color:'#f97316',background:'#f9731611',borderRadius:8,padding:'8px 12px'}}>Bekräftad — ändring kräver admins godkännande, avbokning är direkt.</div>}
+      {isEditPending&&!isRecur&&<div style={{marginBottom:12,fontSize:11,color:'#f97316',background:'#f9731611',borderRadius:8,padding:'8px 12px'}}>Din ändringsförfrågan väntar på admin. Du kan fortfarande ta bort bokningen.</div>}
+      {isRecur&&isPending&&<div style={{marginBottom:12,fontSize:11,color:T.textMuted,background:T.cardElevated,borderRadius:8,padding:'8px 12px'}}>Återkommande bokning — väntar på admins godkännande.</div>}
+
+      {/* Åtgärdsknappar */}
+      {(canEdit||canDelete)&&<div style={{display:'flex',gap:10,marginTop:4}}>
+        {canEdit&&<button onClick={()=>onEdit(rep)} style={{flex:1,padding:'13px',borderRadius:12,border:'1px solid #3b82f644',background:'#3b82f611',color:'#3b82f6',fontSize:14,fontWeight:700,cursor:'pointer',fontFamily:'system-ui',WebkitTapHighlightColor:'transparent',display:'flex',alignItems:'center',justifyContent:'center',gap:6}}>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+          {isApproved?'Begär ändring':'Ändra'}
+        </button>}
+        {canDelete&&<button onClick={()=>onCancel(rep)} style={{flex:1,padding:'13px',borderRadius:12,border:'1px solid #ef444433',background:'#ef444411',color:'#ef4444',fontSize:14,fontWeight:700,cursor:'pointer',fontFamily:'system-ui',WebkitTapHighlightColor:'transparent',display:'flex',alignItems:'center',justifyContent:'center',gap:6}}>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+          {isApproved?'Avboka':'Återkalla'}
+        </button>}
+      </div>}
+    </div>;
+  }
+
+  // ── Listuvy — 1 rad per grupp ──
   return <div style={{padding:'20px 16px',fontFamily:'system-ui'}}>
     <BackButton onBack={onBack} T={T}/>
     <div style={{fontSize:22,fontWeight:800,color:T.text,letterSpacing:'-.4px',marginTop:16,marginBottom:20}}>Mina bokningar</div>
     {groups.length===0
       ?<div style={{textAlign:'center',padding:'40px 0',color:T.textMuted,fontSize:14}}>Inga bokningar än</div>
       :<div style={{display:'flex',flexDirection:'column',gap:10}}>
-        {groups.map(g=>{
-          const isRecur=g.bookings.length>1;
-          if(isRecur){
-            return <div key={g.group_id} style={{background:T.card,border:'1px solid #8b5cf644',borderRadius:14,padding:'14px 16px'}}>
-              <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:8}}>
-                <div style={{display:'flex',alignItems:'center',gap:8}}>
-                  <RecurBadge/>
-                  <span style={{fontSize:13,fontWeight:700,color:T.text}}>{RECUR_OPTIONS.find(o=>o.value===g.bookings[0]?.recurrence)?.label||'Återkommande'}</span>
-                </div>
-                <span style={{fontSize:11,color:T.textMuted}}>{g.bookings.length} tillfällen</span>
-              </div>
-              <div style={{display:'flex',flexDirection:'column',gap:4}}>
-                {g.bookings.map(b=>(
-                  <div key={b.id} onClick={()=>b.status==='approved'&&onViewConfirmation(b)} style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'7px 10px',background:T.cardElevated,borderRadius:8,cursor:b.status==='approved'?'pointer':'default'}}>
-                    <span style={{fontSize:12,color:T.text}}>{isoToDisplay(b.date)} · {b.time_slot}</span>
-                    <Badge status={b.status}/>
-                  </div>
-                ))}
-              </div>
-            </div>;
-          }
-          const b=g.bookings[0];
-          const isPending     = b.status==='pending';
-          const isEditPending = b.status==='edit_pending';
-          const isApproved    = b.status==='approved' || b.status==='edited';
-          // Ändra: pending=direkt, approved=via edit_pending, edit_pending=döljs (redan väntar)
-          const canEdit   = isPending || isApproved;
-          // Ta bort: pending/edit_pending=direkt utan förklaring, approved=kräver förklaring
-          const canDelete = isPending || isEditPending || isApproved;
-          return <div key={b.id} style={{background:T.card,border:`1px solid ${b.status==='cancelled'?'#64748b33':b.status==='edited'?'#3b82f633':b.status==='edit_pending'?'#f9731633':T.border}`,borderRadius:14,padding:'14px 16px'}}>
+        {groups.map(grp=>{
+          const isRecur=grp.bookings.length>1;
+          const status=groupStatus(grp);
+          const sortedB=grp.bookings.slice().sort((a,b)=>a.date.localeCompare(b.date));
+          const firstDate=sortedB[0]?.date;
+          const lastDate=sortedB[sortedB.length-1]?.date;
+          const rep=sortedB[0];
+          return <div key={grp.group_id} onClick={()=>setSelectedGroup(grp)}
+            style={{background:T.card,border:`1px solid ${status==='pending'?'#f59e0b44':status==='edit_pending'?'#f9731644':status==='edited'?'#3b82f633':status==='cancelled'?'#64748b33':T.border}`,borderRadius:14,padding:'14px 16px',cursor:'pointer'}}>
             <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:4}}>
-              <div style={{fontSize:14,fontWeight:700,color:T.text}}>{b.time_slot}</div>
-              <Badge status={b.status}/>
+              <div style={{display:'flex',alignItems:'center',gap:6}}>
+                {isRecur&&<RecurBadge/>}
+                <div style={{fontSize:14,fontWeight:700,color:T.text}}>{rep?.time_slot}</div>
+              </div>
+              <Badge status={status}/>
             </div>
-            <div style={{fontSize:12,color:T.textMuted,marginBottom:2}}>{isoToDisplay(b.date)} · {b.duration_hours||1}h</div>
-            <div style={{fontSize:12,color:T.textMuted,marginBottom:4}}>{b.activity}</div>
-            <StatusInfo b={b}/>
-            {isApproved&&<div onClick={()=>onViewConfirmation(b)} style={{marginTop:8,fontSize:12,color:T.accent,fontWeight:600,display:'flex',alignItems:'center',gap:4,cursor:'pointer'}}>Visa bekräftelse <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6"/></svg></div>}
-            {/* Inforuta */}
-            {isPending&&<div style={{marginTop:8,fontSize:11,color:T.accent,background:`${T.accent}11`,borderRadius:6,padding:'4px 8px',display:'inline-block'}}>Du kan ändra eller ta bort fritt — bokningen är ej bekräftad</div>}
-            {isApproved&&<div style={{marginTop:8,fontSize:11,color:'#f97316',background:'#f9731611',borderRadius:6,padding:'4px 8px',display:'inline-block'}}>Bekräftad — ändring kräver admins godkännande, avbokning är direkt</div>}
-            {isEditPending&&<div style={{marginTop:8,fontSize:11,color:'#f97316',background:'#f9731611',borderRadius:6,padding:'4px 8px',display:'inline-block'}}>Du kan fortfarande ta bort bokningen</div>}
-            {(canEdit||canDelete)&&<div style={{display:'flex',gap:8,marginTop:10}}>
-              {canEdit&&!isEditPending&&<button onClick={()=>onEdit(b)} style={{flex:1,padding:'8px',borderRadius:10,border:'1px solid #3b82f644',background:'#3b82f611',color:'#3b82f6',fontSize:12,fontWeight:700,cursor:'pointer',fontFamily:'system-ui',WebkitTapHighlightColor:'transparent',display:'flex',alignItems:'center',justifyContent:'center',gap:5}}>
-                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
-                {isApproved?'Begär ändring':'Ändra'}
-              </button>}
-              {canDelete&&<button onClick={()=>onCancel(b)} style={{flex:1,padding:'8px',borderRadius:10,border:'1px solid #ef444433',background:'#ef444411',color:'#ef4444',fontSize:12,fontWeight:700,cursor:'pointer',fontFamily:'system-ui',WebkitTapHighlightColor:'transparent',display:'flex',alignItems:'center',justifyContent:'center',gap:5}}>
-                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-                {isApproved?'Avboka':'Återkalla'}
-              </button>}
-            </div>}
+            <div style={{fontSize:12,color:T.textMuted,marginBottom:2}}>
+              {isRecur
+                ?`${isoToDisplay(firstDate)} – ${isoToDisplay(lastDate)} · ${grp.bookings.length} tillfällen`
+                :`${isoToDisplay(firstDate)} · ${rep?.duration_hours||1}h`
+              }
+            </div>
+            <div style={{fontSize:12,color:T.textMuted}}>{grp.activity}</div>
           </div>;
         })}
       </div>

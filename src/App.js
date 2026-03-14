@@ -146,7 +146,13 @@ function Shell() {
     }
   };
 
-  // ── Edge swipe back ─────────────────────────────────
+  // Tap top ~44px of screen → scroll to top (iOS status bar tap convention)
+  const handleTopTap = useCallback((e) => {
+    const STATUS_BAR_HEIGHT = 44;
+    if (e.clientY <= STATUS_BAR_HEIGHT) {
+      scrollContainerRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+  }, []);
   const swipeRef = useRef(null);
   const handleTouchStart = useCallback((e) => {
     const t = e.touches[0];
@@ -169,6 +175,7 @@ function Shell() {
     <div
       onTouchStart={handleTouchStart}
       onTouchEnd={handleTouchEnd}
+      onClick={handleTopTap}
       style={{
       height: '100dvh', width: '100vw',
       background: T.bg,
