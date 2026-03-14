@@ -87,14 +87,14 @@ function getRecurDates(startISO, recurrence, recurCount){
   const dates=[startISO];
   const base=parseISO(startISO);
   const useNoEnd = recurCount===NO_END || recurCount===undefined;
-  const maxDate=new Date(base); maxDate.setFullYear(maxDate.getFullYear()+5);
-  const limit = useNoEnd ? Infinity : Number(recurCount);
+  // NO_END = max 1 år veckovis / 2 år månadsvis för att undvika bulk-problem
+  const defaultLimit = recurrence==='monthly' ? 24 : 52;
+  const limit = useNoEnd ? defaultLimit : Number(recurCount);
   let i=1;
   while(dates.length < limit){
     const d=new Date(base);
     if(recurrence==='weekly') d.setDate(d.getDate()+7*i);
     if(recurrence==='monthly') d.setMonth(d.getMonth()+i);
-    if(d>maxDate) break;
     dates.push(toISO(d));
     i++;
   }
@@ -344,11 +344,11 @@ function DurationPicker({value, onChange, T}) {
 }
 
 /* Upprepningsalternativ för antal */
-// Genererar 1–104 (2 år veckovis) + no_end
-const RECUR_COUNT_OPTIONS_WEEKLY  = [...Array.from({length:104},(_,i)=>i+1), NO_END];
-const RECUR_COUNT_OPTIONS_MONTHLY = [...Array.from({length:60}, (_,i)=>i+1), NO_END];
+// Max 52 veckor (1 år) och 24 månader (2 år) för att undvika bulk-problem
+const RECUR_COUNT_OPTIONS_WEEKLY  = [...Array.from({length:52},(_,i)=>i+1), NO_END];
+const RECUR_COUNT_OPTIONS_MONTHLY = [...Array.from({length:24},(_,i)=>i+1), NO_END];
 function fmtRecurCount(v, recurrence) {
-  if (v === NO_END) return 'Inget slutdatum (5 år)';
+  if (v === NO_END) return recurrence==='monthly' ? 'Max (24 månader)' : 'Max (52 veckor)';
   const unit = recurrence === 'monthly' ? (v===1?'månad':'månader') : (v===1?'vecka':'veckor');
   return `${v} ${unit}`;
 }
