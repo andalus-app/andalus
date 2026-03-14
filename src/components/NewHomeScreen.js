@@ -258,7 +258,7 @@ export default function NewHomeScreen({ stream, onGoToAdminLogin }) {
         display: 'flex', alignItems: 'center', justifyContent: 'center',
         padding: '16px 16px 12px',
         paddingTop: 'max(16px, env(safe-area-inset-top))',
-        minHeight: 56,
+        minHeight: 'calc(max(16px, env(safe-area-inset-top)) + 80px + 12px)',
       }}>
         {/* Logo — absolute left, same as Bönetider */}
         <div style={{ position: 'absolute', top: 'max(16px, env(safe-area-inset-top))', left: 16, pointerEvents: 'none', userSelect: 'none' }}>
