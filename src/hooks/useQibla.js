@@ -26,6 +26,15 @@ function circularSmooth(prev, next, alpha) {
   return (prev + alpha * diff + 360) % 360;
 }
 
+// Compute circular variance of last N headings (0 = perfect, 1 = chaotic)
+function circularVariance(samples) {
+  if (samples.length < 3) return 1;
+  const toR = d => d * Math.PI / 180;
+  const sinMean = samples.reduce((s, h) => s + Math.sin(toR(h)), 0) / samples.length;
+  const cosMean = samples.reduce((s, h) => s + Math.cos(toR(h)), 0) / samples.length;
+  return 1 - Math.sqrt(sinMean ** 2 + cosMean ** 2); // 0=stable, 1=random
+}
+
 const isIOS = typeof DeviceOrientationEvent !== 'undefined' &&
               typeof DeviceOrientationEvent.requestPermission === 'function';
 
@@ -37,15 +46,19 @@ export function useQibla(location) {
   const [compassAvail, setCompassAvail] = useState(false);
   const [loading,      setLoading]      = useState(false);
   const [error,        setError]        = useState(null);
+  const [needsCalibration, setNeedsCalibration] = useState(false);
+  const [calibrationProgress, setCalibrationProgress] = useState(0);
 
   // iOS always needs a fresh permission tap each session — no caching
   const [needsPermission, setNeedsPermission] = useState(isIOS);
 
-  const smoothedRef = useRef(0);
-  const wasAligned  = useRef(false);
-  const qiblaDirRef = useRef(null);
-  const handlerRef  = useRef(null);
-  const attachedRef = useRef(false);
+  const smoothedRef    = useRef(0);
+  const wasAligned     = useRef(false);
+  const qiblaDirRef    = useRef(null);
+  const handlerRef     = useRef(null);
+  const attachedRef    = useRef(false);
+  const headingSamples = useRef([]); // rolling window for variance check
+  const calibDismissed = useRef(false); // user skipped calibration
 
   // Single stable handler created once
   if (!handlerRef.current) {
@@ -60,6 +73,39 @@ export function useQibla(location) {
       smoothedRef.current = circularSmooth(smoothedRef.current, h, 0.15);
       const smoothed = Math.round(smoothedRef.current * 10) / 10;
       setHeading(smoothed);
+
+      // ── Calibration detection ──────────────────────────────
+      if (!calibDismissed.current) {
+        // iOS: use webkitCompassAccuracy (degrees of error, lower = better)
+        const iosAccuracy = e.webkitCompassAccuracy;
+        const iosBad = iosAccuracy != null && iosAccuracy > 20;
+
+        // Android / generic: measure circular variance of last 12 readings
+        const samples = headingSamples.current;
+        samples.push(h);
+        if (samples.length > 12) samples.shift();
+        const variance = circularVariance(samples);
+        const androidBad = samples.length >= 8 && variance > 0.35;
+
+        const isBad = iosBad || androidBad;
+
+        if (isBad) {
+          setNeedsCalibration(true);
+          // Progress: iOS maps accuracy 50→0 to 0→100%, Android maps variance 0.35→0.05
+          if (iosAccuracy != null) {
+            const p = Math.min(100, Math.max(0, Math.round((50 - iosAccuracy) / 50 * 100)));
+            setCalibrationProgress(p);
+          } else {
+            const p = Math.min(100, Math.max(0, Math.round((0.35 - variance) / 0.30 * 100)));
+            setCalibrationProgress(p);
+          }
+        } else if (samples.length >= 8) {
+          // Good accuracy — auto-dismiss calibration overlay
+          setNeedsCalibration(false);
+          setCalibrationProgress(100);
+        }
+      }
+      // ──────────────────────────────────────────────────────
 
       if (qiblaDirRef.current !== null) {
         const delta = angleDelta(smoothed, qiblaDirRef.current);
@@ -86,6 +132,11 @@ export function useQibla(location) {
     window.removeEventListener('deviceorientationabsolute', handlerRef.current, true);
     window.removeEventListener('deviceorientation',         handlerRef.current, true);
     setCompassAvail(false);
+  }, []);
+
+  const dismissCalibration = useCallback(() => {
+    calibDismissed.current = true;
+    setNeedsCalibration(false);
   }, []);
 
   // Fetch Qibla direction — skip if coords unchanged
@@ -140,5 +191,6 @@ export function useQibla(location) {
   return {
     qiblaDir, heading, alignDelta, isAligned,
     compassAvail, loading, error, needsPermission, requestPermission,
+    needsCalibration, calibrationProgress, dismissCalibration,
   };
 }

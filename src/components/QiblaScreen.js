@@ -6,12 +6,168 @@ import { reverseGeocode } from '../services/prayerApi';
 import CompassSVG from './CompassSVG';
 import SvgIcon from './SvgIcon';
 
+/* ── Figur-8 kalibreringsoverlay ─────────────────────────────── */
+function CalibrationOverlay({ progress, onDismiss, T }) {
+  return (
+    <div style={{
+      position: 'fixed', inset: 0, zIndex: 999,
+      background: T.isDark ? 'rgba(0,0,0,0.82)' : 'rgba(245,248,247,0.94)',
+      backdropFilter: 'blur(12px)',
+      WebkitBackdropFilter: 'blur(12px)',
+      display: 'flex', flexDirection: 'column',
+      alignItems: 'center', justifyContent: 'center',
+      gap: 0,
+      animation: 'calFadeIn .3s ease both',
+    }}>
+      <style>{`
+        @keyframes calFadeIn { from { opacity:0 } to { opacity:1 } }
+
+        /* Phone travels the figure-8 path */
+        @keyframes fig8 {
+          0%   { offset-distance: 0%;   transform: rotate(-20deg) scale(1);   }
+          25%  { offset-distance: 25%;  transform: rotate(20deg)  scale(0.9); }
+          50%  { offset-distance: 50%;  transform: rotate(-20deg) scale(1);   }
+          75%  { offset-distance: 75%;  transform: rotate(20deg)  scale(0.9); }
+          100% { offset-distance: 100%; transform: rotate(-20deg) scale(1);   }
+        }
+
+        /* Trail dots fading */
+        @keyframes trailPulse {
+          0%,100% { opacity: 0.08; }
+          50%      { opacity: 0.22; }
+        }
+
+        .phone-on-path {
+          offset-path: path('M 100,100 C 100,50 170,50 170,100 C 170,150 100,150 100,200 C 100,150 30,150 30,100 C 30,50 100,50 100,100');
+          animation: fig8 3s cubic-bezier(0.4,0,0.6,1) infinite;
+          offset-rotate: 0deg;
+        }
+      `}</style>
+
+      {/* Title */}
+      <div style={{
+        fontSize: 18, fontWeight: 600, color: T.text,
+        fontFamily: "'Inter',system-ui,sans-serif",
+        marginBottom: 6, textAlign: 'center',
+      }}>
+        Kalibrera kompassen
+      </div>
+      <div style={{
+        fontSize: 13, fontWeight: 400, color: T.textMuted,
+        fontFamily: "'Inter',system-ui,sans-serif",
+        marginBottom: 36, textAlign: 'center', lineHeight: 1.5,
+        maxWidth: 240,
+      }}>
+        Rör telefonen långsamt i en 8a för bästa noggrannhet
+      </div>
+
+      {/* Figure-8 animation canvas */}
+      <div style={{ position: 'relative', width: 200, height: 220, marginBottom: 32, flexShrink: 0 }}>
+        <svg width="200" height="220" viewBox="0 0 200 220" style={{ position: 'absolute', inset: 0 }}>
+          {/* Figure-8 dashed path guide */}
+          <path
+            d="M 100,110 C 100,60 170,60 170,110 C 170,160 100,160 100,210 C 100,160 30,160 30,110 C 30,60 100,60 100,110"
+            fill="none"
+            stroke={T.accent}
+            strokeWidth="1.5"
+            strokeDasharray="5 6"
+            opacity="0.25"
+          />
+
+          {/* Animated trail dots along path */}
+          {[0,1,2,3,4,5,6,7].map(i => (
+            <circle key={i} r="3" fill={T.accent} opacity="0.12"
+              style={{ animationDelay: `${i * 0.375}s` }}
+            >
+              <animateMotion
+                dur="3s"
+                repeatCount="indefinite"
+                begin={`${i * -0.375}s`}
+              >
+                <mpath href="#fig8path" />
+              </animateMotion>
+            </circle>
+          ))}
+
+          {/* Hidden path for animateMotion reference */}
+          <defs>
+            <path id="fig8path"
+              d="M 100,110 C 100,60 170,60 170,110 C 170,160 100,160 100,210 C 100,160 30,160 30,110 C 30,60 100,60 100,110"
+            />
+          </defs>
+
+          {/* Phone silhouette following the path */}
+          <g>
+            <animateMotion dur="3s" repeatCount="indefinite" rotate="auto">
+              <mpath href="#fig8path" />
+            </animateMotion>
+            {/* Phone body */}
+            <rect x="-11" y="-19" width="22" height="38" rx="4"
+              fill={T.isDark ? '#fff' : T.text} opacity="0.9" />
+            {/* Screen */}
+            <rect x="-8" y="-14" width="16" height="24" rx="2"
+              fill={T.accent} opacity="0.7" />
+            {/* Home button area */}
+            <circle cx="0" cy="14" r="2.5"
+              fill={T.isDark ? '#fff' : T.text} opacity="0.5" />
+            {/* Small arrow indicating direction */}
+            <polygon points="0,-22 -4,-17 4,-17"
+              fill={T.accent} opacity="0.9" />
+          </g>
+        </svg>
+      </div>
+
+      {/* Progress ring */}
+      <div style={{ position: 'relative', width: 64, height: 64, marginBottom: 24, flexShrink: 0 }}>
+        <svg width="64" height="64" viewBox="0 0 64 64">
+          {/* Track */}
+          <circle cx="32" cy="32" r="26" fill="none"
+            stroke={T.border} strokeWidth="4" />
+          {/* Progress arc */}
+          <circle cx="32" cy="32" r="26" fill="none"
+            stroke={T.accent} strokeWidth="4"
+            strokeLinecap="round"
+            strokeDasharray={`${2 * Math.PI * 26}`}
+            strokeDashoffset={`${2 * Math.PI * 26 * (1 - progress / 100)}`}
+            transform="rotate(-90 32 32)"
+            style={{ transition: 'stroke-dashoffset 0.4s ease' }}
+          />
+          {/* Percentage text */}
+          <text x="32" y="37" textAnchor="middle"
+            fontSize="13" fontWeight="600"
+            fill={T.text}
+            fontFamily="'Inter',system-ui,sans-serif"
+            style={{ fontVariantNumeric: 'tabular-nums' }}
+          >
+            {progress}%
+          </text>
+        </svg>
+      </div>
+
+      {/* Skip button */}
+      <button
+        onClick={onDismiss}
+        style={{
+          background: 'none', border: `1px solid ${T.border}`,
+          borderRadius: 12, padding: '10px 28px',
+          fontSize: 13, fontWeight: 500, color: T.textMuted,
+          fontFamily: "'Inter',system-ui,sans-serif",
+          cursor: 'pointer', WebkitTapHighlightColor: 'transparent',
+        }}
+      >
+        Hoppa över
+      </button>
+    </div>
+  );
+}
+
 export default function QiblaScreen() {
   const { theme: T } = useTheme();
   const { location, dispatch } = useApp();
   const {
     qiblaDir, heading, alignDelta, isAligned,
     compassAvail, loading, error, needsPermission, requestPermission,
+    needsCalibration, calibrationProgress, dismissCalibration,
   } = useQibla(location);
 
   const [gpsState, setGpsState] = useState('idle'); // 'idle' | 'loading' | 'denied' | 'error'
@@ -215,6 +371,15 @@ export default function QiblaScreen() {
 
           <style>{`@keyframes spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}`}</style>
         </>
+      )}
+
+      {/* Calibration overlay — shown when compass accuracy is poor */}
+      {needsCalibration && compassAvail && (
+        <CalibrationOverlay
+          progress={calibrationProgress}
+          onDismiss={dismissCalibration}
+          T={T}
+        />
       )}
     </div>
   );
