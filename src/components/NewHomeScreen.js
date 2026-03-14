@@ -258,7 +258,7 @@ export default function NewHomeScreen({ stream, onGoToAdminLogin }) {
         padding: '16px 16px 12px',
         paddingTop: 'max(16px, env(safe-area-inset-top))',
       }}>
-        <AndalusLogo size={76} color={T.isDark ? T.accent : T.accent} />
+        <AndalusLogo size={80} color={T.isDark ? T.accent : T.accent} />
         <div style={{ fontSize: 18, fontWeight: 800, color: T.text, letterSpacing: '-.3px' }}>Hem</div>
 
         {/* Bell */}
