@@ -98,9 +98,11 @@ function PrayerTable({ times, isTomorrow, prayerStatus, T }) {
               )}
             </div>
             <div style={{
-              fontSize:17, fontWeight:400,
-              fontFamily:"'DS-Digital','Segment7','Courier New',monospace",
-              letterSpacing:'1px',
+              fontSize:17, fontWeight:500,
+              fontFamily:"'Inter',system-ui,sans-serif",
+              fontVariantNumeric:'tabular-nums',
+              fontFeatureSettings:'"tnum" 1',
+              letterSpacing:'0.01em',
               color: isActive ? rowColor : T.textSecondary,
             }}>
               {fmt24(times[name])}
@@ -284,11 +286,11 @@ export default function HomeScreen({ onMonthlyPress }) {
         )}
 
 
-        <div style={{ fontSize:14, fontWeight:600, color:T.textMuted, textTransform:'capitalize', fontFamily:"'Inter',system-ui,sans-serif", marginBottom:2 }}>
+        <div style={{ fontSize:14, fontWeight:400, color:T.textMuted, textTransform:'capitalize', fontFamily:"'Inter',system-ui,sans-serif", fontVariantNumeric:'tabular-nums', fontFeatureSettings:'"tnum" 1', marginBottom:2 }}>
           {dateStr}
         </div>
         {hijriStr && (
-          <div style={{ fontSize:13, color:T.accent, fontWeight:600, marginBottom:10, fontFamily:"'Inter',system-ui,sans-serif" }}>{hijriStr}</div>
+          <div style={{ fontSize:13, color:T.accent, fontWeight:400, marginBottom:10, fontFamily:"'Inter',system-ui,sans-serif", fontVariantNumeric:'tabular-nums', fontFeatureSettings:'"tnum" 1' }}>{hijriStr}</div>
         )}
         <div style={{ height:6 }}/>
         <button onClick={detectLocation} style={{
@@ -311,22 +313,22 @@ export default function HomeScreen({ onMonthlyPress }) {
             return (
               <>
                 {suburb && (
-                  <div style={{ fontSize:11, fontWeight:500, color:T.textMuted, fontFamily:"'Inter',system-ui,sans-serif", maxWidth:'90%', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
+                  <div style={{ fontSize:11, fontWeight:400, color:T.textMuted, fontFamily:"'Inter',system-ui,sans-serif", maxWidth:'90%', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
                     {suburb}
                   </div>
                 )}
-                <span style={{ fontSize:19, fontWeight:800, color:T.text, lineHeight:1.2, fontFamily:"'Inter',system-ui,sans-serif", letterSpacing:'-0.3px', maxWidth:'90%', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
+                <span style={{ fontSize:19, fontWeight:600, color:T.text, lineHeight:1.2, fontFamily:"'Inter',system-ui,sans-serif", letterSpacing:'-0.3px', maxWidth:'90%', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
                   {city}
                 </span>
               </>
             );
           })() : (
-            <span style={{ fontSize:17, fontWeight:700, color:T.text, fontFamily:"'Inter',system-ui,sans-serif" }}>
+            <span style={{ fontSize:17, fontWeight:600, color:T.text, fontFamily:"'Inter',system-ui,sans-serif" }}>
               Välj plats
             </span>
           )}
           {location?.country && (
-            <div style={{ fontSize:11, color:T.textMuted, fontFamily:"'Inter',system-ui,sans-serif", marginTop:1 }}>
+            <div style={{ fontSize:11, color:T.textMuted, fontFamily:"'Inter',system-ui,sans-serif", fontWeight:400, marginTop:1 }}>
               {location.country}
             </div>
           )}
@@ -389,13 +391,22 @@ export default function HomeScreen({ onMonthlyPress }) {
       {prayerTimes && nextPrayer && (
         <div style={{ background:T.bgSecondary, border:`1px solid ${T.border}`, borderRadius:14, padding:'12px 14px 14px', textAlign:'center', marginBottom:14, position:'relative', overflow:'hidden', flexShrink:0 }}>
           <div style={{ position:'absolute', bottom:0, left:0, right:0, height:2, background:T.accent, opacity:.5 }}/>
-          <div style={{ fontSize:9, fontWeight:700, letterSpacing:'1.8px', textTransform:'uppercase', color:T.textMuted, marginBottom:4, fontFamily:"'Inter',system-ui,sans-serif" }}>
+          <div style={{ fontSize:9, fontWeight:600, letterSpacing:'1.8px', textTransform:'uppercase', color:T.textMuted, marginBottom:4, fontFamily:"'Inter',system-ui,sans-serif" }}>
             Tid kvar till {PRAYER_SWEDISH[nextPrayer]}
           </div>
-          <div style={{ fontSize:34, fontWeight:400, color:T.text, letterSpacing:'3px', lineHeight:1.1, fontFamily:"'DS-Digital','Segment7','Courier New',monospace" }}>
+          <div style={{
+            fontSize:34, fontWeight:700, color:T.text, lineHeight:1.1,
+            fontFamily:"'D-DIN','Inter',system-ui,sans-serif",
+            fontVariantNumeric:'tabular-nums',
+            fontFeatureSettings:'"tnum" 1',
+            letterSpacing:'0.02em',
+            minWidth:'6ch',
+            display:'inline-block',
+            textAlign:'center',
+          }}>
             {fmtCountdown(secondsUntil)}
           </div>
-          <div style={{ fontSize:11, color:T.textMuted, marginTop:5, fontFamily:"'Inter',system-ui,sans-serif" }}>
+          <div style={{ fontSize:11, color:T.textMuted, marginTop:5, fontFamily:"'Inter',system-ui,sans-serif", fontWeight:400, fontVariantNumeric:'tabular-nums', fontFeatureSettings:'"tnum" 1' }}>
             {PRAYER_SWEDISH[nextPrayer]} kl. {fmt24(prayerTimes[nextPrayer])}
           </div>
         </div>
@@ -405,7 +416,7 @@ export default function HomeScreen({ onMonthlyPress }) {
       {prayerTimes && (
         <>
           <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:4 }}>
-            <div style={{ fontSize:10, fontWeight:700, letterSpacing:'1.4px', textTransform:'uppercase', color:T.textMuted }}>
+            <div style={{ fontSize:10, fontWeight:600, letterSpacing:'1.4px', textTransform:'uppercase', color:T.textMuted, fontFamily:"'Inter',system-ui,sans-serif" }}>
               {isShowingTomorrow ? `Imorgon · ${tomDateStr}` : 'Dagens böner'}
             </div>
             <div style={{ display:'flex', gap:4, alignItems:'center' }}>
@@ -419,7 +430,7 @@ export default function HomeScreen({ onMonthlyPress }) {
             </div>
           </div>
           <div style={{ height:16, marginBottom:3, display:'flex', alignItems:'center', justifyContent:'flex-end' }}>
-            <div style={{ fontSize:10, color:T.textMuted, opacity: slideIndex===0 ? 1 : 0, transition:'opacity .2s' }}>
+            <div style={{ fontSize:10, color:T.textMuted, fontFamily:"'Inter',system-ui,sans-serif", fontWeight:400, opacity: slideIndex===0 ? 1 : 0, transition:'opacity .2s' }}>
               ← Swipe för imorgon
             </div>
           </div>

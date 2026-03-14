@@ -88,7 +88,7 @@ function YoutubeCard({ stream, T }) {
                 <rect width="48" height="34" rx="8" fill="#FF0000"/>
                 <path d="M19 10l13 7-13 7V10z" fill="white"/>
               </svg>
-              <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.7)', fontFamily: 'system-ui', textAlign: 'center', padding: '0 16px' }}>
+              <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.7)', fontFamily: "'Inter',system-ui,sans-serif", textAlign: 'center', padding: '0 16px' }}>
                 {stream.title}
               </div>
             </div>
@@ -101,7 +101,7 @@ function YoutubeCard({ stream, T }) {
               background: '#FF0000', color: '#fff',
               borderRadius: 6, padding: '4px 10px',
               fontSize: 11, fontWeight: 800, letterSpacing: 1,
-              fontFamily: 'system-ui',
+              fontFamily: "'Inter',system-ui,sans-serif",
               display: 'flex', alignItems: 'center', gap: 6,
               boxShadow: '0 2px 12px rgba(255,0,0,0.5)',
             }}>
@@ -122,7 +122,7 @@ function YoutubeCard({ stream, T }) {
               background: 'rgba(245,158,11,0.9)', color: '#fff',
               borderRadius: 6, padding: '4px 10px',
               fontSize: 11, fontWeight: 700,
-              fontFamily: 'system-ui',
+              fontFamily: "'Inter',system-ui,sans-serif",
               display: 'flex', alignItems: 'center', gap: 5,
               backdropFilter: 'blur(4px)',
               boxShadow: '0 2px 8px rgba(0,0,0,0.3)',
@@ -156,7 +156,7 @@ function YoutubeCard({ stream, T }) {
         <div style={{ padding: '12px 14px 14px', display: 'flex', flexDirection: 'column', gap: 6 }}>
           <div style={{
             fontSize: 14, fontWeight: 700, color: T.text,
-            lineHeight: 1.35, fontFamily: "'Georgia', serif",
+            lineHeight: 1.35, fontFamily: "'Inter',system-ui,sans-serif",
             display: '-webkit-box', WebkitLineClamp: 2,
             WebkitBoxOrient: 'vertical', overflow: 'hidden',
           }}>{stream.title}</div>
@@ -164,11 +164,11 @@ function YoutubeCard({ stream, T }) {
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
               <AndalusLogo size={20} color={T.isDark ? T.accent : T.accent} />
-              <span style={{ fontSize: 12, color: T.textMuted, fontFamily: 'system-ui' }}>Andalus</span>
+              <span style={{ fontSize: 12, color: T.textMuted, fontFamily: "'Inter',system-ui,sans-serif" }}>Andalus</span>
             </div>
             {isLive ? (
               <span style={{
-                fontSize: 12, fontWeight: 800, color: '#FF0000', fontFamily: 'system-ui',
+                fontSize: 12, fontWeight: 800, color: '#FF0000', fontFamily: "'Inter',system-ui,sans-serif",
                 display: 'flex', alignItems: 'center', gap: 4,
               }}>
                 <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#FF0000', animation: 'livePulse 1s ease-in-out infinite', display: 'inline-block' }}/>
@@ -177,10 +177,10 @@ function YoutubeCard({ stream, T }) {
             ) : (
               <div style={{ textAlign: 'right' }}>
                 {scheduledLabel && (
-                  <div style={{ fontSize: 11, color: T.textMuted, fontFamily: 'system-ui', textTransform: 'capitalize' }}>{scheduledLabel}</div>
+                  <div style={{ fontSize: 11, color: T.textMuted, fontFamily: "'Inter',system-ui,sans-serif", textTransform: 'capitalize' }}>{scheduledLabel}</div>
                 )}
                 {countdown && (
-                  <div style={{ fontSize: 12, fontWeight: 700, color: '#f59e0b', fontFamily: 'system-ui' }}>
+                  <div style={{ fontSize: 12, fontWeight: 700, color: '#f59e0b', fontFamily: "'Inter',system-ui,sans-serif" }}>
                     om {countdown}
                   </div>
                 )}
@@ -241,7 +241,7 @@ export default function NewHomeScreen({ stream, onGoToAdminLogin }) {
 
   return (
     <div
-      style={{ background: T.bg, minHeight: '100%', fontFamily: "'Inter', system-ui, sans-serif" }}
+      style={{ background: T.bg, minHeight: '100%', fontFamily: "'Inter',system-ui,sans-serif" }}
       onMouseDown={() => setShowBellPanel(false)}
     >
       <style>{`
@@ -264,7 +264,7 @@ export default function NewHomeScreen({ stream, onGoToAdminLogin }) {
           <AndalusLogo size={80} color={T.isDark ? T.accent : T.accent} />
         </div>
 
-        <div style={{ fontSize: 18, fontWeight: 800, color: T.text, letterSpacing: '-.3px' }}>Hem</div>
+        <div style={{ fontSize: 18, fontWeight: 600, color: T.text, letterSpacing: '-.3px' }}>Hem</div>
 
         {/* Right side — absolute right, same pattern as Bönetider */}
         <div style={{ position: 'absolute', top: 4, right: 18, display: 'flex', alignItems: 'center', gap: 0 }}>
@@ -358,7 +358,7 @@ export default function NewHomeScreen({ stream, onGoToAdminLogin }) {
                       </div>
                       <div style={{ padding: '0 14px 10px', paddingLeft: 52 }}>
                         <button onClick={async e => { e.stopPropagation(); setAdminNotifDismissedThisSession(true); await dismissAdminDevice(); }}
-                          style={{ background: 'none', border: `1px solid ${T.border}`, borderRadius: 6, padding: '4px 10px', fontSize: 11, fontWeight: 600, color: T.textMuted, cursor: 'pointer', fontFamily: 'system-ui', WebkitTapHighlightColor: 'transparent' }}>
+                          style={{ background: 'none', border: `1px solid ${T.border}`, borderRadius: 6, padding: '4px 10px', fontSize: 11, fontWeight: 600, color: T.textMuted, cursor: 'pointer', fontFamily: "'Inter',system-ui,sans-serif", WebkitTapHighlightColor: 'transparent' }}>
                           Jag är inte admin — visa inte igen
                         </button>
                       </div>
@@ -423,12 +423,12 @@ export default function NewHomeScreen({ stream, onGoToAdminLogin }) {
               </svg>
             </div>
             <div style={{ flex: 1 }}>
-              <div style={{ fontSize: 12, fontWeight: 700, color: '#f59e0b', marginBottom: 2, fontFamily: 'system-ui' }}>ADMINPANEL</div>
-              <div style={{ fontSize: 13, color: T.text, fontFamily: 'system-ui' }}>
+              <div style={{ fontSize: 12, fontWeight: 700, color: '#f59e0b', marginBottom: 2, fontFamily: "'Inter',system-ui,sans-serif" }}>ADMINPANEL</div>
+              <div style={{ fontSize: 13, fontWeight: 400, color: T.text, fontFamily: "'Inter',system-ui,sans-serif" }}>
                 {adminUnread} bokning{adminUnread !== 1 ? 'ar' : ''} väntar på åtgärd
               </div>
             </div>
-            <div style={{ background: '#f59e0b', color: '#fff', borderRadius: 8, minWidth: 24, height: 24, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 800, padding: '0 6px', fontFamily: 'system-ui' }}>
+            <div style={{ background: '#f59e0b', color: '#fff', borderRadius: 8, minWidth: 24, height: 24, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 800, padding: '0 6px', fontFamily: "'Inter',system-ui,sans-serif" }}>
               {adminUnread > 9 ? '9+' : adminUnread}
             </div>
           </div>
@@ -443,9 +443,9 @@ export default function NewHomeScreen({ stream, onGoToAdminLogin }) {
           }}>
             <AndalusLogo size={26} color={T.isDark ? T.accent : T.accent} />
             <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ fontSize: 13, lineHeight: 1.55, color: T.textSecondary, fontFamily: 'system-ui' }}>{b.message}</div>
+              <div style={{ fontSize: 13, lineHeight: 1.55, fontWeight: 400, color: T.textSecondary, fontFamily: "'Inter',system-ui,sans-serif" }}>{b.message}</div>
               {b.linkText && b.linkUrl && (
-                <a href={b.linkUrl} target="_blank" rel="noopener noreferrer" style={{ display: 'inline-block', marginTop: 6, fontSize: 12, fontWeight: 700, color: T.accent, textDecoration: 'underline', textUnderlineOffset: 3, fontFamily: 'system-ui' }}>{b.linkText} →</a>
+                <a href={b.linkUrl} target="_blank" rel="noopener noreferrer" style={{ display: 'inline-block', marginTop: 6, fontSize: 12, fontWeight: 700, color: T.accent, textDecoration: 'underline', textUnderlineOffset: 3, fontFamily: "'Inter',system-ui,sans-serif" }}>{b.linkText} →</a>
               )}
             </div>
             <button onClick={e => { e.stopPropagation(); dismiss(b.id); }}
@@ -464,14 +464,14 @@ export default function NewHomeScreen({ stream, onGoToAdminLogin }) {
                     animation: 'livePulse 1s ease-in-out infinite',
                     boxShadow: '0 0 6px rgba(255,0,0,0.6)',
                   }}/>
-                  <span style={{ fontSize: 10, fontWeight: 800, color: '#FF0000', textTransform: 'uppercase', letterSpacing: 1.2, fontFamily: 'system-ui' }}>
+                  <span style={{ fontSize: 10, fontWeight: 800, color: '#FF0000', textTransform: 'uppercase', letterSpacing: 1.2, fontFamily: "'Inter',system-ui,sans-serif" }}>
                     Direktsändning just nu
                   </span>
                 </>
               ) : (
                 <>
                   <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#f59e0b', flexShrink: 0 }}/>
-                  <span style={{ fontSize: 10, fontWeight: 700, color: '#f59e0b', textTransform: 'uppercase', letterSpacing: 1.2, fontFamily: 'system-ui' }}>
+                  <span style={{ fontSize: 10, fontWeight: 700, color: '#f59e0b', textTransform: 'uppercase', letterSpacing: 1.2, fontFamily: "'Inter',system-ui,sans-serif" }}>
                     Kommande sändning
                   </span>
                 </>

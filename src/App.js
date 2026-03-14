@@ -232,7 +232,7 @@ function Shell() {
                   : 'none',
                 borderRadius: 22,
                 border: 'none', cursor: 'pointer',
-                fontFamily: "'Inter', system-ui, sans-serif",
+                fontFamily: "'Inter',system-ui,sans-serif",
                 WebkitTapHighlightColor: 'transparent',
                 transition: 'background .2s',
               }}
@@ -305,7 +305,7 @@ function Shell() {
                 </div>
               )}
               <span style={{
-                fontSize: 9, fontWeight: active ? 700 : 500,
+                fontSize: 9, fontWeight: active ? 600 : 500,
                 letterSpacing: '.3px',
                 color: t.id === 'home' && isLive
                   ? '#FF0000'
@@ -314,6 +314,7 @@ function Shell() {
                     : active ? T.accent : T.isDark ? T.accent : T.text,
                 opacity: active ? 1 : T.isDark ? 0.7 : 1,
                 whiteSpace: 'nowrap',
+                fontFamily: "'Inter',system-ui,sans-serif",
                 transition: 'all .2s',
               }}>{t.id === 'home' && isLive ? 'LIVE' : t.id === 'home' && isUpcoming ? 'Snart' : t.label}</span>
             </button>

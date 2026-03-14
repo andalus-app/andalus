@@ -1,0 +1,49 @@
+/* ═══════════════════════════════════════════════════════
+   FONT FACE DECLARATIONS
+   Place this file in src/ and import in index.js / App.js
+   ═══════════════════════════════════════════════════════ */
+
+/* ── D-DIN Bold — Timer font ── */
+@font-face {
+  font-family: 'D-DIN';
+  src: url('../assets/fonts/DDIN-Bold.woff2') format('woff2');
+  font-weight: 700;
+  font-style: normal;
+  font-display: block; /* block prevents FOUT on timer — critical */
+}
+
+/* ── Inter Regular ── */
+@font-face {
+  font-family: 'Inter';
+  src: url('../assets/fonts/Inter-Regular.woff2') format('woff2');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+/* ── Inter Medium ── */
+@font-face {
+  font-family: 'Inter';
+  src: url('../assets/fonts/Inter-Medium.woff2') format('woff2');
+  font-weight: 500;
+  font-style: normal;
+  font-display: swap;
+}
+
+/* ── Inter SemiBold ── */
+@font-face {
+  font-family: 'Inter';
+  src: url('../assets/fonts/Inter-SemiBold.woff2') format('woff2');
+  font-weight: 600;
+  font-style: normal;
+  font-display: swap;
+}
+
+/* ── Inter Bold ── */
+@font-face {
+  font-family: 'Inter';
+  src: url('../assets/fonts/Inter-Bold.woff2') format('woff2');
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
