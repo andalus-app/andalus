@@ -211,7 +211,7 @@ function bookingNotifColor(status) {
 
 /* ── Main screen ── */
 export default function NewHomeScreen({ stream, onGoToAdminLogin }) {
-  const { theme: T } = useTheme();
+  const { theme: T, mode, setMode } = useTheme();
   const { allBanners, banners, unreadCount, read, dismiss, markRead, markAllRead } = useBanner();
   const { bellNotifs, visitorUnread, adminPendingNotif, adminUnread, markVisitorSeen, dismissAdminDevice } = useBookingNotifications();
   const [showBellPanel, setShowBellPanel] = React.useState(false);
@@ -254,12 +254,39 @@ export default function NewHomeScreen({ stream, onGoToAdminLogin }) {
 
       {/* ── TOP BAR ── */}
       <div style={{
-        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+        position: 'relative',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
         padding: '16px 16px 12px',
         paddingTop: 'max(16px, env(safe-area-inset-top))',
+        minHeight: 56,
       }}>
-        <AndalusLogo size={80} color={T.isDark ? T.accent : T.accent} />
+        {/* Logo — absolute left, same as Bönetider */}
+        <div style={{ position: 'absolute', top: 'max(16px, env(safe-area-inset-top))', left: 16, pointerEvents: 'none', userSelect: 'none' }}>
+          <AndalusLogo size={80} color={T.isDark ? T.accent : T.accent} />
+        </div>
+
         <div style={{ fontSize: 18, fontWeight: 800, color: T.text, letterSpacing: '-.3px' }}>Hem</div>
+
+        {/* Right side — absolute right, same pattern as Bönetider */}
+        <div style={{ position: 'absolute', top: 'max(8px, calc(env(safe-area-inset-top) - 8px))', right: 8, display: 'flex', alignItems: 'center', gap: 0 }}>
+
+          {/* Theme toggle — sun ↔ moon with spin animation */}
+          <style>{`
+            @keyframes iconSpin { 0% { transform: rotate(-30deg) scale(0.7); opacity: 0; } 100% { transform: rotate(0deg) scale(1); opacity: 1; } }
+          `}</style>
+          <button
+            onClick={() => setMode(T.isDark ? 'light' : 'dark')}
+            style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 8, WebkitTapHighlightColor: 'transparent', overflow: 'hidden' }}
+          >
+            <div key={T.isDark ? 'moon' : 'sun'} style={{ animation: 'iconSpin .25s ease both', display: 'flex' }}>
+              <SvgIcon
+                name={T.isDark ? 'moon' : 'sun'}
+                size={22}
+                color={T.textMuted}
+                style={{ opacity: 0.6 }}
+              />
+            </div>
+          </button>
 
         {/* Bell */}
         <div style={{ position: 'relative' }}>
@@ -376,6 +403,7 @@ export default function NewHomeScreen({ stream, onGoToAdminLogin }) {
             </div>
           )}
         </div>
+        </div>{/* end right wrapper */}
       </div>
 
       {/* ── CONTENT ── */}
