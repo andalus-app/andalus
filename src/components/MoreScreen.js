@@ -4,7 +4,6 @@ import SettingsScreen from './SettingsScreen';
 import AboutScreen from './AboutScreen';
 import EbooksScreen from './EbooksScreen';
 import BookingScreen from './BookingScreen';
-import { useBookingNotifications } from '../hooks/useBookingNotifications';
 import AboutIcon from '../icons/about-svgrepo-com.svg';
 import CharityIcon from '../icons/charity-svgrepo-com.svg';
 import SwishLogo from '../icons/swish-logo.svg';
@@ -273,12 +272,9 @@ function SupportScreen({ onBack, T }) {
   );
 }
 
-export default function MoreScreen({ onTabBarHide, onTabBarShow, initialView }) {
+export default function MoreScreen({ onTabBarHide, onTabBarShow, initialView, markVisitorSeen, markAdminSeen, activateForDevice, registerAdminDevice, bookingBadge = 0 }) {
   const { theme: T } = useTheme();
   const [view, setView] = useState(initialView || 'menu');
-  const { visitorUnread, adminUnread, adminPendingNotif, markVisitorSeen, markAdminSeen, activateForDevice, registerAdminDevice } = useBookingNotifications();
-
-  const bookingBadge = visitorUnread + adminUnread + (adminPendingNotif ? adminPendingNotif.count : 0);
 
   const handleOpenBooking = () => {
     markVisitorSeen();

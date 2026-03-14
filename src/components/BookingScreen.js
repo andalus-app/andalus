@@ -686,8 +686,184 @@ function ConfirmationScreen({booking,onBack,T}){
 }
 
 /* ── MyBookings ── */
-function MyBookings({bookings, onViewConfirmation, onEdit, onCancel, onBack, T}){
+function MyBookings({bookings, onViewConfirmation, onEdit, onCancel, onCancelOne, onCancelFromDate, onBack, T}){
   const [selectedGroup, setSelectedGroup] = useState(null);
+  const [occurrenceSheet, setOccurrenceSheet] = useState(null); // booking obj
+
+  const sorted=bookings.slice().sort((a,b)=>b.created_at-a.created_at);
+  const groups=useMemo(()=>{
+    const map={};
+    sorted.forEach(b=>{const key=b.recurrence_group_id||b.id;if(!map[key]) map[key]={group_id:key,bookings:[],recurrence:b.recurrence,name:b.name,activity:b.activity};map[key].bookings.push(b);});
+    return Object.values(map);
+  },[sorted]);
+
+  const groupStatus=(grp)=>{
+    const ss=grp.bookings.map(b=>b.status);
+    for(const s of ['pending','edit_pending','approved','edited','rejected','cancelled']) if(ss.includes(s)) return s;
+    return ss[0];
+  };
+
+  const StatusInfo=({b})=>{
+    if(b.status==='cancelled') return <div style={{marginTop:8,background:'#64748b18',borderRadius:8,padding:'8px 10px'}}><div style={{fontSize:11,fontWeight:700,color:'#64748b',marginBottom:3}}>INSTÄLLD</div>{b.admin_comment&&<div style={{fontSize:12,color:'#64748b'}}>{b.admin_comment}</div>}</div>;
+    if(b.status==='rejected')  return <div style={{marginTop:8,background:'#ef444418',borderRadius:8,padding:'8px 10px'}}><div style={{fontSize:11,fontWeight:700,color:'#ef4444',marginBottom:3}}>AVBÖJD</div>{b.admin_comment&&<div style={{fontSize:12,color:'#ef4444'}}>{b.admin_comment}</div>}</div>;
+    if(b.status==='edit_pending') return <div style={{marginTop:8,background:'#f9731618',borderRadius:8,padding:'8px 10px'}}><div style={{fontSize:11,fontWeight:700,color:'#f97316',marginBottom:3}}>ÄNDRINGSFÖRFRÅGAN VÄNTAR</div><div style={{fontSize:12,color:'#f97316'}}>Din ändring granskas av admin.</div></div>;
+    if(b.status==='edited')    return <div style={{marginTop:8,background:'#3b82f618',borderRadius:8,padding:'8px 10px'}}><div style={{fontSize:11,fontWeight:700,color:'#3b82f6',marginBottom:3}}>ÄNDRAD AV ADMIN</div>{b.admin_comment&&<div style={{fontSize:12,color:'#3b82f6'}}>{b.admin_comment}</div>}</div>;
+    return null;
+  };
+
+  // Sheet för enstaka tillfälle — välj omfång
+  const OccurrenceSheet = () => {
+    if(!occurrenceSheet) return null;
+    const b = occurrenceSheet;
+    const grp = selectedGroup;
+    const sortedAll = grp?.bookings.slice().sort((a,x)=>a.date.localeCompare(x.date))||[];
+    const futureCount = sortedAll.filter(x=>x.date>=b.date&&x.status!=='cancelled').length;
+    const isPendingOcc = b.status==='pending'||b.status==='edit_pending';
+    return (
+      <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.5)',zIndex:1000,display:'flex',alignItems:'flex-end',justifyContent:'center'}} onClick={()=>setOccurrenceSheet(null)}>
+        <div onClick={e=>e.stopPropagation()} style={{background:T.card,borderRadius:'20px 20px 0 0',padding:'24px 20px 36px',width:'100%',maxWidth:500,boxSizing:'border-box',animation:'slideUp .25s cubic-bezier(0.32,0.72,0,1)'}}>
+          <div style={{fontSize:16,fontWeight:800,color:T.text,marginBottom:4,fontFamily:'system-ui'}}>{isoToDisplay(b.date)} · {b.time_slot}</div>
+          <div style={{marginBottom:20}}><Badge status={b.status}/></div>
+          <div style={{display:'flex',flexDirection:'column',gap:10}}>
+            <button onClick={()=>{setOccurrenceSheet(null);onCancelOne(b);}} style={{padding:'14px',borderRadius:12,border:'1px solid #ef444433',background:'#ef444411',color:'#ef4444',fontSize:14,fontWeight:700,cursor:'pointer',fontFamily:'system-ui',textAlign:'left',WebkitTapHighlightColor:'transparent'}}>
+              {isPendingOcc?'🗑 Återkalla bara detta tillfälle':'🗑 Avboka bara detta tillfälle'}
+              <div style={{fontSize:12,fontWeight:400,marginTop:3,opacity:.75}}>Övriga tillfällen i serien påverkas inte</div>
+            </button>
+            {futureCount>1&&<button onClick={()=>{setOccurrenceSheet(null);onCancelFromDate(b,sortedAll.filter(x=>x.date>=b.date&&x.status!=='cancelled'));}} style={{padding:'14px',borderRadius:12,border:'1px solid #ef444433',background:'#ef444411',color:'#ef4444',fontSize:14,fontWeight:700,cursor:'pointer',fontFamily:'system-ui',textAlign:'left',WebkitTapHighlightColor:'transparent'}}>
+              {isPendingOcc?'🗑 Återkalla detta + alla kommande':'🗑 Avboka detta + alla kommande'}
+              <div style={{fontSize:12,fontWeight:400,marginTop:3,opacity:.75}}>{futureCount} tillfällen fr.o.m. {isoToDisplay(b.date)}</div>
+            </button>}
+            <button onClick={()=>setOccurrenceSheet(null)} style={{padding:'13px',borderRadius:12,border:`1px solid ${T.border}`,background:'none',color:T.text,fontSize:14,fontWeight:600,cursor:'pointer',fontFamily:'system-ui',WebkitTapHighlightColor:'transparent'}}>Avbryt</button>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  // ── Detaljvy för vald grupp ──
+  if(selectedGroup){
+    const grp=selectedGroup;
+    const isRecur=grp.bookings.length>1;
+    const status=groupStatus(grp);
+    const sortedB=grp.bookings.slice().sort((a,b)=>a.date.localeCompare(b.date));
+    const rep=sortedB[0];
+    const isPending    =status==='pending';
+    const isEditPending=status==='edit_pending';
+    const isApproved   =status==='approved'||status==='edited';
+    const canEdit  =!isRecur&&(isPending||isApproved);
+    const canDelete=isPending||isEditPending||isApproved;
+
+    return <div style={{padding:'20px 16px',fontFamily:'system-ui'}}>
+      <OccurrenceSheet/>
+      <BackButton onBack={()=>{setSelectedGroup(null);setOccurrenceSheet(null);}} T={T}/>
+      <div style={{fontSize:20,fontWeight:800,color:T.text,marginTop:16,marginBottom:16}}>Bokningsdetaljer</div>
+
+      {/* Info-kort */}
+      <div style={{background:T.card,border:`1px solid ${T.border}`,borderRadius:16,padding:'16px',marginBottom:12}}>
+        <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:12}}>
+          <Badge status={status}/>
+          {isRecur&&<RecurBadge/>}
+        </div>
+        {[['Aktivitet',rep.activity],['Tid',rep.time_slot],['Längd',`${rep.duration_hours||1} timmar`]].map(([l,v])=>(
+          <div key={l} style={{marginBottom:10,paddingBottom:10,borderBottom:`1px solid ${T.border}`}}>
+            <div style={{fontSize:10,fontWeight:700,color:T.textMuted,letterSpacing:'.5px',marginBottom:2}}>{l.toUpperCase()}</div>
+            <div style={{fontSize:14,color:T.text}}>{v}</div>
+          </div>
+        ))}
+        {rep.admin_comment&&<div style={{padding:'8px 10px',background:`${T.accent}11`,borderRadius:8}}>
+          <div style={{fontSize:10,fontWeight:700,color:T.textMuted,letterSpacing:'.5px',marginBottom:2}}>KOMMENTAR FRÅN ADMIN</div>
+          <div style={{fontSize:13,color:T.text}}>{rep.admin_comment}</div>
+        </div>}
+      </div>
+
+      {/* Alla tillfällen — klickbara */}
+      {isRecur&&<div style={{background:T.card,border:'1px solid #8b5cf644',borderRadius:14,padding:'14px',marginBottom:12}}>
+        <div style={{fontSize:11,fontWeight:700,color:'#8b5cf6',marginBottom:4,letterSpacing:'.3px'}}>ALLA TILLFÄLLEN ({grp.bookings.length} st)</div>
+        <div style={{fontSize:11,color:T.textMuted,marginBottom:10}}>Tryck på ett tillfälle för att avboka det enskilt</div>
+        <div style={{display:'flex',flexDirection:'column',gap:4,maxHeight:280,overflowY:'auto'}}>
+          {sortedB.map(b=>{
+            const isCancelled=b.status==='cancelled'||b.status==='rejected';
+            return <div key={b.id}
+              onClick={()=>{if(!isCancelled) setOccurrenceSheet(b);}}
+              style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'8px 10px',background:T.cardElevated,borderRadius:8,cursor:isCancelled?'default':'pointer',opacity:isCancelled?0.45:1}}>
+              <div>
+                <span style={{fontSize:12,color:T.text,fontWeight:500}}>{isoToDisplay(b.date)}</span>
+                <span style={{fontSize:11,color:T.textMuted}}> · {b.time_slot}</span>
+              </div>
+              <div style={{display:'flex',alignItems:'center',gap:6}}>
+                <Badge status={b.status}/>
+                {!isCancelled&&<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke={T.textMuted} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6"/></svg>}
+              </div>
+            </div>;
+          })}
+        </div>
+      </div>}
+
+      {/* Enkel bokning */}
+      {!isRecur&&<div style={{background:T.card,border:`1px solid ${T.border}`,borderRadius:14,padding:'14px',marginBottom:12}}>
+        <div style={{fontSize:12,color:T.textMuted,marginBottom:4}}>{isoToDisplay(rep.date)}</div>
+        <StatusInfo b={rep}/>
+        {isApproved&&<div onClick={()=>onViewConfirmation(rep)} style={{marginTop:10,fontSize:12,color:T.accent,fontWeight:600,display:'flex',alignItems:'center',gap:4,cursor:'pointer'}}>
+          Visa bekräftelse <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+        </div>}
+      </div>}
+
+      {/* Inforutor */}
+      {isPending&&!isRecur&&<div style={{marginBottom:12,fontSize:11,color:T.accent,background:`${T.accent}11`,borderRadius:8,padding:'8px 12px'}}>Du kan ändra eller ta bort fritt — bokningen är ej bekräftad.</div>}
+      {isApproved&&!isRecur&&<div style={{marginBottom:12,fontSize:11,color:'#f97316',background:'#f9731611',borderRadius:8,padding:'8px 12px'}}>Bekräftad — ändring kräver admins godkännande, avbokning är direkt.</div>}
+      {isEditPending&&!isRecur&&<div style={{marginBottom:12,fontSize:11,color:'#f97316',background:'#f9731611',borderRadius:8,padding:'8px 12px'}}>Din ändringsförfrågan väntar på admin. Du kan fortfarande ta bort bokningen.</div>}
+      {isRecur&&<div style={{marginBottom:12,fontSize:11,color:T.textMuted,background:T.cardElevated,borderRadius:8,padding:'8px 12px'}}>Tryck på enstaka tillfällen ovan för att avboka dem, eller avboka hela serien nedan.</div>}
+
+      {/* Åtgärdsknappar */}
+      {(canEdit||canDelete)&&<div style={{display:'flex',gap:10,marginTop:4}}>
+        {canEdit&&<button onClick={()=>onEdit(rep)} style={{flex:1,padding:'13px',borderRadius:12,border:'1px solid #3b82f644',background:'#3b82f611',color:'#3b82f6',fontSize:14,fontWeight:700,cursor:'pointer',fontFamily:'system-ui',WebkitTapHighlightColor:'transparent',display:'flex',alignItems:'center',justifyContent:'center',gap:6}}>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+          {isApproved?'Begär ändring':'Ändra'}
+        </button>}
+        {canDelete&&<button onClick={()=>onCancel(rep)} style={{flex:1,padding:'13px',borderRadius:12,border:'1px solid #ef444433',background:'#ef444411',color:'#ef4444',fontSize:14,fontWeight:700,cursor:'pointer',fontFamily:'system-ui',WebkitTapHighlightColor:'transparent',display:'flex',alignItems:'center',justifyContent:'center',gap:6}}>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+          {isRecur?(isPending?'Återkalla hela serien':'Avboka hela serien'):(isApproved?'Avboka':'Återkalla')}
+        </button>}
+      </div>}
+    </div>;
+  }
+
+  // ── Listvy — 1 rad per grupp ──
+  return <div style={{padding:'20px 16px',fontFamily:'system-ui'}}>
+    <BackButton onBack={onBack} T={T}/>
+    <div style={{fontSize:22,fontWeight:800,color:T.text,letterSpacing:'-.4px',marginTop:16,marginBottom:20}}>Mina bokningar</div>
+    {groups.length===0
+      ?<div style={{textAlign:'center',padding:'40px 0',color:T.textMuted,fontSize:14}}>Inga bokningar än</div>
+      :<div style={{display:'flex',flexDirection:'column',gap:10}}>
+        {groups.map(grp=>{
+          const isRecur=grp.bookings.length>1;
+          const status=groupStatus(grp);
+          const sortedB=grp.bookings.slice().sort((a,b)=>a.date.localeCompare(b.date));
+          const firstDate=sortedB[0]?.date;
+          const lastDate=sortedB[sortedB.length-1]?.date;
+          const rep=sortedB[0];
+          return <div key={grp.group_id} onClick={()=>setSelectedGroup(grp)}
+            style={{background:T.card,border:`1px solid ${status==='pending'?'#f59e0b44':status==='edit_pending'?'#f9731644':status==='edited'?'#3b82f633':status==='cancelled'?'#64748b33':T.border}`,borderRadius:14,padding:'14px 16px',cursor:'pointer'}}>
+            <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:4}}>
+              <div style={{display:'flex',alignItems:'center',gap:6}}>
+                {isRecur&&<RecurBadge/>}
+                <div style={{fontSize:14,fontWeight:700,color:T.text}}>{rep?.time_slot}</div>
+              </div>
+              <Badge status={status}/>
+            </div>
+            <div style={{fontSize:12,color:T.textMuted,marginBottom:2}}>
+              {isRecur
+                ?`${isoToDisplay(firstDate)} – ${isoToDisplay(lastDate)} · ${grp.bookings.length} tillfällen`
+                :`${isoToDisplay(firstDate)} · ${rep?.duration_hours||1}h`
+              }
+            </div>
+            <div style={{fontSize:12,color:T.textMuted}}>{grp.activity}</div>
+          </div>;
+        })}
+      </div>
+    }
+  </div>;
+}
 
   const sorted=bookings.slice().sort((a,b)=>b.created_at-a.created_at);
   const groups=useMemo(()=>{
@@ -995,7 +1171,298 @@ function AdminEditForm({booking, bookings, onSubmit, onBack, loading, T}){
 }
 
 /* ── AdminPanel ── */
-function AdminPanel({bookings,onAction,onEdit,onDelete,onAddRecurring,onBack,onLogout,actionLoading,onTabBarHide,onTabBarShow,T}){
+function AdminPanel({bookings,onAction,onEdit,onDelete,onDeleteMany,onAddRecurring,onBack,onLogout,actionLoading,onTabBarHide,onTabBarShow,T}){
+  const [filter,setFilter]=useState('all');
+  const [selected,setSelected]=useState(null);       // { group_id, bookings[], isRecur }
+  const [selectedOccurrence,setSelectedOccurrence]=useState(null); // enstaka tillfälle (booking-objekt)
+  const [comment,setComment]=useState('');
+  const [commentError,setCommentError]=useState('');
+  const [showAddRecur,setShowAddRecur]=useState(false);
+  const [showEditForm,setShowEditForm]=useState(false);
+  // deleteMode: null | 'all' | 'one' | 'one_and_future'
+  const [deleteMode,setDeleteMode]=useState(null);
+  const [deleteExplanation,setDeleteExplanation]=useState('');
+  const [deleteExplanationError,setDeleteExplanationError]=useState('');
+
+  // Gruppera bokningar — en rad per bokning/grupp
+  const groups = useMemo(()=>{
+    const statusFilter = (b) => {
+      if(filter==='all') return true;
+      if(filter==='pending') return b.status==='pending'||b.status==='edit_pending';
+      return b.status===filter;
+    };
+    const allFiltered = bookings.filter(statusFilter);
+    const map = {};
+    allFiltered.forEach(b=>{
+      const key = b.recurrence_group_id || b.id;
+      if(!map[key]) map[key]={ group_id:key, bookings:[], recurrence:b.recurrence, name:b.name, activity:b.activity };
+      map[key].bookings.push(b);
+    });
+    return Object.values(map).sort((a,b)=>{
+      const aMax = Math.max(...a.bookings.map(x=>x.created_at));
+      const bMax = Math.max(...b.bookings.map(x=>x.created_at));
+      return bMax - aMax;
+    });
+  }, [bookings, filter]);
+
+  const groupStatus = (grp) => {
+    const statuses = grp.bookings.map(b=>b.status);
+    for(const s of ['pending','edit_pending','approved','edited','rejected','cancelled']) if(statuses.includes(s)) return s;
+    return statuses[0];
+  };
+
+  const handleAction=(action)=>{
+    if(action==='rejected'&&!comment.trim()){setCommentError('Du måste ange en kommentar vid avböjning.');return;}
+    const targets = selected.bookings.filter(b=>
+      action==='approved'||action==='rejected'
+        ? b.status==='pending'||b.status==='edit_pending'
+        : true
+    );
+    targets.forEach(b=>onAction(b.id,action,comment.trim()));
+    setSelected(null);setComment('');setCommentError('');
+  };
+
+  // Stäng alla delete-dialoger
+  const closeDelete = () => {
+    setDeleteMode(null);
+    setDeleteExplanation('');
+    setDeleteExplanationError('');
+    onTabBarShow?.();
+  };
+
+  // Bekräfta borttagning
+  const confirmDelete = () => {
+    if(!deleteExplanation.trim()){setDeleteExplanationError('Ange en förklaring till besökaren.');return;}
+    if(deleteMode==='all'){
+      selected.bookings.forEach(b=>onDelete(b.id,deleteExplanation.trim()));
+      closeDelete(); setSelected(null);
+    } else if(deleteMode==='one'){
+      onDelete(selectedOccurrence.id,deleteExplanation.trim());
+      closeDelete(); setSelectedOccurrence(null);
+    } else if(deleteMode==='one_and_future'){
+      // Alla tillfällen på samma eller senare datum som det valda
+      const cutoff = selectedOccurrence.date;
+      const targets = selected.bookings
+        .filter(b=>b.date>=cutoff&&b.status!=='cancelled')
+        .sort((a,b)=>a.date.localeCompare(b.date));
+      onDeleteMany(targets.map(b=>b.id), deleteExplanation.trim());
+      closeDelete(); setSelectedOccurrence(null);
+    }
+  };
+
+  if(showAddRecur) return <AdminAddRecurring onSubmit={(data)=>{onAddRecurring(data);setShowAddRecur(false);}} onBack={()=>setShowAddRecur(false)} bookings={bookings} T={T}/>;
+  if(showEditForm&&selected) return <AdminEditForm booking={selected.bookings[0]} bookings={bookings} onSubmit={(data)=>{onEdit(data);setShowEditForm(false);setSelected(null);}} onBack={()=>setShowEditForm(false)} loading={actionLoading} T={T}/>;
+
+  /* ── Delete-bekräftelsedialog (sheet) ── */
+  const DeleteSheet = () => {
+    if(!deleteMode) return null;
+    const isAll = deleteMode==='all';
+    const isFuture = deleteMode==='one_and_future';
+    const cutoff = selectedOccurrence?.date;
+    const futureCount = isFuture && selected
+      ? selected.bookings.filter(b=>b.date>=cutoff&&b.status!=='cancelled').length
+      : 0;
+    const title = isAll
+      ? 'Ta bort alla tillfällen'
+      : isFuture
+        ? `Ta bort detta + ${futureCount-1} kommande`
+        : 'Ta bort detta tillfälle';
+    const msg = isAll
+      ? `Alla ${selected.bookings.length} tillfällen i serien tas bort permanent.`
+      : isFuture
+        ? `${isoToDisplay(cutoff)} och ${futureCount-1} kommande tillfällen tas bort. Tidigare tillfällen påverkas inte.`
+        : `Tillfället ${isoToDisplay(selectedOccurrence?.date)} · ${selectedOccurrence?.time_slot} tas bort. Övriga tillfällen påverkas inte.`;
+    return (
+      <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.5)',zIndex:1000,display:'flex',alignItems:'flex-end',justifyContent:'center'}} onClick={closeDelete}>
+        <div onClick={e=>e.stopPropagation()} style={{background:T.card,borderRadius:'20px 20px 0 0',padding:'24px 20px 36px',width:'100%',maxWidth:500,boxSizing:'border-box',animation:'slideUp .25s cubic-bezier(0.32,0.72,0,1)'}}>
+          <div style={{fontSize:18,fontWeight:800,color:T.text,marginBottom:6,fontFamily:'system-ui'}}>{title}</div>
+          <div style={{fontSize:13,color:T.textMuted,marginBottom:16,fontFamily:'system-ui',lineHeight:1.5}}>{msg}</div>
+          <div style={{marginBottom:14}}>
+            <label style={{fontSize:12,fontWeight:600,color:T.textMuted,fontFamily:'system-ui',letterSpacing:'.3px',display:'block',marginBottom:5}}>FÖRKLARING TILL BESÖKAREN *</label>
+            <textarea value={deleteExplanation} onChange={e=>setDeleteExplanation(e.target.value)} placeholder="Förklara varför bokningen tas bort..." rows={3}
+              style={{background:T.cardElevated,border:`1px solid ${deleteExplanationError?T.error:T.border}`,borderRadius:10,padding:'11px 14px',fontSize:15,color:T.text,fontFamily:'system-ui',outline:'none',width:'100%',boxSizing:'border-box',resize:'vertical'}}/>
+            {deleteExplanationError&&<div style={{fontSize:12,color:T.error,marginTop:4}}>{deleteExplanationError}</div>}
+          </div>
+          <div style={{display:'flex',gap:10}}>
+            <button onClick={closeDelete} style={{flex:1,padding:'13px',borderRadius:12,border:`1px solid ${T.border}`,background:'none',color:T.text,fontSize:15,fontWeight:600,cursor:'pointer',fontFamily:'system-ui'}}>Avbryt</button>
+            <button onClick={confirmDelete} disabled={actionLoading} style={{flex:1,padding:'13px',borderRadius:12,border:'none',background:'#ef4444',color:'#fff',fontSize:15,fontWeight:700,cursor:actionLoading?'default':'pointer',fontFamily:'system-ui'}}>
+              {actionLoading?'Tar bort...':'Ta bort'}
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  /* ── Enstaka tillfälle — välj avbokningsomfång ── */
+  const OccurrenceSheet = () => {
+    if(!selectedOccurrence||deleteMode) return null;
+    const b = selectedOccurrence;
+    const sortedAll = selected?.bookings.slice().sort((a,x)=>a.date.localeCompare(x.date))||[];
+    const futureCount = sortedAll.filter(x=>x.date>=b.date&&x.status!=='cancelled').length;
+    return (
+      <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.5)',zIndex:1000,display:'flex',alignItems:'flex-end',justifyContent:'center'}} onClick={()=>setSelectedOccurrence(null)}>
+        <div onClick={e=>e.stopPropagation()} style={{background:T.card,borderRadius:'20px 20px 0 0',padding:'24px 20px 36px',width:'100%',maxWidth:500,boxSizing:'border-box',animation:'slideUp .25s cubic-bezier(0.32,0.72,0,1)'}}>
+          <div style={{fontSize:16,fontWeight:800,color:T.text,marginBottom:4,fontFamily:'system-ui'}}>
+            {isoToDisplay(b.date)} · {b.time_slot}
+          </div>
+          <div style={{marginBottom:20}}><Badge status={b.status}/></div>
+          <div style={{display:'flex',flexDirection:'column',gap:10}}>
+            <button onClick={()=>{onTabBarHide?.();setDeleteMode('one');}} style={{padding:'14px',borderRadius:12,border:'1px solid #ef444433',background:'#ef444411',color:'#ef4444',fontSize:14,fontWeight:700,cursor:'pointer',fontFamily:'system-ui',textAlign:'left',WebkitTapHighlightColor:'transparent'}}>
+              🗑 Avboka bara detta tillfälle
+              <div style={{fontSize:12,fontWeight:400,marginTop:3,opacity:.75}}>Övriga tillfällen i serien påverkas inte</div>
+            </button>
+            {futureCount>1&&<button onClick={()=>{onTabBarHide?.();setDeleteMode('one_and_future');}} style={{padding:'14px',borderRadius:12,border:'1px solid #ef444433',background:'#ef444411',color:'#ef4444',fontSize:14,fontWeight:700,cursor:'pointer',fontFamily:'system-ui',textAlign:'left',WebkitTapHighlightColor:'transparent'}}>
+              🗑 Avboka detta + alla {futureCount-1} kommande
+              <div style={{fontSize:12,fontWeight:400,marginTop:3,opacity:.75}}>Fr.o.m. {isoToDisplay(b.date)} — tidigare påverkas inte</div>
+            </button>}
+            <button onClick={()=>setSelectedOccurrence(null)} style={{padding:'13px',borderRadius:12,border:`1px solid ${T.border}`,background:'none',color:T.text,fontSize:14,fontWeight:600,cursor:'pointer',fontFamily:'system-ui',WebkitTapHighlightColor:'transparent'}}>
+              Avbryt
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  // Detaljvy för vald grupp
+  if(selected) return <div style={{padding:'20px 16px',fontFamily:'system-ui'}}>
+    <DeleteSheet/>
+    <OccurrenceSheet/>
+    <BackButton onBack={()=>{setSelected(null);setComment('');setCommentError('');setSelectedOccurrence(null);closeDelete();}} T={T}/>
+    <div style={{fontSize:20,fontWeight:800,color:T.text,marginTop:16,marginBottom:4}}>Bokningsdetaljer</div>
+
+    {/* Personinfo */}
+    <div style={{background:T.card,border:`1px solid ${T.border}`,borderRadius:16,padding:'16px',marginBottom:12}}>
+      <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:14}}>
+        <Badge status={groupStatus(selected)}/>
+        {selected.isRecur&&<RecurBadge/>}
+      </div>
+      {[['Namn',selected.bookings[0].name],['Telefon',selected.bookings[0].phone],['E-post',selected.bookings[0].email],['Aktivitet',selected.bookings[0].activity],['Tid',selected.bookings[0].time_slot],['Längd',`${selected.bookings[0].duration_hours||1} timmar`]].map(([l,v])=>(
+        <div key={l} style={{marginBottom:10,paddingBottom:10,borderBottom:`1px solid ${T.border}`}}>
+          <div style={{fontSize:10,fontWeight:700,color:T.textMuted,letterSpacing:'.5px',marginBottom:2}}>{l.toUpperCase()}</div>
+          <div style={{fontSize:14,color:T.text}}>{v}</div>
+        </div>
+      ))}
+      {selected.bookings[0].admin_comment&&<div style={{padding:'8px 10px',background:`${T.accent}11`,borderRadius:8}}>
+        <div style={{fontSize:10,fontWeight:700,color:T.textMuted,letterSpacing:'.5px',marginBottom:2}}>SENASTE KOMMENTAR</div>
+        <div style={{fontSize:13,color:T.text}}>{selected.bookings[0].admin_comment}</div>
+      </div>}
+    </div>
+
+    {/* Tillfällen — klickbara för enstaka avbokning */}
+    {selected.isRecur&&<div style={{background:T.card,border:'1px solid #8b5cf644',borderRadius:14,padding:'14px',marginBottom:12}}>
+      <div style={{fontSize:11,fontWeight:700,color:'#8b5cf6',marginBottom:4,letterSpacing:'.3px'}}>
+        ALLA TILLFÄLLEN ({selected.bookings.length} st)
+      </div>
+      <div style={{fontSize:11,color:T.textMuted,marginBottom:10}}>Tryck på ett tillfälle för att avboka det enskilt</div>
+      <div style={{display:'flex',flexDirection:'column',gap:4,maxHeight:260,overflowY:'auto'}}>
+        {selected.bookings.slice().sort((a,b)=>a.date.localeCompare(b.date)).map(b=>{
+          const isCancelled = b.status==='cancelled';
+          return <div key={b.id}
+            onClick={()=>!isCancelled&&setSelectedOccurrence(b)}
+            style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'8px 10px',background:T.cardElevated,borderRadius:8,cursor:isCancelled?'default':'pointer',opacity:isCancelled?0.45:1,transition:'opacity .1s'}}>
+            <div>
+              <span style={{fontSize:12,color:T.text,fontWeight:500}}>{isoToDisplay(b.date)}</span>
+              <span style={{fontSize:11,color:T.textMuted}}> · {b.time_slot}</span>
+            </div>
+            <div style={{display:'flex',alignItems:'center',gap:6}}>
+              <Badge status={b.status}/>
+              {!isCancelled&&<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={T.textMuted} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6"/></svg>}
+            </div>
+          </div>;
+        })}
+      </div>
+    </div>}
+
+    {/* Godkänn / Avböj — pending och edit_pending */}
+    {selected.bookings.some(b=>b.status==='pending'||b.status==='edit_pending')&&<div style={{display:'flex',flexDirection:'column',gap:12,marginBottom:16}}>
+      {selected.bookings.some(b=>b.status==='edit_pending')&&<div style={{background:'#f9731618',border:'1px solid #f9731633',borderRadius:10,padding:'10px 12px',fontSize:12,color:'#f97316'}}>
+        Besökaren har begärt en ändring. Godkänn för att bekräfta, eller avböj för att behålla originalet.
+      </div>}
+      {selected.isRecur&&<div style={{background:`${T.accent}11`,border:`1px solid ${T.accent}33`,borderRadius:10,padding:'10px 12px',fontSize:12,color:T.accent}}>
+        Godkänn/Avböj gäller alla {selected.bookings.filter(b=>b.status==='pending'||b.status==='edit_pending').length} väntande tillfällen på en gång.
+      </div>}
+      <Textarea label="KOMMENTAR (obligatorisk vid avböjning)" value={comment} onChange={setComment} placeholder="Ange orsak om du avböjer..." T={T}/>
+      {commentError&&<div style={{fontSize:12,color:T.error,background:`${T.error}18`,padding:'8px 12px',borderRadius:8}}>{commentError}</div>}
+      <div style={{display:'flex',gap:10}}>
+        <button onClick={()=>handleAction('approved')} disabled={actionLoading} style={{flex:1,padding:'13px',borderRadius:12,border:'none',background:'#22c55e',color:'#fff',fontSize:15,fontWeight:700,cursor:actionLoading?'default':'pointer',WebkitTapHighlightColor:'transparent',display:'flex',alignItems:'center',justifyContent:'center',gap:6}}>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+          {actionLoading?'...':selected.isRecur?`Godkänn alla (${selected.bookings.filter(b=>b.status==='pending'||b.status==='edit_pending').length})`:'Godkänn'}
+        </button>
+        <button onClick={()=>handleAction('rejected')} disabled={actionLoading} style={{flex:1,padding:'13px',borderRadius:12,border:'none',background:'#ef4444',color:'#fff',fontSize:15,fontWeight:700,cursor:actionLoading?'default':'pointer',WebkitTapHighlightColor:'transparent',display:'flex',alignItems:'center',justifyContent:'center',gap:6}}>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+          {actionLoading?'...':'Avböj'}
+        </button>
+      </div>
+    </div>}
+
+    {/* Ändra / Ta bort hela gruppen */}
+    {groupStatus(selected)!=='cancelled'&&<div style={{display:'flex',gap:10,marginTop:4}}>
+      <button onClick={()=>setShowEditForm(true)} style={{flex:1,padding:'13px',borderRadius:12,border:'1px solid #3b82f644',background:'#3b82f611',color:'#3b82f6',fontSize:14,fontWeight:700,cursor:'pointer',fontFamily:'system-ui',WebkitTapHighlightColor:'transparent',display:'flex',alignItems:'center',justifyContent:'center',gap:6}}>
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+        Ändra bokning
+      </button>
+      <button onClick={()=>{setDeleteMode('all');onTabBarHide?.();}} disabled={actionLoading} style={{flex:1,padding:'13px',borderRadius:12,border:'1px solid #ef444433',background:'#ef444411',color:'#ef4444',fontSize:14,fontWeight:700,cursor:actionLoading?'default':'pointer',fontFamily:'system-ui',WebkitTapHighlightColor:'transparent',display:'flex',alignItems:'center',justifyContent:'center',gap:6}}>
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
+        {selected.isRecur?'Ta bort alla':'Ta bort'}
+      </button>
+    </div>}
+  </div>;
+
+  const pending=bookings.filter(b=>b.status==='pending'||b.status==='edit_pending').length;
+  return <div style={{padding:'20px 16px',fontFamily:'system-ui'}}>
+    <BackButton onBack={onBack} T={T}/>
+    <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginTop:16,marginBottom:16}}>
+      <div style={{display:'flex',alignItems:'center',gap:10}}>
+        <div style={{fontSize:22,fontWeight:800,color:T.text,letterSpacing:'-.4px'}}>Adminpanel</div>
+        {pending>0&&<div style={{background:'#f59e0b',color:'#fff',fontSize:11,fontWeight:700,borderRadius:10,padding:'3px 8px'}}>{pending} ny</div>}
+      </div>
+      <div style={{display:'flex',gap:8,alignItems:'center'}}>
+        <button onClick={()=>setShowAddRecur(true)} style={{display:'flex',alignItems:'center',gap:6,background:'#8b5cf622',border:'1px solid #8b5cf644',borderRadius:10,padding:'7px 12px',cursor:'pointer',WebkitTapHighlightColor:'transparent'}}>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#8b5cf6" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg>
+          <span style={{fontSize:12,fontWeight:700,color:'#8b5cf6',fontFamily:'system-ui'}}>Återkommande</span>
+        </button>
+        {onLogout&&<button onClick={onLogout} style={{width:36,height:36,display:'flex',alignItems:'center',justifyContent:'center',background:'#ef444418',border:'1px solid #ef444433',borderRadius:10,cursor:'pointer',WebkitTapHighlightColor:'transparent'}} title="Logga ut">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#ef4444" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+        </button>}
+      </div>
+    </div>
+    <div style={{display:'flex',gap:6,marginBottom:14,flexWrap:'wrap'}}>
+      {[['all','Alla'],['pending','Väntar'],['approved','Godkända'],['edited','Ändrade'],['rejected','Avböjda'],['cancelled','Inställda']].map(([id,label])=>(
+        <button key={id} onClick={()=>setFilter(id)} style={{padding:'5px 14px',borderRadius:20,border:`1px solid ${filter===id?T.accent:T.border}`,background:filter===id?`${T.accent}22`:'none',color:filter===id?T.accent:T.textMuted,fontSize:12,fontWeight:600,cursor:'pointer',fontFamily:'system-ui',WebkitTapHighlightColor:'transparent'}}>{label}</button>
+      ))}
+    </div>
+    {groups.length===0
+      ?<div style={{textAlign:'center',padding:'40px 0',color:T.textMuted,fontSize:14}}>Inga bokningar</div>
+      :<div style={{display:'flex',flexDirection:'column',gap:8}}>
+        {groups.map(grp=>{
+          const isRecur = grp.bookings.length>1;
+          const status = groupStatus(grp);
+          const sorted = grp.bookings.slice().sort((a,b)=>a.date.localeCompare(b.date));
+          const firstDate = sorted[0]?.date;
+          const lastDate = sorted[sorted.length-1]?.date;
+          return <div key={grp.group_id} onClick={()=>setSelected({...grp,isRecur})} style={{background:T.card,border:`1px solid ${status==='pending'?'#f59e0b44':status==='edit_pending'?'#f9731644':status==='edited'?'#3b82f633':T.border}`,borderRadius:14,padding:'14px 16px',cursor:'pointer'}}>
+            <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:4}}>
+              <div style={{display:'flex',alignItems:'center',gap:6}}>
+                <div style={{fontSize:14,fontWeight:700,color:T.text}}>{grp.name}</div>
+                {isRecur&&<RecurBadge/>}
+              </div>
+              <Badge status={status}/>
+            </div>
+            <div style={{fontSize:12,color:T.textMuted,marginBottom:2}}>
+              {isRecur
+                ? `${isoToDisplay(firstDate)} – ${isoToDisplay(lastDate)} · ${grp.bookings.length} tillfällen`
+                : `${isoToDisplay(firstDate)} · ${sorted[0]?.time_slot} · ${sorted[0]?.duration_hours||1}h`
+              }
+            </div>
+            <div style={{fontSize:12,color:T.textMuted}}>{grp.activity}</div>
+          </div>;
+        })}
+      </div>
+    }
+  </div>;
+}
   const [filter,setFilter]=useState('all');
   const [selected,setSelected]=useState(null); // { group_id, bookings[], isRecur }
   const [comment,setComment]=useState('');
@@ -1303,6 +1770,28 @@ export default function BookingScreen({onBack, activateForDevice, registerAdminD
     setCancelDialog(null);
   },[showToast]);
 
+  /* Besökare avbokar ett enstaka tillfälle i en serie (direkt, ingen dialog) */
+  const handleVisitorCancelOne=useCallback(async(booking)=>{
+    const noApproval = ['pending','edit_pending'].includes(booking.status);
+    const comment = noApproval ? 'Återkallad av besökaren.' : 'Avbokat tillfälle av besökaren.';
+    const {error}=await supabase.from('bookings').update({status:'cancelled',admin_comment:comment,resolved_at:Date.now()}).eq('id',booking.id);
+    if(error){showToast('Något gick fel.');return;}
+    showToast(noApproval?'Tillfälle återkallat.':'Tillfälle avbokat.');
+  },[showToast]);
+
+  /* Besökare avbokar ett tillfälle + alla kommande i serien */
+  const handleVisitorCancelFromDate=useCallback(async(booking, futureBookings)=>{
+    const noApproval = ['pending','edit_pending'].includes(booking.status);
+    const comment = noApproval ? 'Återkallad av besökaren.' : 'Avbokat av besökaren (detta och kommande).';
+    const ids = futureBookings.map(b=>b.id);
+    const BATCH=20;
+    for(let i=0;i<ids.length;i+=BATCH){
+      const {error}=await supabase.from('bookings').update({status:'cancelled',admin_comment:comment,resolved_at:Date.now()}).in('id',ids.slice(i,i+BATCH));
+      if(error){showToast('Något gick fel.');return;}
+    }
+    showToast(`${ids.length} tillfällen ${noApproval?'återkallade':'avbokade'}.`);
+  },[showToast]);
+
   /* Besökare redigerar bokning:
      - pending → ta bort gamla raden, skapa ny pending (frigör gamla platsen korrekt)
      - approved/edited → skickas som edit_pending för admin att granska */
@@ -1386,6 +1875,20 @@ export default function BookingScreen({onBack, activateForDevice, registerAdminD
     showToast('Bokning borttagen & besökare notifierad');
   },[showToast]);
 
+  /* Admin tar bort flera bokningar (enstaka + kommande) */
+  const handleAdminDeleteMany=useCallback(async(bookingIds,explanation)=>{
+    setActionLoading(true);
+    const BATCH=20;
+    for(let i=0;i<bookingIds.length;i+=BATCH){
+      const {error}=await supabase.from('bookings')
+        .update({status:'cancelled',admin_comment:explanation,resolved_at:Date.now()})
+        .in('id',bookingIds.slice(i,i+BATCH));
+      if(error){setActionLoading(false);showToast('Något gick fel.');return;}
+    }
+    setActionLoading(false);
+    showToast(`${bookingIds.length} tillfällen borttagna & besökare notifierad`);
+  },[showToast]);
+
   /* Admin lägger till återkommande */
   const handleAdminAddRecurring=useCallback(async(formData)=>{
     const groupId=uid();
@@ -1459,6 +1962,8 @@ export default function BookingScreen({onBack, activateForDevice, registerAdminD
         onViewConfirmation={setViewConfirmation}
         onEdit={(b)=>{setEditingBooking(b);setView('edit-booking');}}
         onCancel={(b)=>setCancelDialog(b)}
+        onCancelOne={handleVisitorCancelOne}
+        onCancelFromDate={handleVisitorCancelFromDate}
         onBack={()=>setView('calendar')}
         T={T}
       />
@@ -1468,7 +1973,7 @@ export default function BookingScreen({onBack, activateForDevice, registerAdminD
 
   if(view==='admin-login') return <div style={{background:T.bg,minHeight:'100%'}}><AdminLogin onSuccess={handleAdminLogin} onBack={()=>setView('calendar')} T={T}/></div>;
   if(view==='admin') return <div style={{background:T.bg,minHeight:'100%'}}>
-    <AdminPanel bookings={bookings} onAction={handleAdminAction} onEdit={handleAdminEdit} onDelete={handleAdminDelete} onAddRecurring={handleAdminAddRecurring} onBack={()=>setView('calendar')} onLogout={handleAdminLogout} actionLoading={actionLoading} onTabBarHide={onTabBarHide} onTabBarShow={onTabBarShow} T={T}/>
+    <AdminPanel bookings={bookings} onAction={handleAdminAction} onEdit={handleAdminEdit} onDelete={handleAdminDelete} onDeleteMany={handleAdminDeleteMany} onAddRecurring={handleAdminAddRecurring} onBack={()=>setView('calendar')} onLogout={handleAdminLogout} actionLoading={actionLoading} onTabBarHide={onTabBarHide} onTabBarShow={onTabBarShow} T={T}/>
     <Toast message={toast} T={T}/>
   </div>;
 

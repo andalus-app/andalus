@@ -63,7 +63,7 @@ function Shell() {
   const [moreResetKey, setMoreResetKey]   = useState(0);
   const scrollContainerRef = useRef(null);
   const { isLive, stream } = useYoutubeLive();
-  const { totalUnread } = useBookingNotifications();
+  const { totalUnread, markVisitorSeen, markAdminSeen, activateForDevice, registerAdminDevice, adminPendingNotif } = useBookingNotifications();
 
   // Reset scroll to top when tab or monthly view changes
   useEffect(() => {
@@ -141,7 +141,7 @@ function Shell() {
       case 'prayer':   return <PrayerScreen onMonthlyPress={() => setShowMonthly(true)} />;
       case 'qibla':    return <QiblaScreen />;
       case 'dhikr':    return <DhikrScreen />;
-      case 'more':     return <MoreScreen key={moreResetKey} onTabBarHide={() => setTabBarVisible(false)} onTabBarShow={() => setTabBarVisible(true)} initialView={moreInitialView} />;
+      case 'more':     return <MoreScreen key={moreResetKey} onTabBarHide={() => setTabBarVisible(false)} onTabBarShow={() => setTabBarVisible(true)} initialView={moreInitialView} markVisitorSeen={markVisitorSeen} markAdminSeen={markAdminSeen} activateForDevice={activateForDevice} registerAdminDevice={registerAdminDevice} bookingBadge={totalUnread} />;
       default:         return <NewHomeScreen />;
     }
   };
