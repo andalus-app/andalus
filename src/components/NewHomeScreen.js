@@ -256,18 +256,18 @@ export default function NewHomeScreen({ stream, onGoToAdminLogin }) {
       <div style={{
         position: 'relative',
         display: 'flex', alignItems: 'center', justifyContent: 'center',
-        padding: '12px 14px 12px',
+        padding: 0,
         minHeight: 104,
       }}>
-        {/* Logo — absolute left, same as Bönetider */}
-        <div style={{ position: 'absolute', top: 0, left: 8, pointerEvents: 'none', userSelect: 'none' }}>
+        {/* Logo — matches HomeScreen: outer padding(14) + left(8) = 22px from edge */}
+        <div style={{ position: 'absolute', top: 12, left: 22, pointerEvents: 'none', userSelect: 'none' }}>
           <AndalusLogo size={80} color={T.isDark ? T.accent : T.accent} />
         </div>
 
         <div style={{ fontSize: 18, fontWeight: 800, color: T.text, letterSpacing: '-.3px' }}>Hem</div>
 
         {/* Right side — absolute right, same pattern as Bönetider */}
-        <div style={{ position: 'absolute', top: 4, right: 4, display: 'flex', alignItems: 'center', gap: 0 }}>
+        <div style={{ position: 'absolute', top: 4, right: 18, display: 'flex', alignItems: 'center', gap: 0 }}>
 
           {/* Theme toggle — sun ↔ moon with spin animation */}
           <style>{`
