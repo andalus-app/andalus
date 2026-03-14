@@ -15,6 +15,8 @@ import { supabase } from '../services/supabaseClient';
 const ADMIN_PIN      = 'Andalus2026';
 const STORAGE_ADMIN  = 'islamnu_admin_mode';
 const STORAGE_DEVICE = 'islamnu_device_id';
+const STORAGE_EMAIL  = 'islamnu_user_email';
+const STORAGE_PHONE  = 'islamnu_user_phone';
 
 const OPEN_HOUR  = 8;
 const CLOSE_HOUR = 24;
@@ -39,6 +41,12 @@ function toISO(d){ return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(
 function parseISO(s){ const [y,m,d]=s.split('-').map(Number); return new Date(y,m-1,d); }
 function isoToDisplay(s){ const d=parseISO(s); return `${d.getDate()} ${MONTHS_SV[d.getMonth()]} ${d.getFullYear()}`; }
 function uid(){ return Date.now().toString(36)+Math.random().toString(36).slice(2,7); }
+// Normaliserar telefonnummer — tar bort mellanslag, bindestreck, parenteser och ledande +46→0
+function normalizePhone(p){
+  let s=(p||'').replace(/[\s\-().]/g,'');
+  if(s.startsWith('+46')) s='0'+s.slice(3);
+  return s;
+}
 function fmtHour(h){ return h===24?'00:00':`${String(Math.floor(h)).padStart(2,'0')}:${h%1===0?'00':'30'}`; }
 function slotLabel(startHour,dur){ return `${fmtHour(startHour)}–${fmtHour(startHour+dur)}`; }
 
@@ -734,9 +742,15 @@ function ConfirmationScreen({booking,onBack,T}){
 }
 
 /* ── MyBookings ── */
-function MyBookings({bookings, onViewConfirmation, onEdit, onCancel, onCancelOne, onCancelFromDate, onBack, T}){
+function MyBookings({bookings, onViewConfirmation, onEdit, onCancel, onCancelOne, onCancelFromDate, onRecover, onBack, T}){
   const [selectedGroup, setSelectedGroup] = useState(null);
-  const [occurrenceSheet, setOccurrenceSheet] = useState(null); // booking obj
+  const [occurrenceSheet, setOccurrenceSheet] = useState(null);
+  // Återhämtning
+  const [showRecover, setShowRecover] = useState(false);
+  const [recoverEmail, setRecoverEmail] = useState(()=>localStorage.getItem('islamnu_user_email')||'');
+  const [recoverPhone, setRecoverPhone] = useState(()=>localStorage.getItem('islamnu_user_phone')||'');
+  const [recoverState, setRecoverState] = useState('idle'); // idle | loading | success | notfound | mismatch | error
+  const [recoverCount, setRecoverCount] = useState(0);
 
   const sorted=bookings.slice().sort((a,b)=>b.created_at-a.created_at);
   const groups=useMemo(()=>{
@@ -876,12 +890,62 @@ function MyBookings({bookings, onViewConfirmation, onEdit, onCancel, onCancelOne
     </div>;
   }
 
+  const handleRecover = async () => {
+    if(!recoverEmail.trim()||!recoverPhone.trim()) return;
+    setRecoverState('loading');
+    try{
+      const n = await onRecover(recoverEmail, recoverPhone);
+      if(n===0){ setRecoverState('mismatch'); }
+      else{ setRecoverCount(n); setRecoverState('success'); setShowRecover(false); }
+    }catch(e){
+      setRecoverState(e?.message==='fetch_error'?'notfound':'error');
+    }
+  };
+
   // ── Listvy — 1 rad per grupp ──
   return <div style={{padding:'20px 16px',fontFamily:'system-ui'}}>
     <BackButton onBack={onBack} T={T}/>
     <div style={{fontSize:22,fontWeight:800,color:T.text,letterSpacing:'-.4px',marginTop:16,marginBottom:20}}>Mina bokningar</div>
+    {recoverCount>0&&<div style={{background:'#22c55e18',border:'1px solid #22c55e33',borderRadius:12,padding:'12px 14px',marginBottom:14,fontSize:13,color:'#22c55e',fontWeight:600}}>
+      ✓ {recoverCount} bokning{recoverCount>1?'ar':''} återhämtad{recoverCount>1?'e':''} !
+    </div>}
     {groups.length===0
-      ?<div style={{textAlign:'center',padding:'40px 0',color:T.textMuted,fontSize:14}}>Inga bokningar än</div>
+      ?<div style={{display:'flex',flexDirection:'column',alignItems:'center',gap:14,paddingTop:32}}>
+        <div style={{fontSize:40,marginBottom:4}}>📋</div>
+        <div style={{fontSize:16,fontWeight:700,color:T.text}}>Inga bokningar hittades</div>
+        <div style={{fontSize:13,color:T.textMuted,textAlign:'center',lineHeight:1.6,maxWidth:280}}>
+          Om du har bokningar sedan tidigare kan de ha kopplats bort vid rensning av webbläsarcache.
+        </div>
+        {!showRecover
+          ?<button onClick={()=>setShowRecover(true)} style={{marginTop:4,padding:'12px 24px',borderRadius:12,border:`1px solid ${T.accent}44`,background:`${T.accent}18`,color:T.accent,fontSize:14,fontWeight:700,cursor:'pointer',fontFamily:'system-ui',WebkitTapHighlightColor:'transparent'}}>
+            Hämta mina tidigare bokningar
+          </button>
+          :<div style={{width:'100%',maxWidth:320,display:'flex',flexDirection:'column',gap:10}}>
+            <div style={{fontSize:13,color:T.textMuted,textAlign:'center',lineHeight:1.5}}>
+              Ange e-post och telefonnummer du bokade med
+            </div>
+            <input type="email" value={recoverEmail}
+              onChange={e=>{ setRecoverEmail(e.target.value); setRecoverState('idle'); }}
+              placeholder="din@epost.se" autoFocus
+              style={{background:T.cardElevated,border:`1px solid ${recoverState==='notfound'?T.error:T.border}`,borderRadius:10,padding:'12px 14px',fontSize:15,color:T.text,fontFamily:'system-ui',outline:'none',width:'100%',boxSizing:'border-box'}}
+            />
+            <input type="tel" value={recoverPhone}
+              onChange={e=>{ setRecoverPhone(e.target.value); setRecoverState('idle'); }}
+              placeholder="07X-XXX XX XX"
+              style={{background:T.cardElevated,border:`1px solid ${recoverState==='mismatch'?T.error:T.border}`,borderRadius:10,padding:'12px 14px',fontSize:15,color:T.text,fontFamily:'system-ui',outline:'none',width:'100%',boxSizing:'border-box'}}
+            />
+            {recoverState==='notfound'&&<div style={{fontSize:12,color:'#ef4444',background:'#ef444418',borderRadius:8,padding:'8px 10px',textAlign:'center'}}>Ingen bokning hittades för denna e-post.</div>}
+            {recoverState==='mismatch'&&<div style={{fontSize:12,color:'#ef4444',background:'#ef444418',borderRadius:8,padding:'8px 10px',textAlign:'center'}}>E-post och telefon stämmer inte överens. Kontrollera och försök igen.</div>}
+            {recoverState==='error'&&<div style={{fontSize:12,color:'#f59e0b',background:'#f59e0b18',borderRadius:8,padding:'8px 10px',textAlign:'center'}}>Något gick fel — försök igen.</div>}
+            <button onClick={handleRecover}
+              disabled={recoverState==='loading'||!recoverEmail.trim()||!recoverPhone.trim()}
+              style={{padding:'13px',borderRadius:12,border:'none',background:(recoverState==='loading'||!recoverEmail.trim()||!recoverPhone.trim())?T.textMuted:T.accent,color:'#fff',fontSize:15,fontWeight:700,cursor:recoverState==='loading'?'default':'pointer',fontFamily:'system-ui',WebkitTapHighlightColor:'transparent',display:'flex',alignItems:'center',justifyContent:'center',gap:8}}>
+              {recoverState==='loading'?<><div style={{width:14,height:14,borderRadius:7,border:'2px solid rgba(255,255,255,0.35)',borderTopColor:'#fff',animation:'spin .7s linear infinite'}}/> Söker...</>:'Hämta mina bokningar'}
+            </button>
+            <button onClick={()=>{setShowRecover(false);setRecoverState('idle');}} style={{background:'none',border:'none',color:T.textMuted,fontSize:13,cursor:'pointer',fontFamily:'system-ui',padding:'4px 0'}}>Avbryt</button>
+          </div>
+        }
+      </div>
       :<div style={{display:'flex',flexDirection:'column',gap:10}}>
         {groups.map(grp=>{
           const isRecur=grp.bookings.length>1;
@@ -1532,6 +1596,9 @@ export default function BookingScreen({onBack, activateForDevice, registerAdminD
     }
     setSubmitLoading(false);
     activateForDevice?.();
+    // Cacha e-post och telefon lokalt — möjliggör tvåfaktor-återhämtning om cache rensas
+    if(formData.email) localStorage.setItem(STORAGE_EMAIL, formData.email.toLowerCase().trim());
+    if(formData.phone) localStorage.setItem(STORAGE_PHONE, normalizePhone(formData.phone));
     showToast(rows.length>1?`${rows.length} bokningsförfrågningar skickade!`:'Bokningsförfrågan skickad!');
     setView('my-bookings');
   },[showToast, deviceId, activateForDevice]);
@@ -1539,6 +1606,38 @@ export default function BookingScreen({onBack, activateForDevice, registerAdminD
   /* Besökare återkallar/avbokar
      - pending / edit_pending → direkt, ingen förklaring krävs
      - approved / edited      → direkt men kräver förklaring, admin notifieras via resolved_at */
+  /* Återhämtning: kräver BÅDE e-post och telefon — tvåfaktor för säkerhet */
+  const handleRecoverByCredentials=useCallback(async(email,phone)=>{
+    const normalizedEmail = email.toLowerCase().trim();
+    const normalizedPhone = normalizePhone(phone);
+    // Hämta alla bokningar med denna e-post
+    const {data,error}=await supabase
+      .from('bookings')
+      .select('id,phone')
+      .eq('email',normalizedEmail);
+    if(error) throw new Error('fetch_error');
+    if(!data?.length) return 0;
+    // Filtrera på telefon (normaliserat) — måste matcha minst en bokning
+    const matching = data.filter(b=>normalizePhone(b.phone)===normalizedPhone);
+    if(!matching.length) return 0;
+    // Koppla om ALLA bokningar för denna e-post till nuvarande device_id
+    const ids = data.map(b=>b.id);
+    const BATCH=20;
+    for(let i=0;i<ids.length;i+=BATCH){
+      const {error:upErr}=await supabase
+        .from('bookings')
+        .update({device_id:deviceId})
+        .in('id',ids.slice(i,i+BATCH));
+      if(upErr) throw new Error('update_error');
+    }
+    // Cacha båda lokalt och aktivera notislyssning
+    localStorage.setItem(STORAGE_EMAIL, normalizedEmail);
+    localStorage.setItem(STORAGE_PHONE, normalizedPhone);
+    localStorage.setItem('islamnu_has_booking','true');
+    activateForDevice?.();
+    return ids.length;
+  },[deviceId,activateForDevice]);
+
   const handleVisitorCancel=useCallback(async(booking, reason)=>{
     const noApproval = ['pending','edit_pending'].includes(booking.status);
     const comment = noApproval ? 'Återkallad av besökaren.' : `Avbokad av besökaren: ${reason}`;
@@ -1751,6 +1850,7 @@ export default function BookingScreen({onBack, activateForDevice, registerAdminD
         onCancel={(b)=>setCancelDialog(b)}
         onCancelOne={handleVisitorCancelOne}
         onCancelFromDate={handleVisitorCancelFromDate}
+        onRecover={handleRecoverByCredentials}
         onBack={()=>setView('calendar')}
         T={T}
       />
