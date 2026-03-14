@@ -259,7 +259,7 @@ export default function NewHomeScreen({ stream, onGoToAdminLogin }) {
         padding: 0,
         minHeight: 104,
       }}>
-        {/* Logo — matches HomeScreen: outer padding(14) + left(8) = 22px from edge */}
+        {/* Logo — left:22 matches HomeScreen outer padding(14) + left(8) */}
         <div style={{ position: 'absolute', top: 12, left: 22, pointerEvents: 'none', userSelect: 'none' }}>
           <AndalusLogo size={80} color={T.isDark ? T.accent : T.accent} />
         </div>

@@ -188,6 +188,7 @@ function Shell() {
       <div ref={scrollContainerRef} style={{
         flex: 1, overflowY: 'auto', overflowX: 'hidden',
         WebkitOverflowScrolling: 'touch',
+        paddingTop: 'env(safe-area-inset-top, 0px)',
         paddingBottom: tabBarVisible ? 90 : 0,
       }}>
         {renderScreen()}
