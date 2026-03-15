@@ -454,20 +454,21 @@ export default function AsmaulHusnaScreen({ onBack, onMount }) {
           <div style={{ textAlign: 'center', padding: '64px 20px', color: T.textMuted, fontSize: 15 }}>
             {filterFavs ? 'Inga favoriter ännu.' : 'Inga namn hittades.'}
           </div>
-        ) : viewMode === 'grid' ? (
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 12, padding: '14px 16px' }}>
-            {filtered.map(n => (
-              <GridCard key={n.nr} name={n} onPress={() => setSelected(n)}
-                isFav={favs.has(n.nr)} onToggleFav={() => toggleFav(n.nr)} T={T} />
-            ))}
-          </div>
         ) : (
-          <div style={{ paddingTop: 4 }}>
-            {filtered.map(n => (
-              <ListRow key={n.nr} name={n} onPress={() => setSelected(n)}
-                isFav={favs.has(n.nr)} onToggleFav={() => toggleFav(n.nr)} T={T} />
-            ))}
-          </div>
+          <>
+            <div style={{ display: viewMode === 'grid' ? 'grid' : 'none', gridTemplateColumns: 'repeat(2, 1fr)', gap: 12, padding: '14px 16px' }}>
+              {filtered.map(n => (
+                <GridCard key={n.nr} name={n} onPress={() => setSelected(n)}
+                  isFav={favs.has(n.nr)} onToggleFav={() => toggleFav(n.nr)} T={T} />
+              ))}
+            </div>
+            <div style={{ display: viewMode === 'list' ? 'block' : 'none', paddingTop: 4 }}>
+              {filtered.map(n => (
+                <ListRow key={n.nr} name={n} onPress={() => setSelected(n)}
+                  isFav={favs.has(n.nr)} onToggleFav={() => toggleFav(n.nr)} T={T} />
+              ))}
+            </div>
+          </>
         )}
       </div>
     </div>
