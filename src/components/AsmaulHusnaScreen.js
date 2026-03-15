@@ -37,7 +37,7 @@ function GridCard({ name, onPress, isFav, onToggleFav, T }) {
 
   return (
     <div style={{ position: 'relative' }}>
-      <audio ref={audioRef} src={`audio/${name.nr}.mp3`} onEnded={() => setPlaying(false)} />
+      <audio ref={audioRef} src={`/audio/${name.nr}.mp3`} onEnded={() => setPlaying(false)} />
 
       {/* Heart — top right, own tap target */}
       <button
@@ -124,6 +124,15 @@ function GridCard({ name, onPress, isFav, onToggleFav, T }) {
 
 // ── List row ──────────────────────────────────────────────────
 function ListRow({ name, onPress, isFav, onToggleFav, T }) {
+  const audioRef = useRef(null);
+  const [playing, setPlaying] = useState(false);
+  const togglePlay = e => {
+    e.stopPropagation();
+    const audio = audioRef.current;
+    if (!audio) return;
+    if (playing) { audio.pause(); audio.currentTime = 0; setPlaying(false); }
+    else { audio.play().then(() => setPlaying(true)).catch(() => {}); }
+  };
   return (
     <div style={{
       display: 'flex', alignItems: 'center',
@@ -131,6 +140,7 @@ function ListRow({ name, onPress, isFav, onToggleFav, T }) {
       background: T.card,
       fontFamily: "'Inter',system-ui,sans-serif",
     }}>
+      <audio ref={audioRef} src={`/audio/${name.nr}.mp3`} onEnded={() => setPlaying(false)} />
       <button
         onClick={onPress}
         style={{
@@ -162,6 +172,21 @@ function ListRow({ name, onPress, isFav, onToggleFav, T }) {
           fontFamily: "'Scheherazade New','Traditional Arabic','Arial Unicode MS',serif",
           direction: 'rtl', flexShrink: 0, paddingRight: 4,
         }}>{name.arabic}</div>
+      </button>
+
+      <button
+        onClick={togglePlay}
+        style={{
+          background: 'none', border: 'none', cursor: 'pointer',
+          padding: '13px 10px', color: playing ? T.accent : T.textMuted,
+          WebkitTapHighlightColor: 'transparent',
+          display: 'flex', alignItems: 'center', flexShrink: 0,
+        }}
+      >
+        {playing
+          ? <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>
+          : <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+        }
       </button>
 
       <button
@@ -209,7 +234,7 @@ function DetailScreen({ name, onBack, isFav, onToggleFav, T }) {
       flexDirection: 'column', fontFamily: "'Inter',system-ui,sans-serif",
     }}>
       <style>{`@keyframes detailIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}`}</style>
-      <audio ref={audioRef} src={`audio/${name.nr}.mp3`} onEnded={() => setPlaying(false)} />
+      <audio ref={audioRef} src={`/audio/${name.nr}.mp3`} onEnded={() => setPlaying(false)} />
 
       {/* Header */}
       <div style={{
