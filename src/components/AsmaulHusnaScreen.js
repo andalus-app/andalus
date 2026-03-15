@@ -294,12 +294,27 @@ export default function AsmaulHusnaScreen({ onBack, onMount }) {
       setLoadingNr(null);
     } else {
       sharedAudio.pause();
-      sharedAudio.src = `/audio/${nr}.mp3`;
       setLoadingNr(nr);
       setPlayingNr(null);
-      sharedAudio.play()
-        .then(() => { setPlayingNr(nr); setLoadingNr(null); })
-        .catch(() => setLoadingNr(null));
+
+      // Remove any previous one-shot listeners
+      sharedAudio.oncanplay = null;
+      sharedAudio.onerror = null;
+
+      sharedAudio.src = `/audio/${nr}.mp3`;
+      sharedAudio.load();
+
+      sharedAudio.oncanplay = () => {
+        sharedAudio.oncanplay = null;
+        sharedAudio.play()
+          .then(() => { setPlayingNr(nr); setLoadingNr(null); })
+          .catch(() => setLoadingNr(null));
+      };
+
+      sharedAudio.onerror = () => {
+        sharedAudio.onerror = null;
+        setLoadingNr(null);
+      };
     }
   }, [playingNr]);
 
