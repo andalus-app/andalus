@@ -56,13 +56,12 @@ function GridCard({ name, onPress, isFav, onToggleFav, T }) {
         <Heart filled={isFav} size={18} />
       </button>
 
-      <button
+      <div
         onClick={onPress}
         style={{
           width: '100%', background: T.card, border: `1px solid ${T.border}`, borderRadius: 22,
           boxShadow: T.isDark ? '0 4px 20px rgba(0,0,0,0.4)' : '0 4px 20px rgba(0,0,0,0.09)',
           padding: '12px 12px 14px', cursor: 'pointer', textAlign: 'center',
-          WebkitTapHighlightColor: 'transparent',
           display: 'flex', flexDirection: 'column', alignItems: 'center',
           gap: 6, boxSizing: 'border-box', fontFamily: "'Inter',system-ui,sans-serif",
         }}
@@ -100,7 +99,7 @@ function GridCard({ name, onPress, isFav, onToggleFav, T }) {
             : <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor"><polygon points="6 3 20 12 6 21 6 3"/></svg>
           }
         </button>
-      </button>
+      </div>
     </div>
   );
 }
