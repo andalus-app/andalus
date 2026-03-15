@@ -413,6 +413,7 @@ export default function AsmaulHusnaScreen({ onBack, onMount }) {
       </div>
 
       {/* List screen */}
+      <div style={{ display: selected ? 'none' : 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
       <style>{`@keyframes fadeUp{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}`}</style>
 
       {/* Sticky header */}
@@ -478,6 +479,7 @@ export default function AsmaulHusnaScreen({ onBack, onMount }) {
             </div>
           </>
         )}
+      </div>
       </div>
     </div>
   );
