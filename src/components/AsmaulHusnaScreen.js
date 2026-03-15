@@ -22,17 +22,31 @@ function Heart({ filled, size = 20 }) {
   );
 }
 
+// ── Spinner ───────────────────────────────────────────────────
+function Spinner({ size = 11, color = 'currentColor' }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="3" strokeLinecap="round">
+      <style>{`@keyframes aSpin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}`}</style>
+      <g style={{ transformOrigin: '12px 12px', animation: 'aSpin .7s linear infinite' }}>
+        <path d="M12 2 A10 10 0 0 1 22 12" opacity="1"/>
+        <path d="M22 12 A10 10 0 1 1 12 2" opacity="0.25"/>
+      </g>
+    </svg>
+  );
+}
+
 // ── Grid card — 2 columns, no Swedish, play button, rounded + shadow ──
 function GridCard({ name, onPress, isFav, onToggleFav, T }) {
   const audioRef = useRef(null);
   const [playing, setPlaying] = useState(false);
+  const [loading, setLoading] = useState(false);
 
   const togglePlay = e => {
     e.stopPropagation();
     const audio = audioRef.current;
     if (!audio) return;
-    if (playing) { audio.pause(); audio.currentTime = 0; setPlaying(false); }
-    else { audio.play().then(() => setPlaying(true)).catch(() => {}); }
+    if (playing) { audio.pause(); audio.currentTime = 0; setPlaying(false); setLoading(false); }
+    else { setLoading(true); audio.play().then(() => { setPlaying(true); setLoading(false); }).catch(() => setLoading(false)); }
   };
 
   return (
@@ -112,9 +126,11 @@ function GridCard({ name, onPress, isFav, onToggleFav, T }) {
             transition: 'all .15s',
           }}
         >
-          {playing
-            ? <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>
-            : <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor"><polygon points="6 3 20 12 6 21 6 3"/></svg>
+          {loading
+            ? <Spinner size="11" color={T.accent} />
+            : playing
+              ? <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>
+              : <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor"><polygon points="6 3 20 12 6 21 6 3"/></svg>
           }
         </button>
       </button>
@@ -126,12 +142,13 @@ function GridCard({ name, onPress, isFav, onToggleFav, T }) {
 function ListRow({ name, onPress, isFav, onToggleFav, T }) {
   const audioRef = useRef(null);
   const [playing, setPlaying] = useState(false);
+  const [loading, setLoading] = useState(false);
   const togglePlay = e => {
     e.stopPropagation();
     const audio = audioRef.current;
     if (!audio) return;
-    if (playing) { audio.pause(); audio.currentTime = 0; setPlaying(false); }
-    else { audio.play().then(() => setPlaying(true)).catch(() => {}); }
+    if (playing) { audio.pause(); audio.currentTime = 0; setPlaying(false); setLoading(false); }
+    else { setLoading(true); audio.play().then(() => { setPlaying(true); setLoading(false); }).catch(() => setLoading(false)); }
   };
   return (
     <div style={{
@@ -183,9 +200,11 @@ function ListRow({ name, onPress, isFav, onToggleFav, T }) {
           display: 'flex', alignItems: 'center', flexShrink: 0,
         }}
       >
-        {playing
-          ? <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>
-          : <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+        {loading
+          ? <Spinner size="15" color={T.accent} />
+          : playing
+            ? <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>
+            : <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg>
         }
       </button>
 
@@ -208,6 +227,7 @@ function ListRow({ name, onPress, isFav, onToggleFav, T }) {
 function DetailScreen({ name, onBack, isFav, onToggleFav, T }) {
   const audioRef = useRef(null);
   const [playing, setPlaying] = useState(false);
+  const [loading, setLoading] = useState(false);
 
   useEffect(() => {
     const handler = () => onBack();
@@ -224,8 +244,8 @@ function DetailScreen({ name, onBack, isFav, onToggleFav, T }) {
   const togglePlay = () => {
     const audio = audioRef.current;
     if (!audio) return;
-    if (playing) { audio.pause(); audio.currentTime = 0; setPlaying(false); }
-    else { audio.play().then(() => setPlaying(true)).catch(() => {}); }
+    if (playing) { audio.pause(); audio.currentTime = 0; setPlaying(false); setLoading(false); }
+    else { setLoading(true); audio.play().then(() => { setPlaying(true); setLoading(false); }).catch(() => setLoading(false)); }
   };
 
   return (
@@ -298,11 +318,13 @@ function DetailScreen({ name, onBack, isFav, onToggleFav, T }) {
             WebkitTapHighlightColor: 'transparent',
             transition: 'all .18s',
           }}>
-            {playing
-              ? <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>
-              : <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+            {loading
+              ? <Spinner size="15" color={playing ? '#fff' : T.accent} />
+              : playing
+                ? <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>
+                : <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg>
             }
-            {playing ? 'Pausar' : 'Lyssna'}
+            {loading ? 'Laddar...' : playing ? 'Pausar' : 'Lyssna'}
           </button>
         </div>
 
@@ -466,21 +488,22 @@ export default function AsmaulHusnaScreen({ onBack, onMount }) {
           <div style={{ textAlign: 'center', padding: '64px 20px', color: T.textMuted, fontSize: 15 }}>
             {filterFavs ? 'Inga favoriter ännu.' : 'Inga namn hittades.'}
           </div>
-        ) : viewMode === 'grid' ? (
-          // 2 columns
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 12, padding: '14px 16px' }}>
-            {filtered.map(n => (
-              <GridCard key={n.nr} name={n} onPress={() => setSelected(n)}
-                isFav={favs.has(n.nr)} onToggleFav={() => toggleFav(n.nr)} T={T} />
-            ))}
-          </div>
         ) : (
-          <div style={{ paddingTop: 4 }}>
-            {filtered.map(n => (
-              <ListRow key={n.nr} name={n} onPress={() => setSelected(n)}
-                isFav={favs.has(n.nr)} onToggleFav={() => toggleFav(n.nr)} T={T} />
-            ))}
-          </div>
+          <>
+            {/* Both views pre-mounted — toggle visibility instantly via CSS */}
+            <div style={{ display: viewMode === 'grid' ? 'grid' : 'none', gridTemplateColumns: 'repeat(2, 1fr)', gap: 12, padding: '14px 16px' }}>
+              {filtered.map(n => (
+                <GridCard key={n.nr} name={n} onPress={() => setSelected(n)}
+                  isFav={favs.has(n.nr)} onToggleFav={() => toggleFav(n.nr)} T={T} />
+              ))}
+            </div>
+            <div style={{ display: viewMode === 'list' ? 'block' : 'none', paddingTop: 4 }}>
+              {filtered.map(n => (
+                <ListRow key={n.nr} name={n} onPress={() => setSelected(n)}
+                  isFav={favs.has(n.nr)} onToggleFav={() => toggleFav(n.nr)} T={T} />
+              ))}
+            </div>
+          </>
         )}
       </div>
     </div>
