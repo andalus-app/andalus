@@ -37,7 +37,7 @@ function GridCard({ name, onPress, isFav, onToggleFav, T }) {
 
   return (
     <div style={{ position: 'relative' }}>
-      <audio ref={audioRef} src={`audio/${name.nr}.mp3`} onEnded={() => setPlaying(false)} />
+      <audio ref={audioRef} src={`audio/${name.nr}.mp3`} preload="none" onEnded={() => setPlaying(false)} />
 
       {/* Heart — top right, own tap target */}
       <button
@@ -142,7 +142,7 @@ function ListRow({ name, onPress, isFav, onToggleFav, T }) {
       background: T.card,
       fontFamily: "'Inter',system-ui,sans-serif",
     }}>
-      <audio ref={audioRef} src={`audio/${name.nr}.mp3`} onEnded={() => setPlaying(false)} />
+      <audio ref={audioRef} src={`audio/${name.nr}.mp3`} preload="none" onEnded={() => setPlaying(false)} />
 
       <button
         onClick={onPress}
@@ -240,7 +240,7 @@ function DetailScreen({ name, onBack, isFav, onToggleFav, T }) {
       flexDirection: 'column', fontFamily: "'Inter',system-ui,sans-serif",
     }}>
       <style>{`@keyframes detailIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}`}</style>
-      <audio ref={audioRef} src={`audio/${name.nr}.mp3`} onEnded={() => setPlaying(false)} />
+      <audio ref={audioRef} src={`audio/${name.nr}.mp3`} preload="none" onEnded={() => setPlaying(false)} />
 
       {/* Header */}
       <div style={{
