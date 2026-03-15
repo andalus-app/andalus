@@ -4,12 +4,26 @@ import SettingsScreen from './SettingsScreen';
 import AboutScreen from './AboutScreen';
 import EbooksScreen from './EbooksScreen';
 import BookingScreen from './BookingScreen';
+import AsmaulHusnaScreen from './AsmaulHusnaScreen';
 import AboutIcon from '../icons/about-svgrepo-com.svg';
 import CharityIcon from '../icons/charity-svgrepo-com.svg';
 import SwishLogo from '../icons/swish-logo.svg';
 import BankgirotLogo from '../icons/bankgirot-logo.svg';
 
 const MENU_ITEMS = [
+  {
+    id: 'asmaul-husna',
+    label: 'Allahs 99 namn',
+    sublabel: 'أسماء الله الحسنى',
+    svgIcon: (accent) => (
+      <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke={accent} strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M12 2L2 7l10 5 10-5-10-5z"/>
+        <path d="M2 17l10 5 10-5"/>
+        <path d="M2 12l10 5 10-5"/>
+      </svg>
+    ),
+    accentColor: '#2D8B78',
+  },
   {
     id: 'ebooks',
     label: 'E-böcker',
@@ -302,6 +316,7 @@ export default function MoreScreen({ onTabBarHide, onTabBarShow, initialView, ma
     setView('booking-admin-login');
   };
 
+  if (view === 'asmaul-husna') return <AsmaulHusnaScreen onBack={() => setView('menu')} />;
   if (view === 'settings') return <SettingsScreen onBack={() => setView('menu')} />;
   if (view === 'ebooks')   return <EbooksScreen onReaderOpen={() => {}} onReaderClose={() => {}} resetToLibrary={false} onTabBarHide={onTabBarHide} onTabBarShow={onTabBarShow} onBack={() => setView('menu')} />;
   if (view === 'about')    return <AboutScreen onBack={() => setView('menu')} />;
