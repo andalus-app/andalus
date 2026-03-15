@@ -398,16 +398,21 @@ export default function AsmaulHusnaScreen({ onBack, onMount }) {
     });
   }, [debouncedSearch, filterFavs, favs, searchIndex]);
 
-  if (selected) return (
-    <DetailScreen
-      name={selected} onBack={() => setSelected(null)}
-      isFav={favs.has(selected.nr)} onToggleFav={() => toggleFav(selected.nr)}
-      T={T}
-    />
-  );
-
   return (
     <div style={{ background: T.bg, minHeight: '100%', display: 'flex', flexDirection: 'column', fontFamily: "'Inter',system-ui,sans-serif" }}>
+
+      {/* Detail screen — always mounted, shown/hidden via CSS */}
+      <div style={{ display: selected ? 'flex' : 'none', flexDirection: 'column', minHeight: '100%', position: 'absolute', inset: 0, zIndex: 10, background: T.bg }}>
+        {selected && (
+          <DetailScreen
+            name={selected} onBack={() => setSelected(null)}
+            isFav={favs.has(selected.nr)} onToggleFav={() => toggleFav(selected.nr)}
+            T={T}
+          />
+        )}
+      </div>
+
+      {/* List screen */}
       <style>{`@keyframes fadeUp{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}`}</style>
 
       {/* Sticky header */}
