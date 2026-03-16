@@ -289,7 +289,7 @@ export default function SettingsScreen({ onBack }) {
                   placeholder="Sök stad…" autoFocus
                   style={{ flex:1, padding:'12px 14px', borderRadius:10,
                     border:`1px solid ${T.border}`, background:T.card, color:T.text,
-                    fontSize:15, fontFamily:"'Inter',system-ui,sans-serif",
+                    fontSize:16, fontFamily:"'Inter',system-ui,sans-serif",
                     outline:'none' }}/>
                 {searching && (
                   <div style={{width:18,height:18,flexShrink:0,borderRadius:'50%',border:`2px solid ${T.border}`,borderTopColor:T.accent,animation:'spin .7s linear infinite'}}/>

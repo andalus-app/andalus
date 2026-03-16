@@ -194,13 +194,13 @@ function RecurBadge(){
 function Input({label,value,onChange,type='text',placeholder,required,T}){
   return <div style={{display:'flex',flexDirection:'column',gap:5}}>
     <label style={{fontSize:12,fontWeight:600,color:T.textMuted,fontFamily:'system-ui',letterSpacing:'.3px'}}>{label}{required&&<span style={{color:T.error}}> *</span>}</label>
-    <input type={type} value={value} onChange={e=>onChange(e.target.value)} placeholder={placeholder} style={{background:T.cardElevated,border:`1px solid ${T.border}`,borderRadius:10,padding:'11px 14px',fontSize:15,color:T.text,fontFamily:'system-ui',outline:'none',width:'100%',boxSizing:'border-box'}}/>
+    <input type={type} value={value} onChange={e=>onChange(e.target.value)} placeholder={placeholder} style={{background:T.cardElevated,border:`1px solid ${T.border}`,borderRadius:10,padding:'11px 14px',fontSize:16,color:T.text,fontFamily:'system-ui',outline:'none',width:'100%',boxSizing:'border-box'}}/>
   </div>;
 }
 function Textarea({label,value,onChange,placeholder,required,T}){
   return <div style={{display:'flex',flexDirection:'column',gap:5}}>
     <label style={{fontSize:12,fontWeight:600,color:T.textMuted,fontFamily:'system-ui',letterSpacing:'.3px'}}>{label}{required&&<span style={{color:T.error}}> *</span>}</label>
-    <textarea value={value} onChange={e=>onChange(e.target.value)} placeholder={placeholder} rows={3} style={{background:T.cardElevated,border:`1px solid ${T.border}`,borderRadius:10,padding:'11px 14px',fontSize:15,color:T.text,fontFamily:'system-ui',outline:'none',width:'100%',boxSizing:'border-box',resize:'vertical'}}/>
+    <textarea value={value} onChange={e=>onChange(e.target.value)} placeholder={placeholder} rows={3} style={{background:T.cardElevated,border:`1px solid ${T.border}`,borderRadius:10,padding:'11px 14px',fontSize:16,color:T.text,fontFamily:'system-ui',outline:'none',width:'100%',boxSizing:'border-box',resize:'vertical'}}/>
   </div>;
 }
 function Toast({message,T}){
@@ -1062,7 +1062,7 @@ function MyBookings({bookings, onViewConfirmation, onEdit, onCancel, onCancelOne
             <input type="tel" value={recoverPhone}
               onChange={e=>{ setRecoverPhone(e.target.value); setRecoverState('idle'); }}
               placeholder="07X-XXX XX XX" autoFocus
-              style={{background:T.cardElevated,border:`1px solid ${recoverState==='wrong_pin'||recoverState==='notfound'?T.error:T.border}`,borderRadius:10,padding:'12px 14px',fontSize:15,color:T.text,fontFamily:'system-ui',outline:'none',width:'100%',boxSizing:'border-box'}}
+              style={{background:T.cardElevated,border:`1px solid ${recoverState==='wrong_pin'||recoverState==='notfound'?T.error:T.border}`,borderRadius:10,padding:'12px 14px',fontSize:16,color:T.text,fontFamily:'system-ui',outline:'none',width:'100%',boxSizing:'border-box'}}
             />
             <input type="tel" inputMode="numeric" maxLength={4} value={recoverPin}
               onChange={e=>{ const v=e.target.value.replace(/\D/g,'').slice(0,4); setRecoverPin(v); setRecoverState('idle'); }}
@@ -1481,7 +1481,7 @@ function AdminPanel({bookings,onAction,onEdit,onDelete,onDeleteMany,onAddRecurri
         <div style={{marginBottom:14}}>
           <label style={{fontSize:12,fontWeight:600,color:T.textMuted,fontFamily:'system-ui',letterSpacing:'.3px',display:'block',marginBottom:5}}>FÖRKLARING TILL BESÖKAREN *</label>
           <textarea value={deleteExplanation} onChange={e=>setDeleteExplanation(e.target.value)} placeholder="Förklara varför bokningen tas bort..." rows={3}
-            style={{background:T.cardElevated,border:`1px solid ${deleteExplanationError?T.error:T.border}`,borderRadius:10,padding:'11px 14px',fontSize:15,color:T.text,fontFamily:'system-ui',outline:'none',width:'100%',boxSizing:'border-box',resize:'vertical'}}/>
+            style={{background:T.cardElevated,border:`1px solid ${deleteExplanationError?T.error:T.border}`,borderRadius:10,padding:'11px 14px',fontSize:16,color:T.text,fontFamily:'system-ui',outline:'none',width:'100%',boxSizing:'border-box',resize:'vertical'}}/>
           {deleteExplanationError&&<div style={{fontSize:12,color:T.error,marginTop:4}}>{deleteExplanationError}</div>}
         </div>
         <div style={{display:'flex',gap:10}}>

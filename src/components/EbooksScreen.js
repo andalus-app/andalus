@@ -407,7 +407,7 @@ function PdfReader({ book, onClose, onSetPage, onAddBookmark, onRemoveBookmark, 
                 placeholder="Sök i boken…"
                 value={searchQuery}
                 onChange={e => handleSearchInput(e.target.value)}
-                style={{ flex:1, background:'none', border:'none', outline:'none', color:'#fff', fontSize:14, fontFamily:'system-ui' }}
+                style={{ flex:1, background:'none', border:'none', outline:'none', color:'#fff', fontSize:16, fontFamily:'system-ui' }}
               />
               {searchQuery.length > 0 && (
                 <button onClick={() => handleSearchInput('')} style={{ background:'none', border:'none', cursor:'pointer', color:'rgba(255,255,255,.5)', fontSize:16, lineHeight:1, padding:0 }}>×</button>
@@ -589,7 +589,7 @@ function PdfReader({ book, onClose, onSetPage, onAddBookmark, onRemoveBookmark, 
                 onChange={e => setJumpVal(e.target.value)}
                 onKeyDown={e => { if(e.key==='Enter'){ goTo(Number(jumpVal)); setJumping(false); }}}
                 onClick={e => e.stopPropagation()}
-                style={{ width:64, textAlign:'center', background:'rgba(255,255,255,.15)', border:'1px solid rgba(255,255,255,.3)', borderRadius:8, color:'#fff', padding:'5px 6px', fontSize:14, fontFamily:'system-ui', outline:'none' }}
+                style={{ width:64, textAlign:'center', background:'rgba(255,255,255,.15)', border:'1px solid rgba(255,255,255,.3)', borderRadius:8, color:'#fff', padding:'5px 6px', fontSize:16, fontFamily:'system-ui', outline:'none' }}
               />
             ) : (
               <>
@@ -811,7 +811,7 @@ function Library({ books, onSelect, onBack, T }) {
           <input
             type="text" placeholder="Sök titel, författare, ämne…"
             value={query} onChange={e => setQuery(e.target.value)}
-            style={{ width:'100%', padding:'11px 12px 11px 36px', borderRadius:12, background:T.card, border:`1px solid ${T.border}`, color:T.text, fontSize:14, outline:'none', boxSizing:'border-box', fontFamily:'system-ui' }}
+            style={{ width:'100%', padding:'11px 12px 11px 36px', borderRadius:12, background:T.card, border:`1px solid ${T.border}`, color:T.text, fontSize:16, outline:'none', boxSizing:'border-box', fontFamily:'system-ui' }}
           />
         </div>
 
