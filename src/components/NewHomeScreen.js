@@ -342,26 +342,27 @@ export default function NewHomeScreen({ stream, onGoToAdminLogin, onGoToMyBookin
           {/* Theme toggle — sun sets / moon rises */}
           <style>{`
             @keyframes sunSet    { 0%{transform:translateY(0) scale(1);opacity:1} 100%{transform:translateY(28px) scale(0.7);opacity:0} }
-            @keyframes sunRise   { 0%{transform:translateY(28px) scale(0.7);opacity:0} 60%{opacity:1} 100%{transform:translateY(0) scale(1);opacity:1} }
+            @keyframes sunRise   { 0%{transform:translateY(28px) scale(0.7);opacity:0} 70%{transform:translateY(0) scale(1);opacity:1} 100%{transform:translateY(0) scale(1);opacity:1} }
             @keyframes moonRise  { 0%{transform:translateY(28px) scale(0.7);opacity:0} 100%{transform:translateY(0) scale(1);opacity:1} }
-            @keyframes moonSet   { 0%{transform:translateY(0) scale(1);opacity:1} 100%{transform:translateY(28px) scale(0.7);opacity:0} }
-            @keyframes sunGlow   { 0%,100%{filter:drop-shadow(0 0 4px #f59e0b88)} 50%{filter:drop-shadow(0 0 10px #f59e0bcc)} }
-            @keyframes moonGlow  { 0%,100%{filter:drop-shadow(0 0 3px #94a3b888)} 50%{filter:drop-shadow(0 0 8px #c7d2fecc)} }
+            @keyframes sunGlow   { 0%{filter:drop-shadow(0 0 0px transparent)} 40%{filter:drop-shadow(0 0 10px #f59e0bcc)} 100%{filter:drop-shadow(0 0 0px transparent)} }
+            @keyframes moonGlow  { 0%{filter:drop-shadow(0 0 0px transparent)} 40%{filter:drop-shadow(0 0 10px #e0e7ffcc) brightness(1.4)} 100%{filter:drop-shadow(0 0 0px transparent)} }
           `}</style>
           <button
             onClick={() => setMode(T.isDark ? 'light' : 'dark')}
             style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 8, WebkitTapHighlightColor: 'transparent', overflow: 'hidden', width: 38, height: 38, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
           >
             <div key={T.isDark ? 'moon' : 'sun'} style={{
-              animation: T.isDark ? 'moonRise 0.6s cubic-bezier(0.34,1.56,0.64,1) both, moonGlow 3s ease 0.6s 1' : 'sunRise 0.6s cubic-bezier(0.34,1.56,0.64,1) both, sunGlow 3s ease 0.6s 1',
+              animation: T.isDark
+                ? 'moonRise 0.7s cubic-bezier(0.34,1.4,0.64,1) both, moonGlow 2.5s ease 0.7s 1'
+                : 'sunRise 0.7s cubic-bezier(0.34,1.4,0.64,1) both, sunGlow 2.5s ease 0.7s 1',
               display: 'flex',
             }}>
               {T.isDark
-                ? <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#c7d2fe" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" fill="#e0e7ff22"/>
+                ? <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke={T.textMuted} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
                   </svg>
-                : <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#f59e0b" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-                    <circle cx="12" cy="12" r="5" fill="#fef3c722"/>
+                : <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke={T.textMuted} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" style={{opacity:0.6}}>
+                    <circle cx="12" cy="12" r="5"/>
                     <line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/>
                     <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/>
                     <line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/>
@@ -483,15 +484,17 @@ export default function NewHomeScreen({ stream, onGoToAdminLogin, onGoToMyBookin
                   /* ── Banner ── */
                   const isRead = read.includes(item.id);
                   return (
-                    <div key={`banner-${item.id}`} style={{ padding: '11px 14px', borderBottom: `1px solid ${T.border}`, background: isRead ? 'transparent' : T.isDark ? 'rgba(45,139,120,0.06)' : 'rgba(36,100,93,0.05)', display: 'flex', alignItems: 'flex-start', gap: 10 }}>
-                      <div style={{ width: 7, height: 7, borderRadius: 4, flexShrink: 0, marginTop: 5, background: isRead ? 'transparent' : T.accent }} />
-                      <div style={{ flex: 1 }}>
-                        <div style={{ fontSize: 13, color: T.textSecondary, lineHeight: 1.5 }}>{item.message}</div>
-                        {item.linkText && item.linkUrl && (
-                          <a href={item.linkUrl} target="_blank" rel="noopener noreferrer" style={{ display: 'inline-block', marginTop: 5, fontSize: 12, fontWeight: 700, color: T.accent, textDecoration: 'underline', textUnderlineOffset: 2 }}>{item.linkText} →</a>
-                        )}
+                    <SwipeableItem key={`banner-${item.id}`} onDismiss={() => dismiss(item.id)}>
+                      <div style={{ padding: '11px 14px', borderBottom: `1px solid ${T.border}`, background: isRead ? 'transparent' : T.isDark ? 'rgba(45,139,120,0.06)' : 'rgba(36,100,93,0.05)', display: 'flex', alignItems: 'flex-start', gap: 10 }}>
+                        <div style={{ width: 7, height: 7, borderRadius: 4, flexShrink: 0, marginTop: 5, background: isRead ? 'transparent' : T.accent }} />
+                        <div style={{ flex: 1 }}>
+                          <div style={{ fontSize: 13, color: T.textSecondary, lineHeight: 1.5 }}>{item.message}</div>
+                          {item.linkText && item.linkUrl && (
+                            <a href={item.linkUrl} target="_blank" rel="noopener noreferrer" style={{ display: 'inline-block', marginTop: 5, fontSize: 12, fontWeight: 700, color: T.accent, textDecoration: 'underline', textUnderlineOffset: 2 }}>{item.linkText} →</a>
+                          )}
+                        </div>
                       </div>
-                    </div>
+                    </SwipeableItem>
                   );
                 })
               }

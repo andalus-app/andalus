@@ -86,10 +86,6 @@ function GridCard({ name, onPress, isFav, onToggleFav, T }) {
           fontSize: 13, fontWeight: 700, color: T.text,
           lineHeight: 1.2, textAlign: 'center', letterSpacing: '-.1px',
         }}>{name.transliteration}</div>
-
-        <div style={{ fontSize: 11, color: T.textMuted, lineHeight: 1.2, textAlign: 'center' }}>
-          {name.swedish}
-        </div>
       </button>
     </div>
   );
@@ -277,7 +273,13 @@ export default function AsmaulHusnaScreen({ onBack, onMount }) {
     const handler = () => {
       if (activeQA) { setActiveQA(null); return; }
       if (activeSection) { setActiveSection(null); return; }
-      if (selected) { setSelected(null); return; }
+      if (selected) {
+        setSelected(null);
+        requestAnimationFrame(() => requestAnimationFrame(() => {
+          if (listScrollRef.current) listScrollRef.current.scrollTop = savedListScrollRef.current;
+        }));
+        return;
+      }
       onBack();
     };
     window.addEventListener('edgeSwipeBack', handler);
@@ -312,7 +314,12 @@ export default function AsmaulHusnaScreen({ onBack, onMount }) {
       <div style={{ display: selected ? 'flex' : 'none', flexDirection: 'column', minHeight: '100%', position: 'absolute', inset: 0, zIndex: 10, background: T.bg }}>
         {selected && (
           <DetailScreen
-            name={selected} onBack={() => setSelected(null)}
+            name={selected} onBack={() => {
+              setSelected(null);
+              requestAnimationFrame(() => requestAnimationFrame(() => {
+                if (listScrollRef.current) listScrollRef.current.scrollTop = savedListScrollRef.current;
+              }));
+            }}
             isFav={favs.has(selected.nr)} onToggleFav={() => toggleFav(selected.nr)}
             T={T}
           />
@@ -403,7 +410,7 @@ export default function AsmaulHusnaScreen({ onBack, onMount }) {
       )}
 
       {/* List screen */}
-      <div style={{ display: (selected || activeSection || activeQA) ? 'none' : 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
+      <div style={{ visibility: (selected || activeSection || activeQA) ? 'hidden' : 'visible', pointerEvents: (selected || activeSection || activeQA) ? 'none' : 'auto', display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
       <style>{`@keyframes fadeUp{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}`}</style>
 
       {/* Sticky header */}
