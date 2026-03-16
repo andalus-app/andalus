@@ -156,12 +156,15 @@ function slotColor(status){ return status==='available'?'#22c55e':status==='pend
 // Regeln: startH är passerat om nuvarande tid >= startH + 30 min.
 // Dvs klockan måste vara INNAN halv-timmen in i blocket för att det ska vara bokningsbart.
 function isHourPast(iso, startH, durationHours) {
+  // Never allow slots before opening hour
+  if (startH < OPEN_HOUR) return true;
+  // Never allow slots that end after closing hour
+  if (startH + durationHours > CLOSE_HOUR) return true;
   const todayISO = toISO(new Date());
   if (iso !== todayISO) return false;
   const now = new Date();
   const nowMinutes = now.getHours() * 60 + now.getMinutes();
   const startMinutes = Math.floor(startH) * 60 + (startH % 1 === 0 ? 0 : 30);
-  // Block if slot has already started (no grace period)
   return nowMinutes >= startMinutes;
 }
 
@@ -445,13 +448,12 @@ function TimeSlotPanel({bookings,date,isAdmin,durationHours,onSelectSlot,onClose
       b.date===iso && b.status!=='rejected' && b.status!=='cancelled'
     ).map(b=>{
       const parts=b.time_slot.split('–');
-      const parseH=s=>{const[hh,mm]=s.split(':').map(Number);return hh+(mm===30?0.5:0);};
-      return {
-        startH: parseH(parts[0]),
-        endH: parseH(parts[1]),
-        status: b.status,
-        booking: b,
-      };
+      // 00:00 as end = midnight = hour 24, never 0
+      const parseH=s=>{const[hh,mm]=s.split(':').map(Number);const h=hh+(mm===30?0.5:0);return h===0?24:h;};
+      const startH = parseH(parts[0]);
+      const rawEndH = parseH(parts[1]);
+      const endH = rawEndH > startH ? rawEndH : (b.duration_hours ? startH + b.duration_hours : 24);
+      return { startH, endH, status: b.status, booking: b };
     }).sort((a,b)=>a.startH-b.startH);
 
     // Slå ihop överlappande/angränsande bokade block
@@ -468,7 +470,7 @@ function TimeSlotPanel({bookings,date,isAdmin,durationHours,onSelectSlot,onClose
 
     // Bygg lista: lediga gaps + bokade block
     const result=[];
-    let cursor=OPEN_HOUR;
+    let cursor=OPEN_HOUR; // always start from opening time, never before
     for(const block of merged){
       if(block.startH>cursor){
         // Ledigt gap — only show slots that end at or before CLOSE_HOUR
