@@ -210,7 +210,7 @@ function bookingNotifColor(status) {
 }
 
 /* ── Main screen ── */
-export default function NewHomeScreen({ stream, onGoToAdminLogin }) {
+export default function NewHomeScreen({ stream, onGoToAdminLogin, onGoToMyBookings }) {
   const { theme: T, mode, setMode } = useTheme();
   const { allBanners, banners, unreadCount, read, dismiss, markRead, markAllRead } = useBanner();
   const { bellNotifs, visitorUnread, adminPendingNotif, adminUnread, adminPendingCount, isAdminState, markVisitorSeen, dismissAdminDevice } = useBookingNotifications();
@@ -383,7 +383,9 @@ export default function NewHomeScreen({ stream, onGoToAdminLogin }) {
                   if (item.type === 'booking') {
                     const color = bookingNotifColor(item.status);
                     return (
-                      <div key={`booking-${item.id}`} style={{ padding: '11px 14px', borderBottom: `1px solid ${T.border}`, background: T.isDark ? `${color}09` : `${color}07`, display: 'flex', alignItems: 'flex-start', gap: 10 }}>
+                      <div key={`booking-${item.id}`}
+                        onClick={() => { setShowBellPanel(false); onGoToMyBookings?.(item.id); }}
+                        style={{ padding: '11px 14px', borderBottom: `1px solid ${T.border}`, background: T.isDark ? `${color}09` : `${color}07`, display: 'flex', alignItems: 'flex-start', gap: 10, cursor: 'pointer' }}>
                         <div style={{ width: 28, height: 28, borderRadius: 8, flexShrink: 0, background: `${color}20`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                             {item.status==='approved'?<polyline points="20 6 9 17 4 12"/>:item.status==='rejected'||item.status==='cancelled'?<><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></>:<path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>}
@@ -393,6 +395,7 @@ export default function NewHomeScreen({ stream, onGoToAdminLogin }) {
                           <div style={{ fontSize: 12, fontWeight: 700, color, marginBottom: 2 }}>Bokningsuppdatering</div>
                           <div style={{ fontSize: 13, color: T.text, lineHeight: 1.45 }}>{bookingNotifText(item)}</div>
                           {item.admin_comment && <div style={{ fontSize: 11, color: T.textMuted, marginTop: 3, fontStyle: 'italic' }}>"{item.admin_comment}"</div>}
+                          <div style={{ fontSize: 11, color: color, fontWeight: 600, marginTop: 4 }}>Visa bokning →</div>
                         </div>
                       </div>
                     );

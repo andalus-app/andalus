@@ -842,9 +842,20 @@ function ConfirmationScreen({booking,onBack,T}){
 }
 
 /* ── MyBookings ── */
-function MyBookings({bookings, onViewConfirmation, onEdit, onCancel, onCancelOne, onCancelFromDate, onRecover, onBack, T}){
+function MyBookings({bookings, onViewConfirmation, onEdit, onCancel, onCancelOne, onCancelFromDate, onRecover, onBack, highlightBookingId, T}){
   const [selectedGroup, setSelectedGroup] = useState(null);
   const [occurrenceSheet, setOccurrenceSheet] = useState(null);
+  const highlightRef = useRef(null);
+
+  // Auto-scroll to highlighted booking on mount
+  useEffect(() => {
+    if (highlightBookingId && highlightRef.current) {
+      setTimeout(() => {
+        highlightRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }, 300);
+    }
+  }, []); // eslint-disable-line
+
   // Återhämtning via telefon + PIN
   const [showRecover, setShowRecover] = useState(false);
   const [recoverPhone, setRecoverPhone] = useState(()=>localStorage.getItem('islamnu_user_phone')||'');
@@ -904,6 +915,9 @@ function MyBookings({bookings, onViewConfirmation, onEdit, onCancel, onCancelOne
   };
 
   // ── Detaljvy för vald grupp ──
+  // Pulse keyframe injected here
+  const pulseStyle = <style>{`@keyframes bookingPulse{0%{box-shadow:0 0 0 0 rgba(34,197,94,0.5)}50%{box-shadow:0 0 0 10px rgba(34,197,94,0)}100%{box-shadow:0 0 0 0 rgba(34,197,94,0)}}`}</style>;
+
   if(selectedGroup){
     const grp=selectedGroup;
     const isRecur=grp.bookings.length>1;
@@ -1023,6 +1037,7 @@ function MyBookings({bookings, onViewConfirmation, onEdit, onCancel, onCancelOne
 
   // ── Listvy — 1 rad per grupp ──
   return <div style={{padding:'20px 16px',fontFamily:'system-ui'}}>
+    {pulseStyle}
     <BackButton onBack={onBack} T={T}/>
     <div style={{fontSize:22,fontWeight:800,color:T.text,letterSpacing:'-.4px',marginTop:16,marginBottom:20}}>Mina bokningar</div>
     {recoverCount>0&&<div style={{background:'#22c55e18',border:'1px solid #22c55e33',borderRadius:12,padding:'12px 14px',marginBottom:14,fontSize:13,color:'#22c55e',fontWeight:600}}>
@@ -1085,8 +1100,17 @@ function MyBookings({bookings, onViewConfirmation, onEdit, onCancel, onCancelOne
           const firstDate=sortedB[0]?.date;
           const lastDate=sortedB[sortedB.length-1]?.date;
           const rep=sortedB[0];
-          return <div key={grp.group_id} onClick={()=>setSelectedGroup(grp)}
-            style={{background:T.card,border:`1px solid ${status==='pending'?'#f59e0b44':status==='edit_pending'?'#f9731644':status==='edited'?'#3b82f633':status==='cancelled'?'#64748b33':T.border}`,borderRadius:14,padding:'14px 16px',cursor:'pointer'}}>
+          const isHighlighted = highlightBookingId && grp.bookings.some(b => b.id === highlightBookingId);
+          return <div key={grp.group_id}
+            ref={isHighlighted ? highlightRef : null}
+            onClick={()=>setSelectedGroup(grp)}
+            style={{
+              background:T.card,
+              border:`1px solid ${isHighlighted ? '#22c55e' : status==='pending'?'#f59e0b44':status==='edit_pending'?'#f9731644':status==='edited'?'#3b82f633':status==='cancelled'?'#64748b33':T.border}`,
+              borderRadius:14, padding:'14px 16px', cursor:'pointer',
+              animation: isHighlighted ? 'bookingPulse 2s ease-in-out 3' : 'none',
+              boxShadow: isHighlighted ? '0 0 0 0 rgba(34,197,94,0.4)' : 'none',
+            }}>
             <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:4}}>
               <div style={{display:'flex',alignItems:'center',gap:6}}>
                 {isRecur&&<RecurBadge/>}
@@ -1667,7 +1691,7 @@ function AdminLogin({onSuccess,onBack,T}){
 }
 
 /* ── Root ── */
-export default function BookingScreen({onBack, activateForDevice, registerAdminDevice, dismissAdminDevice, startAtAdminLogin, startAtAdmin, onTabBarHide, onTabBarShow, onMarkAdminSeen, onRefreshNotifications}){
+export default function BookingScreen({onBack, activateForDevice, registerAdminDevice, dismissAdminDevice, startAtAdminLogin, startAtAdmin, startAtMyBookings, highlightBookingId, onTabBarHide, onTabBarShow, onMarkAdminSeen, onRefreshNotifications}){
   const scrollRef = useRef(null);
   const {theme:T}=useTheme();
   const [bookings,setBookings]=useState([]);
@@ -1675,7 +1699,7 @@ export default function BookingScreen({onBack, activateForDevice, registerAdminD
   const [submitLoading,setSubmitLoading]=useState(false);
   const [actionLoading,setActionLoading]=useState(false);
   const [adminMode,setAdminModeState]=useState(()=>localStorage.getItem(STORAGE_ADMIN)==='true');
-  const [view,setView]=useState(()=>startAtAdminLogin?'admin-login':startAtAdmin?'admin':'calendar');
+  const [view,setView]=useState(()=>startAtAdminLogin?'admin-login':startAtAdmin?'admin':startAtMyBookings?'my-bookings':'calendar');
   const [adminPreselect,setAdminPreselect]=useState(null); // group_id att öppna direkt
   const [pendingSlot,setPendingSlot]=useState(null);
   const [viewConfirmation,setViewConfirmation]=useState(null);
@@ -2048,6 +2072,7 @@ export default function BookingScreen({onBack, activateForDevice, registerAdminD
         onCancelFromDate={handleVisitorCancelFromDate}
         onRecover={handleRecoverByPin}
         onBack={()=>setView('calendar')}
+        highlightBookingId={highlightBookingId}
         T={T}
       />
       <Toast message={toast} T={T}/>

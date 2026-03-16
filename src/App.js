@@ -145,6 +145,13 @@ function Shell() {
 
   const [moreInitialView, setMoreInitialView] = useState(null);
 
+  const handleGoToMyBookings = (bookingId) => {
+    setMoreInitialView('booking-my:' + (bookingId || ''));
+    setMoreResetKey(n => n + 1);
+    setTab('more');
+    try { sessionStorage.setItem('activeTab', 'more'); } catch {}
+  };
+
   const handleGoToAdminLogin = () => {
     const alreadyAdmin = localStorage.getItem('islamnu_admin_mode') === 'true';
     // If already logged in → go directly to booking (BookingScreen will show admin panel)
@@ -158,7 +165,7 @@ function Shell() {
   const renderScreen = () => {
     if (tab === 'prayer' && showMonthly) return <MonthlyScreen onBack={() => setShowMonthly(false)} />;
     switch (tab) {
-      case 'home':     return <NewHomeScreen stream={stream} onGoToAdminLogin={handleGoToAdminLogin} />;
+      case 'home':     return <NewHomeScreen stream={stream} onGoToAdminLogin={handleGoToAdminLogin} onGoToMyBookings={handleGoToMyBookings} />;
       case 'prayer':   return <PrayerScreen onMonthlyPress={() => setShowMonthly(true)} />;
       case 'qibla':    return <QiblaScreen />;
       case 'dhikr':    return <DhikrScreen />;

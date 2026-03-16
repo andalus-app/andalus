@@ -318,7 +318,15 @@ function SupportScreen({ onBack, T }) {
 
 export default function MoreScreen({ onTabBarHide, onTabBarShow, initialView, markVisitorSeen, markAdminSeen, activateForDevice, registerAdminDevice, dismissAdminDevice, bookingBadge = 0, visitorBadge = 0, adminBadge = 0, onRefreshNotifications }) {
   const { theme: T } = useTheme();
-  const [view, setView] = useState(initialView || 'menu');
+  // Parse initialView — supports 'booking-my:<bookingId>' for deep-linking to My Bookings
+  const [highlightBookingId] = useState(() => {
+    if (initialView?.startsWith('booking-my:')) return initialView.split(':')[1] || null;
+    return null;
+  });
+  const [view, setView] = useState(() => {
+    if (initialView?.startsWith('booking-my:')) return 'booking';
+    return initialView || 'menu';
+  });
   const scrollRef = useRef(null);
   const savedScrollRef = useRef(0);
 
@@ -367,7 +375,9 @@ export default function MoreScreen({ onTabBarHide, onTabBarShow, initialView, ma
       registerAdminDevice={registerAdminDevice}
       dismissAdminDevice={dismissAdminDevice}
       startAtAdminLogin={view === 'booking-admin-login'}
-      startAtAdmin={view === 'booking' && localStorage.getItem('islamnu_admin_mode') === 'true'}
+      startAtAdmin={view === 'booking' && localStorage.getItem('islamnu_admin_mode') === 'true' && !highlightBookingId}
+      startAtMyBookings={!!highlightBookingId}
+      highlightBookingId={highlightBookingId}
       onTabBarHide={onTabBarHide}
       onTabBarShow={onTabBarShow}
       onMarkAdminSeen={markAdminSeen}
