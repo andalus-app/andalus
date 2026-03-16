@@ -1,7 +1,7 @@
 {
-  "name": "Bönetider",
-  "short_name": "Bönetider",
-  "description": "Bönetider & Qibla-kompass för svenska muslimer",
+  "name": "Andalus Kunskapscenter",
+  "short_name": "Andalus Kunskapscenter",
+  "description": "Andalus Kunskapscenter",
   "start_url": ".",
   "display": "standalone",
   "orientation": "portrait",
