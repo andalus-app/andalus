@@ -231,10 +231,13 @@ export default function NewHomeScreen({ stream, onGoToAdminLogin, onGoToMyBookin
 
   const handleBellOpen = (e) => {
     e.stopPropagation();
-    setShowBellPanel(v => !v);
-    allBanners.forEach(b => markRead(b.id));
-    // Clear the badge number when panel opens, but keep notifs visible in panel
-    if (visitorUnread > 0) markVisitorBadgeSeen();
+    setShowBellPanel(prev => {
+      if (prev) return false; // already open — close it
+      // Opening: mark banners read and clear badge
+      allBanners.forEach(b => markRead(b.id));
+      if (visitorUnread > 0) markVisitorBadgeSeen();
+      return true;
+    });
   };
 
   // If already logged in as admin → go directly to admin panel, else go to login
@@ -252,7 +255,7 @@ export default function NewHomeScreen({ stream, onGoToAdminLogin, onGoToMyBookin
   return (
     <div
       style={{ background: T.bg, minHeight: '100%', fontFamily: "'Inter',system-ui,sans-serif" }}
-      onMouseDown={() => setShowBellPanel(false)}
+      onClick={() => setShowBellPanel(false)}
     >
       <style>{`
         @keyframes fadeUp   { from{opacity:0;transform:translateY(8px)} to{opacity:1;transform:translateY(0)} }
@@ -322,7 +325,7 @@ export default function NewHomeScreen({ stream, onGoToAdminLogin, onGoToMyBookin
           </button>
 
           {showBellPanel && (
-            <div onMouseDown={e => e.stopPropagation()} style={{
+            <div onClick={e => e.stopPropagation()} style={{
               position: 'absolute', top: 44, right: 0,
               width: 'min(320px, calc(100vw - 32px))',
               background: T.card, border: `1px solid ${T.border}`,
