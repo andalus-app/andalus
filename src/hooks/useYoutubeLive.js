@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 
-const API_KEY    = 'AIzaSyDVv92GTerpsazWZc8qO5i0y23dwJoOj6Q';
+const API_KEY = process.env.REACT_APP_YOUTUBE_API_KEY;
 const CHANNEL_ID = 'UCQhN1h0T-02TYWf-mD3-2hQ';
 const CACHE_KEY  = 'yt_stream_cache';
 
