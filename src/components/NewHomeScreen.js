@@ -255,30 +255,32 @@ function SwipeableItem({ onDismiss, children }) {
   };
 
   return (
-    <div style={{ position: 'relative', overflow: 'hidden' }}>
-      {/* Red action background — only visible when swiped */}
+    <div style={{ position: 'relative', overflow: 'clip' }}>
+      {/* Red action background — grows from right as user swipes */}
       <div style={{
         position: 'absolute', right: 0, top: 0, bottom: 0,
-        width: `${Math.max(revealed, 0)}px`,
+        width: revealed > 0 ? `${Math.min(revealed, 80)}px` : 0,
         background: '#ef4444',
         display: 'flex', alignItems: 'center', justifyContent: 'center',
-        transition: dismissing || offsetX === 0 ? 'width 0.28s cubic-bezier(0.4,0,0.2,1)' : 'none',
-        overflow: 'hidden',
+        transition: (dismissing || offsetX === 0) ? 'width 0.28s cubic-bezier(0.4,0,0.2,1)' : 'none',
       }}>
-        <svg style={{ opacity: revealed > 20 ? 1 : 0, transition: 'opacity 0.15s', flexShrink: 0 }}
-          width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.5" strokeLinecap="round">
-          <polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/>
-        </svg>
+        {revealed > 20 && (
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.5" strokeLinecap="round">
+            <polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/>
+          </svg>
+        )}
       </div>
+      {/* Content slides left */}
       <div
         onTouchStart={handleTouchStart}
         onTouchMove={handleTouchMove}
         onTouchEnd={handleTouchEnd}
         style={{
           transform: `translateX(${offsetX}px)`,
-          transition: dismissing || offsetX === 0 ? 'transform 0.28s cubic-bezier(0.4,0,0.2,1)' : 'none',
+          transition: (dismissing || offsetX === 0) ? 'transform 0.28s cubic-bezier(0.4,0,0.2,1)' : 'none',
           position: 'relative', zIndex: 1,
           willChange: 'transform',
+          background: 'inherit',
         }}
       >
         {children}
@@ -290,6 +292,16 @@ function SwipeableItem({ onDismiss, children }) {
 /* ── Main screen ── */
 export default function NewHomeScreen({ stream, onGoToAdminLogin, onGoToMyBookings }) {
   const { theme: T, mode, setMode } = useTheme();
+  const prevModeRef = React.useRef(mode);
+  const [justToggled, setJustToggled] = React.useState(false);
+  React.useEffect(() => {
+    if (prevModeRef.current !== mode) {
+      prevModeRef.current = mode;
+      setJustToggled(true);
+      const t = setTimeout(() => setJustToggled(false), 3500);
+      return () => clearTimeout(t);
+    }
+  }, [mode]);
   const { allBanners, banners, unreadCount, read, dismiss, markRead, markAllRead } = useBanner();
   const { bellNotifs, visitorUnread, adminPendingNotif, adminUnread, adminPendingCount, isAdminState, markVisitorSeen, markVisitorBadgeSeen, dismissAdminDevice } = useBookingNotifications();
   const [showBellPanel, setShowBellPanel] = React.useState(false);
@@ -372,37 +384,31 @@ export default function NewHomeScreen({ stream, onGoToAdminLogin, onGoToMyBookin
             onClick={() => setMode(T.isDark ? 'light' : 'dark')}
             style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 8, WebkitTapHighlightColor: 'transparent', overflow: 'hidden', width: 38, height: 38, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
           >
-            {/* Wrapper animates rise */}
-            <div key={T.isDark ? 'moon' : 'sun'} style={{
-              animation: T.isDark
-                ? 'moonRise 0.7s cubic-bezier(0.34,1.4,0.64,1) both'
-                : 'sunRise 0.7s cubic-bezier(0.34,1.4,0.64,1) both',
+            {/* Icon — animates only when mode just toggled */}
+            <div key={justToggled ? (T.isDark ? 'moon-anim' : 'sun-anim') : (T.isDark ? 'moon' : 'sun')} style={{
+              animation: justToggled ? (T.isDark ? 'moonRise 0.7s cubic-bezier(0.34,1.4,0.64,1) both' : 'sunRise 0.7s cubic-bezier(0.34,1.4,0.64,1) both') : 'none',
               display: 'flex', position: 'relative', width: 22, height: 22,
             }}>
               {T.isDark ? <>
-                {/* Glowing white moon — fades out after 2.5s */}
-                <svg style={{ position:'absolute', animation:'moonGlowFade 2.5s ease 0.7s 1 forwards', filter:'drop-shadow(0 0 6px #ffffffcc)' }}
+                {justToggled && <svg style={{ position:'absolute', animation:'moonGlowFade 2.5s ease 0.7s 1 forwards', filter:'drop-shadow(0 0 6px #ffffffcc)' }}
                   width="22" height="22" viewBox="0 0 24 24" fill="white" stroke="white" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
                   <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
-                </svg>
-                {/* Standard moon — fades in as glow fades */}
-                <svg style={{ position:'absolute', animation:'stdFadeIn 2.5s ease 0.7s 1 forwards', opacity:0 }}
+                </svg>}
+                <svg style={{ position:'absolute', animation: justToggled ? 'stdFadeIn 2.5s ease 0.7s 1 forwards' : 'none', opacity: justToggled ? 0 : 1 }}
                   width="22" height="22" viewBox="0 0 24 24" fill="none" stroke={T.textMuted} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
                   <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
                 </svg>
               </> : <>
-                {/* Glowing yellow sun — fades out after 2.5s */}
-                <svg style={{ position:'absolute', animation:'sunGlowFade 2.5s ease 0.7s 1 forwards', filter:'drop-shadow(0 0 8px #f59e0bdd)' }}
+                {justToggled && <svg style={{ position:'absolute', animation:'sunGlowFade 2.5s ease 0.7s 1 forwards', filter:'drop-shadow(0 0 8px #f59e0bdd)' }}
                   width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#f59e0b" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
                   <circle cx="12" cy="12" r="5" fill="#fbbf2466"/>
                   <line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/>
                   <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/>
                   <line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/>
                   <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>
-                </svg>
-                {/* Standard sun — fades in as glow fades */}
-                <svg style={{ position:'absolute', animation:'stdFadeIn 2.5s ease 0.7s 1 forwards', opacity:0 }}
-                  width="22" height="22" viewBox="0 0 24 24" fill="none" stroke={T.textMuted} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" >
+                </svg>}
+                <svg style={{ position:'absolute', animation: justToggled ? 'stdFadeIn 2.5s ease 0.7s 1 forwards' : 'none', opacity: justToggled ? 0 : 1 }}
+                  width="22" height="22" viewBox="0 0 24 24" fill="none" stroke={T.textMuted} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
                   <circle cx="12" cy="12" r="5"/>
                   <line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/>
                   <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/>
