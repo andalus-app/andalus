@@ -23,6 +23,16 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from '../services/supabaseClient';
 
 const STORAGE_DEVICE        = 'islamnu_device_id';
+
+// Ensure device_id exists — create it here if BookingScreen hasn't run yet
+function getOrCreateDeviceId() {
+  let id = localStorage.getItem(STORAGE_DEVICE);
+  if (!id) {
+    id = Date.now().toString(36) + Math.random().toString(36).slice(2, 9);
+    localStorage.setItem(STORAGE_DEVICE, id);
+  }
+  return id;
+}
 const STORAGE_ADMIN         = 'islamnu_admin_mode';
 const STORAGE_VISITOR_SEEN  = 'islamnu_bookings_visitor_seen';
 const STORAGE_ADMIN_SEEN    = 'islamnu_bookings_admin_seen';
@@ -40,7 +50,7 @@ export function useBookingNotifications() {
   // Track admin state as React state so badge re-renders immediately on login/logout
   const [isAdminState,      setIsAdminState]      = useState(() => localStorage.getItem(STORAGE_ADMIN) === 'true');
 
-  const deviceId     = useRef(localStorage.getItem(STORAGE_DEVICE)).current;
+  const deviceId     = useRef(getOrCreateDeviceId()).current;
   const isAdminRef   = useRef(localStorage.getItem(STORAGE_ADMIN) === 'true');
   const debounceRef  = useRef(null);
   const pollRef      = useRef(null);
@@ -242,10 +252,11 @@ export function useBookingNotifications() {
 
   const registerAdminDevice = useCallback(async () => {
     if (!deviceId) return;
-    await supabase
+    const { error } = await supabase
       .from('admin_devices')
       .upsert({ device_id: deviceId, created_at: Date.now(), dismissed_at: null },
                { onConflict: 'device_id' });
+    if (error) console.error('[AdminDevice] upsert error:', error);
     localStorage.setItem(STORAGE_ADMIN_DEVICE, 'true');
     localStorage.setItem(STORAGE_ADMIN, 'true');
     isAdminRef.current = true;
@@ -255,10 +266,11 @@ export function useBookingNotifications() {
 
   const dismissAdminDevice = useCallback(async () => {
     if (!deviceId) return;
-    await supabase
+    const { error } = await supabase
       .from('admin_devices')
       .update({ dismissed_at: Date.now() })
       .eq('device_id', deviceId);
+    if (error) console.error('[AdminDevice] dismiss error:', error);
     localStorage.setItem(STORAGE_ADMIN_DEVICE, 'dismissed');
     localStorage.setItem(STORAGE_ADMIN, 'false');
     isAdminRef.current = false;
