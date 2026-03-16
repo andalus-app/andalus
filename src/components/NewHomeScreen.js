@@ -213,7 +213,7 @@ function bookingNotifColor(status) {
 export default function NewHomeScreen({ stream, onGoToAdminLogin, onGoToMyBookings }) {
   const { theme: T, mode, setMode } = useTheme();
   const { allBanners, banners, unreadCount, read, dismiss, markRead, markAllRead } = useBanner();
-  const { bellNotifs, visitorUnread, adminPendingNotif, adminUnread, adminPendingCount, isAdminState, markVisitorSeen, dismissAdminDevice } = useBookingNotifications();
+  const { bellNotifs, visitorUnread, adminPendingNotif, adminUnread, adminPendingCount, isAdminState, markVisitorSeen, markVisitorBadgeSeen, dismissAdminDevice } = useBookingNotifications();
   const [showBellPanel, setShowBellPanel] = React.useState(false);
   const [adminNotifDismissedThisSession, setAdminNotifDismissedThisSession] = React.useState(false);
 
@@ -233,7 +233,8 @@ export default function NewHomeScreen({ stream, onGoToAdminLogin, onGoToMyBookin
     e.stopPropagation();
     setShowBellPanel(v => !v);
     allBanners.forEach(b => markRead(b.id));
-    if (visitorUnread > 0) markVisitorSeen();
+    // Clear the badge number when panel opens, but keep notifs visible in panel
+    if (visitorUnread > 0) markVisitorBadgeSeen();
   };
 
   // If already logged in as admin → go directly to admin panel, else go to login
@@ -384,7 +385,7 @@ export default function NewHomeScreen({ stream, onGoToAdminLogin, onGoToMyBookin
                     const color = bookingNotifColor(item.status);
                     return (
                       <div key={`booking-${item.id}`}
-                        onClick={() => { setShowBellPanel(false); onGoToMyBookings?.(item.id); }}
+                        onClick={() => { setShowBellPanel(false); markVisitorSeen(); onGoToMyBookings?.(item.id); }}
                         style={{ padding: '11px 14px', borderBottom: `1px solid ${T.border}`, background: T.isDark ? `${color}09` : `${color}07`, display: 'flex', alignItems: 'flex-start', gap: 10, cursor: 'pointer' }}>
                         <div style={{ width: 28, height: 28, borderRadius: 8, flexShrink: 0, background: `${color}20`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">

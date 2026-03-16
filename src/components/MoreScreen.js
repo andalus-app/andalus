@@ -381,6 +381,7 @@ export default function MoreScreen({ onTabBarHide, onTabBarShow, initialView, ma
       onTabBarHide={onTabBarHide}
       onTabBarShow={onTabBarShow}
       onMarkAdminSeen={markAdminSeen}
+      onMarkVisitorSeen={markVisitorSeen}
       onRefreshNotifications={onRefreshNotifications}
     />;
 

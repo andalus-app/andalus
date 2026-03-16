@@ -1699,7 +1699,7 @@ function AdminLogin({onSuccess,onBack,T}){
 }
 
 /* ── Root ── */
-export default function BookingScreen({onBack, activateForDevice, registerAdminDevice, dismissAdminDevice, startAtAdminLogin, startAtAdmin, startAtMyBookings, highlightBookingId, onTabBarHide, onTabBarShow, onMarkAdminSeen, onRefreshNotifications}){
+export default function BookingScreen({onBack, activateForDevice, registerAdminDevice, dismissAdminDevice, startAtAdminLogin, startAtAdmin, startAtMyBookings, highlightBookingId, onTabBarHide, onTabBarShow, onMarkAdminSeen, onMarkVisitorSeen, onRefreshNotifications}){
   const scrollRef = useRef(null);
   const {theme:T}=useTheme();
   const [bookings,setBookings]=useState([]);
@@ -1708,6 +1708,8 @@ export default function BookingScreen({onBack, activateForDevice, registerAdminD
   const [actionLoading,setActionLoading]=useState(false);
   const [adminMode,setAdminModeState]=useState(()=>localStorage.getItem(STORAGE_ADMIN)==='true');
   const [view,setView]=useState(()=>startAtAdminLogin?'admin-login':startAtAdmin?'admin':startAtMyBookings?'my-bookings':'calendar');
+  // Mark visitor seen when navigated directly to my-bookings (e.g. from bell notif)
+  useEffect(()=>{ if(startAtMyBookings) onMarkVisitorSeen?.(); },[]);// eslint-disable-line
   const [adminPreselect,setAdminPreselect]=useState(null); // group_id att öppna direkt
   const [pendingSlot,setPendingSlot]=useState(null);
   const [viewConfirmation,setViewConfirmation]=useState(null);
@@ -2104,7 +2106,7 @@ export default function BookingScreen({onBack, activateForDevice, registerAdminD
           </button>
         </div>
         <div style={{display:'flex',gap:8}}>
-          <button onClick={()=>setView('my-bookings')} style={{position:'relative',background:T.card,border:`1px solid ${T.border}`,borderRadius:12,width:40,height:40,display:'flex',alignItems:'center',justifyContent:'center',cursor:'pointer',WebkitTapHighlightColor:'transparent'}}>
+          <button onClick={()=>{setView('my-bookings');onMarkVisitorSeen?.();}} style={{position:'relative',background:T.card,border:`1px solid ${T.border}`,borderRadius:12,width:40,height:40,display:'flex',alignItems:'center',justifyContent:'center',cursor:'pointer',WebkitTapHighlightColor:'transparent'}}>
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={T.textMuted} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
             {visitorUnread>0&&!adminMode&&<div style={{position:'absolute',top:-3,right:-3,width:14,height:14,borderRadius:'50%',background:'#ef4444',color:'#fff',fontSize:8,fontWeight:800,display:'flex',alignItems:'center',justifyContent:'center'}}>{visitorUnread>9?'9+':visitorUnread}</div>}
           </button>

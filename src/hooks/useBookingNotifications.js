@@ -269,9 +269,17 @@ export function useBookingNotifications() {
   }, [deviceId]);
 
   const markVisitorSeen = useCallback(() => {
+    // Mark all current notifs as seen — clears badge AND panel
     localStorage.setItem(STORAGE_VISITOR_SEEN, Date.now().toString());
     setVisitorUnread(0);
     setBellNotifs([]);
+  }, []);
+
+  // Mark only the badge as read (notifs stay in panel until explicitly cleared)
+  const markVisitorBadgeSeen = useCallback(() => {
+    setVisitorUnread(0);
+    // Don't update STORAGE_VISITOR_SEEN or clear bellNotifs
+    // Panel will still show the notifs until user clears or clicks them
   }, []);
 
   const markAdminSeen = useCallback(() => {
@@ -301,6 +309,7 @@ export function useBookingNotifications() {
     registerAdminDevice,
     dismissAdminDevice,
     markVisitorSeen,
+    markVisitorBadgeSeen,
     markAdminSeen,
     refresh: calculate, // expose for immediate post-action refresh
   };
