@@ -1734,10 +1734,13 @@ export default function BookingScreen({onBack, activateForDevice, registerAdminD
     return ()=>supabase.removeChannel(channel);
   },[fetchBookings]);
   useEffect(()=>{
-    const handler=()=>{if(view==='calendar') onBack();else setView('calendar');};
+    const handler=()=>{
+      if(pendingPinToShow){setPendingPinToShow(null);onTabBarShow?.();return;}
+      if(view==='calendar') onBack();else setView('calendar');
+    };
     window.addEventListener('edgeSwipeBack',handler);
     return ()=>window.removeEventListener('edgeSwipeBack',handler);
-  },[onBack,view]);
+  },[onBack,view,pendingPinToShow]);
 
   /* Ny bokning */
   const handleSubmitBooking=useCallback(async(formData)=>{
@@ -2041,9 +2044,12 @@ export default function BookingScreen({onBack, activateForDevice, registerAdminD
   const pendingCount=bookings.filter(b=>b.status==='pending'||b.status==='edit_pending').length;
 
   /* Views */
-  if(pendingPinToShow) return <div style={{background:T.bg,minHeight:'100%'}}>
-    <PinRevealScreen pin={pendingPinToShow} onContinue={()=>{setPendingPinToShow(null);setView('my-bookings');}} T={T}/>
-  </div>;
+  if(pendingPinToShow){
+    onTabBarHide?.();
+    return <div style={{background:T.bg,minHeight:'100%',paddingBottom:0}}>
+      <PinRevealScreen pin={pendingPinToShow} onContinue={()=>{setPendingPinToShow(null);setView('my-bookings');onTabBarShow?.();}} T={T}/>
+    </div>;
+  }
 
   if(view==='form'&&pendingSlot) return <div style={{background:T.bg,minHeight:'100%'}}>
     <BookingForm date={pendingSlot.date} slotLabel={pendingSlot.slotLabel} durationHours={pendingSlot.durationHours} onSubmit={handleSubmitBooking} onBack={()=>setView('calendar')} loading={submitLoading} bookings={bookings} T={T}/>
