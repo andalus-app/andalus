@@ -383,7 +383,6 @@ export default function SettingsScreen({ onBack }) {
         </ModalSheet>
       )}
     </div>
-      </div>
     </div>
   );
 }
