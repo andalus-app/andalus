@@ -2,6 +2,23 @@ import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { useTheme } from '../context/ThemeContext';
 import names from '../data/asmaul_husna.json';
 
+// Pre-build search index once at module load — zero cost at runtime
+const SEARCH_INDEX = names.map(n => ({
+  norm: normalize(n.transliteration + ' ' + n.swedish + ' ' + String(n.nr)),
+  arabic: n.arabic,
+}));
+
+// Normalize search query: strip diacritics + apostrophes for fuzzy matching
+// e.g. "al-Qayyūm" → "al-qayyum", "al-Ākhir" → "al-akhir"
+function normalize(s) {
+  return String(s)
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '')
+    .replace(/[''ʼʻ`´]/g, "'")
+    .replace(/[–—]/g, '-')
+    .toLowerCase();
+}
+
 const FAV_KEY = 'asmaul_husna_favorites';
 function loadFavs() {
   try { return new Set(JSON.parse(localStorage.getItem(FAV_KEY) || '[]')); }
@@ -405,19 +422,17 @@ export default function AsmaulHusnaScreen({ onBack, onMount }) {
     });
   }, []);
 
-  const searchIndex = useMemo(() => names.map(n => ({
-    blob: [n.transliteration, n.swedish, n.arabic, n.forklaring || '', n.koranvers_svenska || '', String(n.nr)].join('\n').toLowerCase(),
-  })), []);
-
   const filtered = useMemo(() => {
     if (!debouncedSearch && !filterFavs) return names;
-    const q = debouncedSearch.toLowerCase();
+    if (!debouncedSearch) return names.filter(n => favs.has(n.nr));
+    const q = normalize(debouncedSearch);
+    const isArabic = /[؀-ۿ]/.test(debouncedSearch);
     return names.filter((n, i) => {
       if (filterFavs && !favs.has(n.nr)) return false;
-      if (!debouncedSearch) return true;
-      return searchIndex[i].blob.includes(q) || n.arabic.includes(debouncedSearch);
+      if (isArabic) return SEARCH_INDEX[i].arabic.includes(debouncedSearch);
+      return SEARCH_INDEX[i].norm.includes(q);
     });
-  }, [debouncedSearch, filterFavs, favs, searchIndex]);
+  }, [debouncedSearch, filterFavs, favs]);
 
   return (
     <div style={{ background: T.bg, minHeight: '100%', display: 'flex', flexDirection: 'column', fontFamily: "'Inter',system-ui,sans-serif" }}>
@@ -551,9 +566,9 @@ export default function AsmaulHusnaScreen({ onBack, onMount }) {
             <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Sök namn..." style={{ background: 'none', border: 'none', outline: 'none', fontSize: 16, color: T.text, flex: 1, fontFamily: "'Inter',system-ui,sans-serif" }} />
             {search && <button onClick={() => setSearch('')} style={{ background: 'none', border: 'none', cursor: 'pointer', color: T.textMuted, fontSize: 17, padding: 0, lineHeight: 1 }}>×</button>}
           </div>
-          <button onClick={() => setFilterFavs(f => !f)} style={{ background: filterFavs ? '#e53e3e' : T.card, border: `1px solid ${filterFavs ? '#e53e3e' : T.border}`, borderRadius: 12, padding: '8px 12px', cursor: 'pointer', WebkitTapHighlightColor: 'transparent', display: 'flex', alignItems: 'center', gap: 5, fontSize: 13, fontWeight: 600, color: filterFavs ? '#fff' : T.textMuted, transition: 'all .18s' }}>
+          <button onClick={() => setFilterFavs(f => !f)} style={{ background: T.card, border: `1px solid ${filterFavs ? '#e53e3e44' : T.border}`, borderRadius: 12, padding: '8px 12px', cursor: 'pointer', WebkitTapHighlightColor: 'transparent', display: 'flex', alignItems: 'center', gap: 5, fontSize: 13, fontWeight: 600, color: T.textMuted, transition: 'all .18s' }}>
             <Heart filled={filterFavs} size={14} />
-            {favs.size > 0 && <span>{favs.size}</span>}
+            {favs.size > 0 && <span style={{ color: filterFavs ? '#e53e3e' : T.textMuted }}>{favs.size}</span>}
           </button>
         </div>
       </div>
