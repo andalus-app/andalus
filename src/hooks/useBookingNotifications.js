@@ -13,14 +13,10 @@
  *   • Bakgrundsläge (Page Visibility API): pausas helt
  *   • Återupptas direkt när appen kommer till förgrunden
  *
- * ANROP per calculate()-körning (optimerat):
- *   • Besökare:             1 anrop  (egna bokningar med svar)
- *   • Admin inloggad:       1 anrop  (pending + cancelled av besökare, kombinerat)
- *   • Admin-device ej inl.: 1 anrop  (bookings count, admin_devices cachas lokalt)
- *
  * ADMIN NOTIS:
  *   • Pending/edit_pending → nya bokningar att godkänna (orange)
  *   • Cancelled av besökare (approved-bokning) → avbokningar att känna till (orange)
+ *   • Badge försvinner direkt när admin godkänner/avböjer (via Realtime)
  */
 
 import { useState, useEffect, useCallback, useRef } from 'react';
@@ -31,9 +27,9 @@ const STORAGE_ADMIN         = 'islamnu_admin_mode';
 const STORAGE_VISITOR_SEEN  = 'islamnu_bookings_visitor_seen';
 const STORAGE_ADMIN_SEEN    = 'islamnu_bookings_admin_seen';
 const STORAGE_HAS_BOOKING   = 'islamnu_has_booking';
-const STORAGE_ADMIN_DEVICE  = 'islamnu_is_admin_device'; // cachat för att slippa DB-anrop
-const POLL_FOREGROUND_MS    = 5 * 60 * 1000; // 5 minuter — fallback om Realtime tappar
-const DEBOUNCE_MS           = 600;            // slår ihop bulk-inserts till ett enda anrop
+const STORAGE_ADMIN_DEVICE  = 'islamnu_is_admin_device';
+const POLL_FOREGROUND_MS    = 5 * 60 * 1000;
+const DEBOUNCE_MS           = 600;
 
 export function useBookingNotifications() {
   const [visitorUnread,     setVisitorUnread]     = useState(0);
@@ -41,6 +37,8 @@ export function useBookingNotifications() {
   const [adminPendingCount, setAdminPendingCount] = useState(0);
   const [bellNotifs,        setBellNotifs]        = useState([]);
   const [active,            setActive]            = useState(false);
+  // Track admin state as React state so badge re-renders immediately on login/logout
+  const [isAdminState,      setIsAdminState]      = useState(() => localStorage.getItem(STORAGE_ADMIN) === 'true');
 
   const deviceId     = useRef(localStorage.getItem(STORAGE_DEVICE)).current;
   const isAdminRef   = useRef(localStorage.getItem(STORAGE_ADMIN) === 'true');
@@ -49,8 +47,8 @@ export function useBookingNotifications() {
   const hiddenRef    = useRef(false);
   const channelRef   = useRef(null);
 
-  // Uppdatera isAdmin-ref vid varje render utan att skapa ny calculate
-  isAdminRef.current = localStorage.getItem(STORAGE_ADMIN) === 'true';
+  // Keep ref in sync
+  isAdminRef.current = isAdminState;
 
   // ── Kärna: ett enda optimerat DB-anrop per roll ──────────────────────────
   const calculate = useCallback(async () => {
@@ -75,9 +73,7 @@ export function useBookingNotifications() {
         }
       }
 
-      // 2. Admin inloggad — ett kombinerat anrop för allt admin behöver se:
-      //    • pending/edit_pending  → nya att godkänna
-      //    • cancelled av besökare (resolved_at > adminSeenAt) → avbokningar
+      // 2. Admin inloggad — ett kombinerat anrop
       if (isAdmin) {
         const adminSeenAt = parseInt(localStorage.getItem(STORAGE_ADMIN_SEEN) || '0', 10);
         const { data } = await supabase
@@ -89,23 +85,21 @@ export function useBookingNotifications() {
           );
         if (data) {
           setAdminUnread(data.length);
+          // Also update pending count even when logged in, so badge is always fresh
+          setAdminPendingCount(data.filter(b => ['pending','edit_pending'].includes(b.status)).length);
         }
-        setAdminPendingCount(0);
-        return; // admin behöver inte köra block 3
+        return;
       }
 
       // 3. Admin-device ej inloggad — kolla pending count
-      //    Använd localStorage-cache för is-admin-device för att slippa admin_devices-anrop
       const cachedIsAdminDevice = localStorage.getItem(STORAGE_ADMIN_DEVICE);
       if (cachedIsAdminDevice === 'true') {
-        // Vi vet redan att enheten är admin-device — hämta direkt count
         const { count } = await supabase
           .from('bookings')
           .select('id', { count: 'exact', head: true })
           .in('status', ['pending', 'edit_pending']);
         setAdminPendingCount(count ?? 0);
       } else if (cachedIsAdminDevice !== 'false') {
-        // Okänd — kolla admin_devices en gång och cacha resultatet
         const { data: adminDevice } = await supabase
           .from('admin_devices')
           .select('device_id, dismissed_at')
@@ -124,11 +118,11 @@ export function useBookingNotifications() {
         }
       }
     } catch {
-      // Nätverksfel — ignorera tyst, nästa trigger försöker igen
+      // Nätverksfel — ignorera tyst
     }
   }, [deviceId]); // eslint-disable-line
 
-  // ── Debounced trigger — slår ihop burst-events (t.ex. 260 bulk-inserts) ─
+  // ── Debounced trigger ────────────────────────────────────────────────────
   const triggerDebounced = useCallback(() => {
     if (debounceRef.current) clearTimeout(debounceRef.current);
     debounceRef.current = setTimeout(() => {
@@ -136,17 +130,21 @@ export function useBookingNotifications() {
     }, DEBOUNCE_MS);
   }, [calculate]);
 
-  // ── Page Visibility — pausa polling i bakgrunden ─────────────────────────
+  // Immediate trigger (for after admin actions like approve/reject)
+  const triggerImmediate = useCallback(() => {
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    calculate();
+  }, [calculate]);
+
+  // ── Page Visibility ──────────────────────────────────────────────────────
   useEffect(() => {
     const onVisibilityChange = () => {
       hiddenRef.current = document.hidden;
       if (!document.hidden) {
-        // Kom till förgrunden — kör direkt + återstarta polling-timer
         calculate();
         if (pollRef.current) clearInterval(pollRef.current);
         pollRef.current = setInterval(calculate, POLL_FOREGROUND_MS);
       } else {
-        // Gick till bakgrunden — stoppa polling
         if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null; }
       }
     };
@@ -154,21 +152,19 @@ export function useBookingNotifications() {
     return () => document.removeEventListener('visibilitychange', onVisibilityChange);
   }, [calculate]);
 
-  // ── Aktiveringslogik — avgör om systemet ska starta ──────────────────────
+  // ── Aktiveringslogik ─────────────────────────────────────────────────────
   useEffect(() => {
     const isAdmin = isAdminRef.current;
     if (isAdmin) { setActive(true); return; }
     if (!deviceId) return;
 
-    // Kolla cachat admin-device-status först (undviker DB-anrop vid varje app-start)
     const cachedIsAdminDevice = localStorage.getItem(STORAGE_ADMIN_DEVICE);
     if (cachedIsAdminDevice === 'true') { setActive(true); return; }
 
     const cached = localStorage.getItem(STORAGE_HAS_BOOKING);
     if (cached === 'true') { setActive(true); return; }
-    if (cached === 'false' && cachedIsAdminDevice === 'false') return; // definitiv nej
+    if (cached === 'false' && cachedIsAdminDevice === 'false') return;
 
-    // Okänt — gör ett enda kombinerat check-anrop
     Promise.all([
       supabase
         .from('admin_devices')
@@ -194,14 +190,12 @@ export function useBookingNotifications() {
 
     calculate();
 
-    // Fallback-poll: 5 min i förgrunden, pausas i bakgrunden
     if (!document.hidden) {
       pollRef.current = setInterval(calculate, POLL_FOREGROUND_MS);
     }
 
-    // Realtime — en kanal, debounced callback
     const channel = supabase
-      .channel('booking-notif-v3')
+      .channel('booking-notif-v4')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'bookings' }, triggerDebounced)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'admin_devices' }, triggerDebounced)
       .subscribe();
@@ -216,6 +210,11 @@ export function useBookingNotifications() {
     };
   }, [active, calculate, triggerDebounced]);
 
+  // ── Re-calculate when admin state changes ───────────────────────────────
+  useEffect(() => {
+    if (active) calculate();
+  }, [isAdminState]); // eslint-disable-line
+
   // ── Publika hjälpfunktioner ───────────────────────────────────────────────
   const activateForDevice = useCallback(() => {
     localStorage.setItem(STORAGE_HAS_BOOKING, 'true');
@@ -229,10 +228,11 @@ export function useBookingNotifications() {
       .upsert({ device_id: deviceId, created_at: Date.now(), dismissed_at: null },
                { onConflict: 'device_id' });
     localStorage.setItem(STORAGE_ADMIN_DEVICE, 'true');
+    localStorage.setItem(STORAGE_ADMIN, 'true');
     isAdminRef.current = true;
+    setIsAdminState(true); // triggers re-render + calculate
     setActive(true);
-    setTimeout(calculate, 150);
-  }, [deviceId, calculate]);
+  }, [deviceId]); // eslint-disable-line
 
   const dismissAdminDevice = useCallback(async () => {
     if (!deviceId) return;
@@ -241,7 +241,11 @@ export function useBookingNotifications() {
       .update({ dismissed_at: Date.now() })
       .eq('device_id', deviceId);
     localStorage.setItem(STORAGE_ADMIN_DEVICE, 'dismissed');
+    localStorage.setItem(STORAGE_ADMIN, 'false');
+    isAdminRef.current = false;
+    setIsAdminState(false);
     setAdminPendingCount(0);
+    setAdminUnread(0);
   }, [deviceId]);
 
   const markVisitorSeen = useCallback(() => {
@@ -253,12 +257,12 @@ export function useBookingNotifications() {
   const markAdminSeen = useCallback(() => {
     localStorage.setItem(STORAGE_ADMIN_SEEN, Date.now().toString());
     setAdminUnread(0);
+    setAdminPendingCount(0); // clear badge immediately for non-logged-in admin devices too
   }, []);
 
-  const isAdmin = isAdminRef.current;
   const totalUnread =
     (deviceId ? visitorUnread : 0) +
-    (isAdmin ? adminUnread : adminPendingCount);
+    (isAdminState ? adminUnread : adminPendingCount);
 
   return {
     visitorUnread,

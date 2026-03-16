@@ -1916,8 +1916,9 @@ export default function BookingScreen({onBack, activateForDevice, registerAdminD
     const {error}=await supabase.from('bookings').update({status:action,admin_comment:comment,resolved_at:Date.now()}).eq('id',bookingId);
     setActionLoading(false);
     if(error){showToast('Något gick fel.');return;}
+    onMarkAdminSeen?.(); // clear badge immediately after action
     showToast(action==='approved'?'Bokning godkänd ✓':'Bokning avböjd');
-  },[showToast]);
+  },[showToast,onMarkAdminSeen]);
 
   /* Admin redigerar bokning */
   const handleAdminEdit=useCallback(async(data)=>{
@@ -1925,8 +1926,9 @@ export default function BookingScreen({onBack, activateForDevice, registerAdminD
     const {error}=await supabase.from('bookings').update({date:data.date,time_slot:data.time_slot,duration_hours:data.duration_hours,activity:data.activity,status:'edited',admin_comment:data.admin_comment,resolved_at:Date.now()}).eq('id',data.id);
     setActionLoading(false);
     if(error){showToast('Något gick fel.');return;}
+    onMarkAdminSeen?.();
     showToast('Bokning ändrad & besökare notifierad ✓');
-  },[showToast]);
+  },[showToast,onMarkAdminSeen]);
 
   /* Admin tar bort bokning */
   const handleAdminDelete=useCallback(async(bookingId,explanation)=>{

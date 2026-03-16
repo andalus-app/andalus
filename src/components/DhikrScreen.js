@@ -731,6 +731,13 @@ export default function DhikrScreen({ onBack }) {
 
   const scrollTop = () => { if (bodyRef.current) bodyRef.current.scrollTop = 0; };
 
+  // Listen for App-level scrollToTop event (top nav tap)
+  useEffect(() => {
+    const handler = () => scrollTop();
+    window.addEventListener('scrollToTop', handler);
+    return () => window.removeEventListener('scrollToTop', handler);
+  }, []); // eslint-disable-line
+
   const goToCat   = useCallback(g  => { setSelGrupp(g);  setView('cat');  setCatOpenIdx(null); scrollTop(); }, []);
   const goToDhikr = useCallback(d  => {
     setDhikrOriginTab(mainTab);
@@ -809,16 +816,18 @@ export default function DhikrScreen({ onBack }) {
       `}</style>
 
       {/* ── HEADER ── */}
-      <div style={{flexShrink:0, background:T.bg, borderBottom:`1px solid ${T.border}`, paddingTop:'max(16px,env(safe-area-inset-top))'}}>
+      <div style={{flexShrink:0, background:T.bg, borderBottom:`1px solid ${T.border}`, paddingTop:'max(16px,env(safe-area-inset-top))', position:'sticky', top:0, zIndex:20}}>
         {/* Top row */}
         <div style={{display:'flex', alignItems:'center', gap:6, padding:'0 14px 10px'}}>
           {showBackArrow && (
             <button onClick={goBack} style={{background:'none',border:'none',cursor:'pointer',flexShrink:0,padding:'4px 8px 4px 0',color:T.accent,fontSize:22,lineHeight:1,WebkitTapHighlightColor:'transparent'}}>‹</button>
           )}
           <div style={{flex:1, minWidth:0}}>
-            <div style={{fontSize:19, fontWeight:800, color:T.text, letterSpacing:'-.3px', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', fontFamily:'system-ui'}}>
-              {headerTitle}
-            </div>
+            <button onClick={scrollTop} style={{background:'none',border:'none',cursor:'pointer',padding:0,textAlign:'left',width:'100%',WebkitTapHighlightColor:'transparent'}}>
+              <div style={{fontSize:19, fontWeight:800, color:T.text, letterSpacing:'-.3px', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', fontFamily:'system-ui'}}>
+                {headerTitle}
+              </div>
+            </button>
           </div>
         </div>
 

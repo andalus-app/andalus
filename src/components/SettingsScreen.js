@@ -167,10 +167,15 @@ export default function SettingsScreen({ onBack }) {
   );
 
   return (
-    <div style={{ padding:'20px 16px 50px', background:T.bg, minHeight:'100%',
-      fontFamily:"'Inter',system-ui,sans-serif" }}>
+    <div ref={scrollRef} style={{ background:T.bg, minHeight:'100%', fontFamily:"'Inter',system-ui,sans-serif" }}>
 
-      <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:24, animation:'fadeUp .4s ease both' }}>
+      {/* Sticky header */}
+      <div style={{
+        position:'sticky', top:0, zIndex:20, background:T.bg,
+        borderBottom:`1px solid ${T.border}`,
+        display:'flex', alignItems:'center', gap:8,
+        padding:'16px 16px 12px', paddingTop:'max(16px,env(safe-area-inset-top))',
+      }}>
         {onBack && (
           <button onClick={onBack} style={{
             background:'none', border:'none', cursor:'pointer', padding:'4px 8px 4px 0',
@@ -178,8 +183,12 @@ export default function SettingsScreen({ onBack }) {
             WebkitTapHighlightColor:'transparent',
           }}>‹</button>
         )}
-        <button onClick={() => window.dispatchEvent(new CustomEvent('scrollToTop'))} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, WebkitTapHighlightColor: 'transparent' }}><div style={{ fontSize:24, fontWeight:800, color:T.text, letterSpacing:'-0.4px' }}>Inställningar</div></button>
+        <button onClick={() => window.dispatchEvent(new CustomEvent('scrollToTop'))} style={{ background:'none', border:'none', cursor:'pointer', padding:0, WebkitTapHighlightColor:'transparent' }}>
+          <div style={{ fontSize:22, fontWeight:800, color:T.text, letterSpacing:'-0.4px' }}>Inställningar</div>
+        </button>
       </div>
+
+      <div style={{ padding:'20px 16px 50px', animation:'fadeUp .4s ease both' }}>
 
       {/* PLATS */}
       <SectionLabel label="Plats" />
@@ -373,6 +382,8 @@ export default function SettingsScreen({ onBack }) {
           })}
         </ModalSheet>
       )}
+    </div>
+      </div>
     </div>
   );
 }

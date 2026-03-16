@@ -316,7 +316,7 @@ function SupportScreen({ onBack, T }) {
   );
 }
 
-export default function MoreScreen({ onTabBarHide, onTabBarShow, initialView, markVisitorSeen, markAdminSeen, activateForDevice, registerAdminDevice, bookingBadge = 0, visitorBadge = 0, adminBadge = 0 }) {
+export default function MoreScreen({ onTabBarHide, onTabBarShow, initialView, markVisitorSeen, markAdminSeen, activateForDevice, registerAdminDevice, dismissAdminDevice, bookingBadge = 0, visitorBadge = 0, adminBadge = 0 }) {
   const { theme: T } = useTheme();
   const [view, setView] = useState(initialView || 'menu');
   const scrollRef = useRef(null);
@@ -369,6 +369,7 @@ export default function MoreScreen({ onTabBarHide, onTabBarShow, initialView, ma
       onBack={backToMenu}
       activateForDevice={activateForDevice}
       registerAdminDevice={registerAdminDevice}
+      dismissAdminDevice={dismissAdminDevice}
       startAtAdminLogin={view === 'booking-admin-login'}
       onTabBarHide={onTabBarHide}
       onTabBarShow={onTabBarShow}
