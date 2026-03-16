@@ -1301,9 +1301,10 @@ function AdminEditForm({booking, bookings, onSubmit, onBack, loading, T}){
 }
 
 /* ── AdminPanel ── */
-function AdminPanel({bookings,onAction,onEdit,onDelete,onDeleteMany,onAddRecurring,onBack,onLogout,onMarkAdminSeen,actionLoading,onTabBarHide,onTabBarShow,preselect,onClearPreselect,T}){
+function AdminPanel({bookings,onAction,onEdit,onDelete,onDeleteMany,onAddRecurring,onBack,onLogout,onMarkAdminSeen,actionLoading,onTabBarHide,onTabBarShow,preselect,onClearPreselect,initialFilter,T}){
   const hasPending = bookings.some(b=>b.status==='pending'||b.status==='edit_pending');
-  const [filter,setFilter]=useState(()=>hasPending?'pending':'all');
+  // initialFilter='pending' when navigating from a notif click — always show pending first
+  const [filter,setFilter]=useState(()=>initialFilter==='pending'?'pending':hasPending?'pending':'all');
   const [selected,setSelected]=useState(null);
   const [selectedOccurrence,setSelectedOccurrence]=useState(null);
   const [comment,setComment]=useState('');
@@ -1316,6 +1317,13 @@ function AdminPanel({bookings,onAction,onEdit,onDelete,onDeleteMany,onAddRecurri
 
   // Markera admin-notiser som lästa när panelen öppnas — per enhet via localStorage
   useEffect(()=>{ onMarkAdminSeen?.(); },[]);// eslint-disable-line
+
+  // If opened from notif, switch to 'pending' as soon as bookings load
+  useEffect(()=>{
+    if(initialFilter==='pending' && bookings.some(b=>b.status==='pending'||b.status==='edit_pending')){
+      setFilter('pending');
+    }
+  },[bookings,initialFilter]); // eslint-disable-line
 
   // Per-status räknare för filter-badges — live från bookings-prop
   const statusCounts = useMemo(()=>{
@@ -2081,7 +2089,7 @@ export default function BookingScreen({onBack, activateForDevice, registerAdminD
 
   if(view==='admin-login') return <div style={{background:T.bg,minHeight:'100%'}}><AdminLogin onSuccess={handleAdminLogin} onBack={()=>setView('calendar')} T={T}/></div>;
   if(view==='admin') return <div style={{background:T.bg,minHeight:'100%'}}>
-    <AdminPanel bookings={bookings} onAction={handleAdminAction} onEdit={handleAdminEdit} onDelete={handleAdminDelete} onDeleteMany={handleAdminDeleteMany} onAddRecurring={handleAdminAddRecurring} onBack={()=>setView('calendar')} onLogout={handleAdminLogout} onMarkAdminSeen={onMarkAdminSeen} actionLoading={actionLoading} onTabBarHide={onTabBarHide} onTabBarShow={onTabBarShow} preselect={adminPreselect} onClearPreselect={()=>setAdminPreselect(null)} T={T}/>
+    <AdminPanel bookings={bookings} onAction={handleAdminAction} onEdit={handleAdminEdit} onDelete={handleAdminDelete} onDeleteMany={handleAdminDeleteMany} onAddRecurring={handleAdminAddRecurring} onBack={()=>setView('calendar')} onLogout={handleAdminLogout} onMarkAdminSeen={onMarkAdminSeen} actionLoading={actionLoading} onTabBarHide={onTabBarHide} onTabBarShow={onTabBarShow} preselect={adminPreselect} onClearPreselect={()=>setAdminPreselect(null)} initialFilter={startAtAdmin?'pending':undefined} T={T}/>
     <Toast message={toast} T={T}/>
   </div>;
 

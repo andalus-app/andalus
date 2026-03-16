@@ -152,46 +152,49 @@ export function useBookingNotifications() {
     return () => document.removeEventListener('visibilitychange', onVisibilityChange);
   }, [calculate]);
 
-  // ── Eager calculate for known admin-device at mount ────────────────────
-  // Run immediately without waiting for 'active' state to resolve async
+  // ── Eager calculate at mount ─────────────────────────────────────────────
+  // Run immediately for any entity that might have notifications.
+  // For visitors: checks if their bookings have been resolved since last seen.
+  // For admin devices: checks pending count.
+  // This avoids waiting for the async active-state chain to resolve.
   useEffect(() => {
+    if (!deviceId) return;
     const cachedIsAdminDevice = localStorage.getItem(STORAGE_ADMIN_DEVICE);
+    const cachedHasBooking = localStorage.getItem(STORAGE_HAS_BOOKING);
     const isAdmin = isAdminRef.current;
-    if (isAdmin || cachedIsAdminDevice === 'true') {
+    // Run if we know this device has something to check
+    if (isAdmin || cachedIsAdminDevice === 'true' || cachedHasBooking === 'true') {
+      calculate();
+    }
+    // Also always try for visitor if deviceId exists (handles new sessions)
+    else if (deviceId) {
+      // Light check: just run calculate, it handles the empty-data case gracefully
       calculate();
     }
   }, []); // eslint-disable-line
 
   // ── Aktiveringslogik ─────────────────────────────────────────────────────
+  // Always activate Realtime if deviceId exists so visitors get live updates
+  // when their bookings are approved. calculate() is smart — returns early
+  // if there's nothing relevant for this device.
   useEffect(() => {
-    const isAdmin = isAdminRef.current;
-    if (isAdmin) { setActive(true); return; }
     if (!deviceId) return;
+    setActive(true); // always subscribe to Realtime for any device with a deviceId
 
+    // Cache admin-device status for faster pending-count queries
     const cachedIsAdminDevice = localStorage.getItem(STORAGE_ADMIN_DEVICE);
-    if (cachedIsAdminDevice === 'true') { setActive(true); return; }
-
-    const cached = localStorage.getItem(STORAGE_HAS_BOOKING);
-    if (cached === 'true') { setActive(true); return; }
-    if (cached === 'false' && cachedIsAdminDevice === 'false') return;
-
-    Promise.all([
+    if (cachedIsAdminDevice === null) {
+      // Unknown — check once and cache
       supabase
         .from('admin_devices')
         .select('device_id, dismissed_at')
         .eq('device_id', deviceId)
-        .maybeSingle(),
-      supabase
-        .from('bookings')
-        .select('id', { count: 'exact', head: true })
-        .eq('device_id', deviceId),
-    ]).then(([{ data: adminDevice }, { count }]) => {
-      const isAdminDev = !!(adminDevice && !adminDevice.dismissed_at);
-      const hasBooking = (count ?? 0) > 0;
-      localStorage.setItem(STORAGE_ADMIN_DEVICE, isAdminDev ? 'true' : (adminDevice ? 'dismissed' : 'false'));
-      localStorage.setItem(STORAGE_HAS_BOOKING, hasBooking ? 'true' : 'false');
-      if (isAdminDev || hasBooking) setActive(true);
-    }).catch(() => {});
+        .maybeSingle()
+        .then(({ data: adminDevice }) => {
+          const isAdminDev = !!(adminDevice && !adminDevice.dismissed_at);
+          localStorage.setItem(STORAGE_ADMIN_DEVICE, isAdminDev ? 'true' : (adminDevice ? 'dismissed' : 'false'));
+        }).catch(() => {});
+    }
   }, [deviceId]); // eslint-disable-line
 
   // ── Realtime + fallback-polling ───────────────────────────────────────────
