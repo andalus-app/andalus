@@ -2,7 +2,7 @@
   "name": "bonetider",
   "version": "1.0.0",
   "private": true,
-  "homepage": ".",
+  "homepage": "https://andalus-app.github.io/andalus",
   "dependencies": {
     "@supabase/supabase-js": "^2.99.1",
     "react": "^18.2.0",
