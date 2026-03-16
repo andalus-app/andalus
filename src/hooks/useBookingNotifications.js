@@ -210,9 +210,16 @@ export function useBookingNotifications() {
     };
   }, [active, calculate, triggerDebounced]);
 
-  // ── Re-calculate when admin state changes ───────────────────────────────
+  // ── Re-calculate when admin state changes (login/logout) ──────────────
   useEffect(() => {
-    if (active) calculate();
+    if (isAdminState) {
+      // Admin just logged in — activate and calculate immediately
+      setActive(true);
+      calculate();
+    } else if (active) {
+      // Admin logged out — recalculate as non-admin device
+      calculate();
+    }
   }, [isAdminState]); // eslint-disable-line
 
   // ── Publika hjälpfunktioner ───────────────────────────────────────────────
@@ -264,12 +271,17 @@ export function useBookingNotifications() {
     (deviceId ? visitorUnread : 0) +
     (isAdminState ? adminUnread : adminPendingCount);
 
+  // adminPendingNotif: object used by NewHomeScreen bell panel
+  const adminPendingNotif = adminPendingCount > 0 ? { count: adminPendingCount } : null;
+
   return {
     visitorUnread,
     adminUnread,
     adminPendingCount,
+    adminPendingNotif,
     totalUnread,
     bellNotifs,
+    isAdminState,
     activateForDevice,
     registerAdminDevice,
     dismissAdminDevice,

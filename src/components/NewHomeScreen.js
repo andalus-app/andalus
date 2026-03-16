@@ -213,11 +213,11 @@ function bookingNotifColor(status) {
 export default function NewHomeScreen({ stream, onGoToAdminLogin }) {
   const { theme: T, mode, setMode } = useTheme();
   const { allBanners, banners, unreadCount, read, dismiss, markRead, markAllRead } = useBanner();
-  const { bellNotifs, visitorUnread, adminPendingNotif, adminUnread, markVisitorSeen, dismissAdminDevice } = useBookingNotifications();
+  const { bellNotifs, visitorUnread, adminPendingNotif, adminUnread, adminPendingCount, isAdminState, markVisitorSeen, dismissAdminDevice } = useBookingNotifications();
   const [showBellPanel, setShowBellPanel] = React.useState(false);
   const [adminNotifDismissedThisSession, setAdminNotifDismissedThisSession] = React.useState(false);
 
-  const isAdmin = localStorage.getItem('islamnu_admin_mode') === 'true';
+  const isAdmin = isAdminState;
   const showAdminPending = adminPendingNotif && !adminNotifDismissedThisSession && !isAdmin;
   const totalUnread = unreadCount + visitorUnread + (showAdminPending ? 1 : 0) + (isAdmin ? adminUnread : 0);
 

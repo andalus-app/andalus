@@ -1667,7 +1667,7 @@ function AdminLogin({onSuccess,onBack,T}){
 }
 
 /* ── Root ── */
-export default function BookingScreen({onBack, activateForDevice, registerAdminDevice, startAtAdminLogin, onTabBarHide, onTabBarShow, onMarkAdminSeen}){
+export default function BookingScreen({onBack, activateForDevice, registerAdminDevice, dismissAdminDevice, startAtAdminLogin, onTabBarHide, onTabBarShow, onMarkAdminSeen}){
   const scrollRef = useRef(null);
   const {theme:T}=useTheme();
   const [bookings,setBookings]=useState([]);
@@ -1978,7 +1978,13 @@ export default function BookingScreen({onBack, activateForDevice, registerAdminD
     showToast('Välkommen, admin');
     registerAdminDevice?.();
   },[showToast, registerAdminDevice]);
-  const handleAdminLogout=useCallback(()=>{localStorage.setItem(STORAGE_ADMIN,'false');setAdminModeState(false);setView('calendar');showToast('Utloggad');},[showToast]);
+  const handleAdminLogout=useCallback(()=>{
+    localStorage.setItem(STORAGE_ADMIN,'false');
+    setAdminModeState(false);
+    setView('calendar');
+    showToast('Utloggad');
+    dismissAdminDevice?.();
+  },[showToast, dismissAdminDevice]);
   const handleSelectSlot=useCallback((date,slotLbl,startH,durationHours,existingBooking)=>{
     if(adminMode&&existingBooking){
       // Navigera till admin med rätt bokning förmarkerad
