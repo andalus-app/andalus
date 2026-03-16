@@ -61,6 +61,7 @@ function ModalSheet({ title, onClose, children, T, topContent }) {
 
 export default function SettingsScreen({ onBack }) {
   const { theme: T, mode, setMode } = useTheme();
+  const scrollRef = useRef(null);
   const { location, settings, dispatch } = useApp();
 
   const [cityModal,   setCityModal]   = useState(false);
