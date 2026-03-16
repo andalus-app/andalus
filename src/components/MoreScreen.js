@@ -348,14 +348,10 @@ export default function MoreScreen({ onTabBarHide, onTabBarShow, initialView, ma
   const onBack = undefined; // MoreScreen has no parent back — edge swipe handled by App
 
   const handleOpenBooking = () => {
-    markVisitorSeen();
-    markAdminSeen();
     navigateTo('booking');
   };
 
   const handleOpenAdminLogin = () => {
-    markVisitorSeen();
-    markAdminSeen();
     navigateTo('booking-admin-login');
   };
 
@@ -371,6 +367,7 @@ export default function MoreScreen({ onTabBarHide, onTabBarShow, initialView, ma
       registerAdminDevice={registerAdminDevice}
       dismissAdminDevice={dismissAdminDevice}
       startAtAdminLogin={view === 'booking-admin-login'}
+      startAtAdmin={view === 'booking' && localStorage.getItem('islamnu_admin_mode') === 'true'}
       onTabBarHide={onTabBarHide}
       onTabBarShow={onTabBarShow}
       onMarkAdminSeen={markAdminSeen}

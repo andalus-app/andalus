@@ -152,6 +152,16 @@ export function useBookingNotifications() {
     return () => document.removeEventListener('visibilitychange', onVisibilityChange);
   }, [calculate]);
 
+  // ── Eager calculate for known admin-device at mount ────────────────────
+  // Run immediately without waiting for 'active' state to resolve async
+  useEffect(() => {
+    const cachedIsAdminDevice = localStorage.getItem(STORAGE_ADMIN_DEVICE);
+    const isAdmin = isAdminRef.current;
+    if (isAdmin || cachedIsAdminDevice === 'true') {
+      calculate();
+    }
+  }, []); // eslint-disable-line
+
   // ── Aktiveringslogik ─────────────────────────────────────────────────────
   useEffect(() => {
     const isAdmin = isAdminRef.current;
@@ -262,9 +272,11 @@ export function useBookingNotifications() {
   }, []);
 
   const markAdminSeen = useCallback(() => {
+    // Only mark admin "seen" timestamp — does NOT clear pending count.
+    // adminPendingCount is cleared only when pending bookings are resolved in DB (via Realtime).
     localStorage.setItem(STORAGE_ADMIN_SEEN, Date.now().toString());
     setAdminUnread(0);
-    setAdminPendingCount(0); // clear badge immediately for non-logged-in admin devices too
+    // Do NOT clear adminPendingCount here — it reflects real pending bookings
   }, []);
 
   const totalUnread =

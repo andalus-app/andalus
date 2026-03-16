@@ -1667,7 +1667,7 @@ function AdminLogin({onSuccess,onBack,T}){
 }
 
 /* ── Root ── */
-export default function BookingScreen({onBack, activateForDevice, registerAdminDevice, dismissAdminDevice, startAtAdminLogin, onTabBarHide, onTabBarShow, onMarkAdminSeen}){
+export default function BookingScreen({onBack, activateForDevice, registerAdminDevice, dismissAdminDevice, startAtAdminLogin, startAtAdmin, onTabBarHide, onTabBarShow, onMarkAdminSeen}){
   const scrollRef = useRef(null);
   const {theme:T}=useTheme();
   const [bookings,setBookings]=useState([]);
@@ -1675,7 +1675,7 @@ export default function BookingScreen({onBack, activateForDevice, registerAdminD
   const [submitLoading,setSubmitLoading]=useState(false);
   const [actionLoading,setActionLoading]=useState(false);
   const [adminMode,setAdminModeState]=useState(()=>localStorage.getItem(STORAGE_ADMIN)==='true');
-  const [view,setView]=useState(()=>startAtAdminLogin?'admin-login':'calendar');
+  const [view,setView]=useState(()=>startAtAdminLogin?'admin-login':startAtAdmin?'admin':'calendar');
   const [adminPreselect,setAdminPreselect]=useState(null); // group_id att öppna direkt
   const [pendingSlot,setPendingSlot]=useState(null);
   const [viewConfirmation,setViewConfirmation]=useState(null);

@@ -218,8 +218,16 @@ export default function NewHomeScreen({ stream, onGoToAdminLogin }) {
   const [adminNotifDismissedThisSession, setAdminNotifDismissedThisSession] = React.useState(false);
 
   const isAdmin = isAdminState;
-  const showAdminPending = adminPendingNotif && !adminNotifDismissedThisSession && !isAdmin;
-  const totalUnread = unreadCount + visitorUnread + (showAdminPending ? 1 : 0) + (isAdmin ? adminUnread : 0);
+
+  // Show admin pending notif:
+  // - Non-logged-in admin device: show when there are pending bookings
+  // - Logged-in admin: show when there are pending bookings (adminUnread or adminPendingCount)
+  const adminPendingForBell = isAdmin
+    ? (adminUnread > 0 || adminPendingCount > 0 ? { count: adminUnread || adminPendingCount } : null)
+    : adminPendingNotif;
+  const showAdminPending = adminPendingForBell && !adminNotifDismissedThisSession;
+
+  const totalUnread = unreadCount + visitorUnread + (showAdminPending ? 1 : 0);
 
   const handleBellOpen = (e) => {
     e.stopPropagation();
@@ -228,13 +236,14 @@ export default function NewHomeScreen({ stream, onGoToAdminLogin }) {
     if (visitorUnread > 0) markVisitorSeen();
   };
 
+  // If already logged in as admin → go directly to admin panel, else go to login
   const handleAdminNotifClick = () => {
     setShowBellPanel(false);
-    onGoToAdminLogin?.();
+    onGoToAdminLogin?.(); // App.js handles routing: if adminMode → admin panel, else → login
   };
 
   const allItems = [
-    ...(showAdminPending ? [{ type: 'admin_pending', count: adminPendingNotif.count }] : []),
+    ...(showAdminPending ? [{ type: 'admin_pending', count: adminPendingForBell.count }] : []),
     ...bellNotifs.map(n => ({ type: 'booking', ...n })),
     ...allBanners.map(b => ({ type: 'banner', ...b })),
   ];
@@ -350,18 +359,23 @@ export default function NewHomeScreen({ stream, onGoToAdminLogin }) {
                         <div style={{ flex: 1 }}>
                           <div style={{ fontSize: 12, fontWeight: 700, color: '#f59e0b', marginBottom: 2 }}>Adminpanel</div>
                           <div style={{ fontSize: 13, color: T.text, lineHeight: 1.45 }}>
-                            {item.count} bokning{item.count !== 1 ? 'ar' : ''} behöver åtgärdas — tryck för att logga in
+                            {item.count} bokning{item.count !== 1 ? 'ar' : ''} väntar på åtgärd —{' '}
+                            <span style={{ color: T.accent, fontWeight: 600 }}>
+                              {isAdmin ? 'öppna adminpanel' : 'logga in'}
+                            </span>
                           </div>
                         </div>
                         <button onClick={e => { e.stopPropagation(); setAdminNotifDismissedThisSession(true); }}
                           style={{ background: 'none', border: 'none', cursor: 'pointer', color: T.textMuted, fontSize: 18, lineHeight: 1, padding: '0 2px', flexShrink: 0, WebkitTapHighlightColor: 'transparent' }}>×</button>
                       </div>
-                      <div style={{ padding: '0 14px 10px', paddingLeft: 52 }}>
-                        <button onClick={async e => { e.stopPropagation(); setAdminNotifDismissedThisSession(true); await dismissAdminDevice(); }}
-                          style={{ background: 'none', border: `1px solid ${T.border}`, borderRadius: 6, padding: '4px 10px', fontSize: 11, fontWeight: 600, color: T.textMuted, cursor: 'pointer', fontFamily: "'Inter',system-ui,sans-serif", WebkitTapHighlightColor: 'transparent' }}>
-                          Jag är inte admin — visa inte igen
-                        </button>
-                      </div>
+                      {!isAdmin && (
+                        <div style={{ padding: '0 14px 10px', paddingLeft: 52 }}>
+                          <button onClick={async e => { e.stopPropagation(); setAdminNotifDismissedThisSession(true); await dismissAdminDevice(); }}
+                            style={{ background: 'none', border: `1px solid ${T.border}`, borderRadius: 6, padding: '4px 10px', fontSize: 11, fontWeight: 600, color: T.textMuted, cursor: 'pointer', fontFamily: "'Inter',system-ui,sans-serif", WebkitTapHighlightColor: 'transparent' }}>
+                            Jag är inte admin — visa inte igen
+                          </button>
+                        </div>
+                      )}
                     </div>
                   );
 

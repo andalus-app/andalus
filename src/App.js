@@ -135,6 +135,7 @@ function Shell() {
       return;
     }
     if (id === 'more') {
+      setMoreInitialView(null); // always go to menu on regular tab click
       setMoreResetKey(n => n + 1);
     }
     setTab(id);
@@ -145,7 +146,10 @@ function Shell() {
   const [moreInitialView, setMoreInitialView] = useState(null);
 
   const handleGoToAdminLogin = () => {
-    setMoreInitialView('booking-admin-login');
+    const alreadyAdmin = localStorage.getItem('islamnu_admin_mode') === 'true';
+    // If already logged in → go directly to booking (BookingScreen will show admin panel)
+    // If not logged in → go to admin login screen
+    setMoreInitialView(alreadyAdmin ? 'booking' : 'booking-admin-login');
     setMoreResetKey(n => n + 1);
     setTab('more');
     try { sessionStorage.setItem('activeTab', 'more'); } catch {}
