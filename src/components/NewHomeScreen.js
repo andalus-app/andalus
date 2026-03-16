@@ -254,33 +254,34 @@ function SwipeableItem({ onDismiss, children }) {
     isScrolling.current = false;
   };
 
+  // Don't render red background at all until actually swiping
   return (
-    <div style={{ position: 'relative', overflow: 'clip' }}>
-      {/* Red action background — grows from right as user swipes */}
-      <div style={{
-        position: 'absolute', right: 0, top: 0, bottom: 0,
-        width: revealed > 0 ? `${Math.min(revealed, 80)}px` : 0,
-        background: '#ef4444',
-        display: 'flex', alignItems: 'center', justifyContent: 'center',
-        transition: (dismissing || offsetX === 0) ? 'width 0.28s cubic-bezier(0.4,0,0.2,1)' : 'none',
-      }}>
-        {revealed > 20 && (
+    <div style={{ position: 'relative', overflow: 'hidden' }}>
+      {/* Red strip — only rendered when swiping, slides in from right */}
+      {(revealed > 0 || dismissing) && (
+        <div style={{
+          position: 'absolute', right: 0, top: 0, bottom: 0,
+          width: dismissing ? '100%' : `${Math.min(revealed, 80)}px`,
+          background: '#ef4444',
+          display: 'flex', alignItems: 'center', justifyContent: 'flex-start',
+          paddingLeft: 16,
+          transition: (dismissing || offsetX === 0) ? 'width 0.28s cubic-bezier(0.4,0,0.2,1)' : 'none',
+        }}>
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.5" strokeLinecap="round">
             <polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/>
           </svg>
-        )}
-      </div>
-      {/* Content slides left */}
+        </div>
+      )}
+      {/* Content — slides left on swipe, covers the red background at rest */}
       <div
         onTouchStart={handleTouchStart}
         onTouchMove={handleTouchMove}
         onTouchEnd={handleTouchEnd}
         style={{
           transform: `translateX(${offsetX}px)`,
-          transition: (dismissing || offsetX === 0) ? 'transform 0.28s cubic-bezier(0.4,0,0.2,1)' : 'none',
+          transition: (dismissing || offsetX === 0) ? 'transform 0.3s cubic-bezier(0.4,0,0.2,1)' : 'none',
           position: 'relative', zIndex: 1,
           willChange: 'transform',
-          background: 'inherit',
         }}
       >
         {children}
@@ -302,7 +303,7 @@ export default function NewHomeScreen({ stream, onGoToAdminLogin, onGoToMyBookin
       return () => clearTimeout(t);
     }
   }, [mode]);
-  const { allBanners, banners, unreadCount, read, dismiss, markRead, markAllRead } = useBanner();
+  const { allBanners, activeBanners, banners, unreadCount, read, dismiss, markRead, markAllRead } = useBanner();
   const { bellNotifs, visitorUnread, adminPendingNotif, adminUnread, adminPendingCount, isAdminState, markVisitorSeen, markVisitorBadgeSeen, dismissAdminDevice } = useBookingNotifications();
   const [showBellPanel, setShowBellPanel] = React.useState(false);
   const [adminNotifDismissedThisSession, setAdminNotifDismissedThisSession] = React.useState(false);
@@ -324,7 +325,7 @@ export default function NewHomeScreen({ stream, onGoToAdminLogin, onGoToMyBookin
     setShowBellPanel(prev => {
       if (prev) return false; // already open — close it
       // Opening: mark banners read and clear badge
-      allBanners.forEach(b => markRead(b.id));
+      activeBanners.forEach(b => markRead(b.id));
       if (visitorUnread > 0) markVisitorBadgeSeen();
       return true;
     });
@@ -339,7 +340,7 @@ export default function NewHomeScreen({ stream, onGoToAdminLogin, onGoToMyBookin
   const allItems = [
     ...(showAdminPending ? [{ type: 'admin_pending', count: adminPendingForBell.count }] : []),
     ...bellNotifs.map(n => ({ type: 'booking', ...n })),
-    ...allBanners.map(b => ({ type: 'banner', ...b })),
+    ...activeBanners.map(b => ({ type: 'banner', ...b })),
   ];
 
   return (

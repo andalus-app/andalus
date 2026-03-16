@@ -80,8 +80,11 @@ export function useBanner() {
   // Banners visible in the home feed (not dismissed today)
   const banners = allBanners.filter(b => !dismissed[b.id]);
 
+  // activeBanners = not dismissed — used in bell panel too
+  const activeBanners = allBanners.filter(b => !dismissed[b.id]);
+
   // Unread count = active banners not yet in read list
-  const unreadCount = allBanners.filter(b => !read.includes(b.id)).length;
+  const unreadCount = activeBanners.filter(b => !read.includes(b.id)).length;
 
   const dismiss = useCallback((id) => {
     setDismissed(prev => {
@@ -118,8 +121,9 @@ export function useBanner() {
   }, [allBanners]);
 
   return {
-    banners,        // shown in feed
-    allBanners,     // shown in bell panel
+    banners,         // shown in feed (not dismissed today)
+    allBanners,      // full list (for markAllRead etc)
+    activeBanners,   // not dismissed — shown in bell panel
     unreadCount,
     read,
     dismiss,
