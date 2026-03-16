@@ -210,45 +210,65 @@ function bookingNotifColor(status) {
 }
 
 
-/* ── SwipeableItem — swipe left to dismiss ── */
+/* ── SwipeableItem — iOS-style swipe left to dismiss ── */
 function SwipeableItem({ onDismiss, children }) {
   const [offsetX, setOffsetX] = React.useState(0);
   const [dismissing, setDismissing] = React.useState(false);
   const startX = React.useRef(null);
+  const startY = React.useRef(null);
   const isDragging = React.useRef(false);
+  const isScrolling = React.useRef(false);
+
+  const revealed = -offsetX; // how many px of red is showing (0 to 80)
 
   const handleTouchStart = e => {
     startX.current = e.touches[0].clientX;
+    startY.current = e.touches[0].clientY;
     isDragging.current = false;
+    isScrolling.current = false;
   };
   const handleTouchMove = e => {
     if (startX.current === null) return;
     const dx = e.touches[0].clientX - startX.current;
-    if (!isDragging.current && Math.abs(dx) > 6) isDragging.current = true;
+    const dy = Math.abs(e.touches[0].clientY - startY.current);
+    if (!isDragging.current && !isScrolling.current) {
+      if (dy > Math.abs(dx)) { isScrolling.current = true; return; }
+      if (Math.abs(dx) > 5) isDragging.current = true;
+    }
+    if (isScrolling.current) return;
     if (isDragging.current && dx < 0) {
-      setOffsetX(Math.max(dx, -100));
+      e.preventDefault(); // prevent scroll while swiping
+      setOffsetX(Math.max(dx, -80));
     }
   };
   const handleTouchEnd = () => {
-    if (offsetX < -60) {
+    if (offsetX < -50) {
       setDismissing(true);
-      setOffsetX(-400);
-      setTimeout(() => onDismiss?.(), 280);
+      setOffsetX(-500);
+      setTimeout(() => onDismiss?.(), 300);
     } else {
       setOffsetX(0);
     }
     startX.current = null;
+    isDragging.current = false;
+    isScrolling.current = false;
   };
 
   return (
     <div style={{ position: 'relative', overflow: 'hidden' }}>
-      {/* Red dismiss background */}
+      {/* Red action background — only visible when swiped */}
       <div style={{
         position: 'absolute', right: 0, top: 0, bottom: 0,
-        width: 80, background: '#ef4444',
+        width: `${Math.max(revealed, 0)}px`,
+        background: '#ef4444',
         display: 'flex', alignItems: 'center', justifyContent: 'center',
+        transition: dismissing || offsetX === 0 ? 'width 0.28s cubic-bezier(0.4,0,0.2,1)' : 'none',
+        overflow: 'hidden',
       }}>
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.5" strokeLinecap="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/></svg>
+        <svg style={{ opacity: revealed > 20 ? 1 : 0, transition: 'opacity 0.15s', flexShrink: 0 }}
+          width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.5" strokeLinecap="round">
+          <polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/>
+        </svg>
       </div>
       <div
         onTouchStart={handleTouchStart}
@@ -258,6 +278,7 @@ function SwipeableItem({ onDismiss, children }) {
           transform: `translateX(${offsetX}px)`,
           transition: dismissing || offsetX === 0 ? 'transform 0.28s cubic-bezier(0.4,0,0.2,1)' : 'none',
           position: 'relative', zIndex: 1,
+          willChange: 'transform',
         }}
       >
         {children}
@@ -339,36 +360,56 @@ export default function NewHomeScreen({ stream, onGoToAdminLogin, onGoToMyBookin
         {/* Right side — absolute right, same pattern as Bönetider */}
         <div style={{ position: 'absolute', top: 4, right: 18, display: 'flex', alignItems: 'center', gap: 0 }}>
 
-          {/* Theme toggle — sun sets / moon rises */}
+          {/* Theme toggle — sun sets / moon rises with glow */}
           <style>{`
-            @keyframes sunSet    { 0%{transform:translateY(0) scale(1);opacity:1} 100%{transform:translateY(28px) scale(0.7);opacity:0} }
-            @keyframes sunRise   { 0%{transform:translateY(28px) scale(0.7);opacity:0} 70%{transform:translateY(0) scale(1);opacity:1} 100%{transform:translateY(0) scale(1);opacity:1} }
-            @keyframes moonRise  { 0%{transform:translateY(28px) scale(0.7);opacity:0} 100%{transform:translateY(0) scale(1);opacity:1} }
-            @keyframes sunGlow   { 0%{filter:drop-shadow(0 0 0px transparent)} 40%{filter:drop-shadow(0 0 10px #f59e0bcc)} 100%{filter:drop-shadow(0 0 0px transparent)} }
-            @keyframes moonGlow  { 0%{filter:drop-shadow(0 0 0px transparent)} 40%{filter:drop-shadow(0 0 10px #e0e7ffcc) brightness(1.4)} 100%{filter:drop-shadow(0 0 0px transparent)} }
+            @keyframes sunRise      { 0%{transform:translateY(28px) scale(0.7);opacity:0} 100%{transform:translateY(0) scale(1);opacity:1} }
+            @keyframes moonRise     { 0%{transform:translateY(28px) scale(0.7);opacity:0} 100%{transform:translateY(0) scale(1);opacity:1} }
+            @keyframes sunGlowFade  { 0%{opacity:1} 60%{opacity:1} 100%{opacity:0} }
+            @keyframes moonGlowFade { 0%{opacity:1} 60%{opacity:1} 100%{opacity:0} }
+            @keyframes stdFadeIn    { 0%{opacity:0} 60%{opacity:0} 100%{opacity:1} }
           `}</style>
           <button
             onClick={() => setMode(T.isDark ? 'light' : 'dark')}
             style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 8, WebkitTapHighlightColor: 'transparent', overflow: 'hidden', width: 38, height: 38, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
           >
+            {/* Wrapper animates rise */}
             <div key={T.isDark ? 'moon' : 'sun'} style={{
               animation: T.isDark
-                ? 'moonRise 0.7s cubic-bezier(0.34,1.4,0.64,1) both, moonGlow 2.5s ease 0.7s 1'
-                : 'sunRise 0.7s cubic-bezier(0.34,1.4,0.64,1) both, sunGlow 2.5s ease 0.7s 1',
-              display: 'flex',
+                ? 'moonRise 0.7s cubic-bezier(0.34,1.4,0.64,1) both'
+                : 'sunRise 0.7s cubic-bezier(0.34,1.4,0.64,1) both',
+              display: 'flex', position: 'relative', width: 22, height: 22,
             }}>
-              {T.isDark
-                ? <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke={T.textMuted} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
-                  </svg>
-                : <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke={T.textMuted} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" style={{opacity:0.6}}>
-                    <circle cx="12" cy="12" r="5"/>
-                    <line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/>
-                    <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/>
-                    <line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/>
-                    <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>
-                  </svg>
-              }
+              {T.isDark ? <>
+                {/* Glowing white moon — fades out after 2.5s */}
+                <svg style={{ position:'absolute', animation:'moonGlowFade 2.5s ease 0.7s 1 forwards', filter:'drop-shadow(0 0 6px #ffffffcc)' }}
+                  width="22" height="22" viewBox="0 0 24 24" fill="white" stroke="white" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
+                </svg>
+                {/* Standard moon — fades in as glow fades */}
+                <svg style={{ position:'absolute', animation:'stdFadeIn 2.5s ease 0.7s 1 forwards', opacity:0 }}
+                  width="22" height="22" viewBox="0 0 24 24" fill="none" stroke={T.textMuted} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
+                </svg>
+              </> : <>
+                {/* Glowing yellow sun — fades out after 2.5s */}
+                <svg style={{ position:'absolute', animation:'sunGlowFade 2.5s ease 0.7s 1 forwards', filter:'drop-shadow(0 0 8px #f59e0bdd)' }}
+                  width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#f59e0b" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                  <circle cx="12" cy="12" r="5" fill="#fbbf2466"/>
+                  <line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/>
+                  <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/>
+                  <line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/>
+                  <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>
+                </svg>
+                {/* Standard sun — fades in as glow fades */}
+                <svg style={{ position:'absolute', animation:'stdFadeIn 2.5s ease 0.7s 1 forwards', opacity:0 }}
+                  width="22" height="22" viewBox="0 0 24 24" fill="none" stroke={T.textMuted} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" >
+                  <circle cx="12" cy="12" r="5"/>
+                  <line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/>
+                  <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/>
+                  <line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/>
+                  <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>
+                </svg>
+              </>}
             </div>
           </button>
 
@@ -535,21 +576,23 @@ export default function NewHomeScreen({ stream, onGoToAdminLogin, onGoToMyBookin
 
         {/* Inline banner feed */}
         {banners.map((b, i) => (
-          <div key={b.id} style={{
-            background: T.card, border: `1px solid ${T.accent}44`, borderLeft: `4px solid ${T.accent}`,
-            borderRadius: 14, padding: '13px 14px', display: 'flex', alignItems: 'flex-start', gap: 12,
-            boxShadow: `0 2px 16px ${T.accentGlow}`, animation: `bannerIn .3s ease both`, animationDelay: `${i * 60}ms`,
-          }}>
-            <AndalusLogo size={26} color={T.isDark ? T.accent : T.accent} />
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ fontSize: 13, lineHeight: 1.55, fontWeight: 400, color: T.textSecondary, fontFamily: "'Inter',system-ui,sans-serif" }}>{b.message}</div>
-              {b.linkText && b.linkUrl && (
-                <a href={b.linkUrl} target="_blank" rel="noopener noreferrer" style={{ display: 'inline-block', marginTop: 6, fontSize: 12, fontWeight: 700, color: T.accent, textDecoration: 'underline', textUnderlineOffset: 3, fontFamily: "'Inter',system-ui,sans-serif" }}>{b.linkText} →</a>
-              )}
+          <SwipeableItem key={b.id} onDismiss={() => dismiss(b.id)}>
+            <div style={{
+              background: T.card, border: `1px solid ${T.accent}44`, borderLeft: `4px solid ${T.accent}`,
+              borderRadius: 14, padding: '13px 14px', display: 'flex', alignItems: 'flex-start', gap: 12,
+              boxShadow: `0 2px 16px ${T.accentGlow}`, animation: `bannerIn .3s ease both`, animationDelay: `${i * 60}ms`,
+            }}>
+              <AndalusLogo size={26} color={T.isDark ? T.accent : T.accent} />
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: 13, lineHeight: 1.55, fontWeight: 400, color: T.textSecondary, fontFamily: "'Inter',system-ui,sans-serif" }}>{b.message}</div>
+                {b.linkText && b.linkUrl && (
+                  <a href={b.linkUrl} target="_blank" rel="noopener noreferrer" style={{ display: 'inline-block', marginTop: 6, fontSize: 12, fontWeight: 700, color: T.accent, textDecoration: 'underline', textUnderlineOffset: 3, fontFamily: "'Inter',system-ui,sans-serif" }}>{b.linkText} →</a>
+                )}
+              </div>
+              <button onClick={e => { e.stopPropagation(); dismiss(b.id); }}
+                style={{ background: 'none', border: 'none', cursor: 'pointer', color: T.textMuted, fontSize: 20, lineHeight: 1, padding: '0 2px', flexShrink: 0, marginTop: -2, WebkitTapHighlightColor: 'transparent' }}>×</button>
             </div>
-            <button onClick={e => { e.stopPropagation(); dismiss(b.id); }}
-              style={{ background: 'none', border: 'none', cursor: 'pointer', color: T.textMuted, fontSize: 20, lineHeight: 1, padding: '0 2px', flexShrink: 0, marginTop: -2, WebkitTapHighlightColor: 'transparent' }}>×</button>
-          </div>
+          </SwipeableItem>
         ))}
 
         {/* YouTube live / upcoming */}
