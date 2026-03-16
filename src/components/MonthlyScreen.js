@@ -21,6 +21,14 @@ export default function MonthlyScreen({ onBack }) {
   const { location, settings } = useApp();
 
   const today = new Date();
+
+  // Edge swipe back
+  useEffect(() => {
+    const handler = () => onBack?.();
+    window.addEventListener('edgeSwipeBack', handler);
+    return () => window.removeEventListener('edgeSwipeBack', handler);
+  }, [onBack]);
+
   const [month,   setMonth]   = useState(today.getMonth() + 1);
   const [year,    setYear]    = useState(today.getFullYear());
   const [days,    setDays]    = useState([]);
@@ -99,9 +107,9 @@ export default function MonthlyScreen({ onBack }) {
               WebkitTapHighlightColor:'transparent',
             }}>‹</button>
           )}
-          <div style={{ fontSize:20, fontWeight:800, color:T.text, letterSpacing:'-0.3px', flex:1 }}>
-            Månadsöversikt
-          </div>
+          <button onClick={() => window.dispatchEvent(new CustomEvent('scrollToTop'))} style={{ background:'none', border:'none', cursor:'pointer', padding:0, flex:1, textAlign:'left', WebkitTapHighlightColor:'transparent' }}>
+            <div style={{ fontSize:20, fontWeight:800, color:T.text, letterSpacing:'-0.3px' }}>Månadsöversikt</div>
+          </button>
           {days.length > 0 && (
             <button
               onClick={downloadPdf}
