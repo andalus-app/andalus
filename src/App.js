@@ -62,8 +62,7 @@ function Shell() {
   const [ebooksReset, setEbooksReset] = useState(0);
   const [moreResetKey, setMoreResetKey]   = useState(0);
   const scrollContainerRef = useRef(null);
-  const { isLive, stream } = useYoutubeLive();
-  const isUpcoming = stream?.status === 'upcoming';
+  const { isLive, isUpcoming, stream } = useYoutubeLive();
   const { totalUnread, visitorUnread, adminUnread, adminPendingCount, markVisitorSeen, markAdminSeen, activateForDevice, registerAdminDevice, dismissAdminDevice, adminPendingNotif, refresh: refreshNotifications } = useBookingNotifications();
 
   // Reset scroll to top when tab or monthly view changes
