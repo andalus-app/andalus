@@ -209,6 +209,63 @@ function bookingNotifColor(status) {
   return status==='approved'?'#22c55e':status==='rejected'?'#ef4444':status==='edited'?'#3b82f6':'#64748b';
 }
 
+
+/* ── SwipeableItem — swipe left to dismiss ── */
+function SwipeableItem({ onDismiss, children }) {
+  const [offsetX, setOffsetX] = React.useState(0);
+  const [dismissing, setDismissing] = React.useState(false);
+  const startX = React.useRef(null);
+  const isDragging = React.useRef(false);
+
+  const handleTouchStart = e => {
+    startX.current = e.touches[0].clientX;
+    isDragging.current = false;
+  };
+  const handleTouchMove = e => {
+    if (startX.current === null) return;
+    const dx = e.touches[0].clientX - startX.current;
+    if (!isDragging.current && Math.abs(dx) > 6) isDragging.current = true;
+    if (isDragging.current && dx < 0) {
+      setOffsetX(Math.max(dx, -100));
+    }
+  };
+  const handleTouchEnd = () => {
+    if (offsetX < -60) {
+      setDismissing(true);
+      setOffsetX(-400);
+      setTimeout(() => onDismiss?.(), 280);
+    } else {
+      setOffsetX(0);
+    }
+    startX.current = null;
+  };
+
+  return (
+    <div style={{ position: 'relative', overflow: 'hidden' }}>
+      {/* Red dismiss background */}
+      <div style={{
+        position: 'absolute', right: 0, top: 0, bottom: 0,
+        width: 80, background: '#ef4444',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+      }}>
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.5" strokeLinecap="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/></svg>
+      </div>
+      <div
+        onTouchStart={handleTouchStart}
+        onTouchMove={handleTouchMove}
+        onTouchEnd={handleTouchEnd}
+        style={{
+          transform: `translateX(${offsetX}px)`,
+          transition: dismissing || offsetX === 0 ? 'transform 0.28s cubic-bezier(0.4,0,0.2,1)' : 'none',
+          position: 'relative', zIndex: 1,
+        }}
+      >
+        {children}
+      </div>
+    </div>
+  );
+}
+
 /* ── Main screen ── */
 export default function NewHomeScreen({ stream, onGoToAdminLogin, onGoToMyBookings }) {
   const { theme: T, mode, setMode } = useTheme();
@@ -282,21 +339,35 @@ export default function NewHomeScreen({ stream, onGoToAdminLogin, onGoToMyBookin
         {/* Right side — absolute right, same pattern as Bönetider */}
         <div style={{ position: 'absolute', top: 4, right: 18, display: 'flex', alignItems: 'center', gap: 0 }}>
 
-          {/* Theme toggle — sun ↔ moon with spin animation */}
+          {/* Theme toggle — sun sets / moon rises */}
           <style>{`
-            @keyframes iconSpin { 0% { transform: rotate(-30deg) scale(0.7); opacity: 0; } 100% { transform: rotate(0deg) scale(1); opacity: 1; } }
+            @keyframes sunSet    { 0%{transform:translateY(0) scale(1);opacity:1} 100%{transform:translateY(28px) scale(0.7);opacity:0} }
+            @keyframes sunRise   { 0%{transform:translateY(28px) scale(0.7);opacity:0} 60%{opacity:1} 100%{transform:translateY(0) scale(1);opacity:1} }
+            @keyframes moonRise  { 0%{transform:translateY(28px) scale(0.7);opacity:0} 100%{transform:translateY(0) scale(1);opacity:1} }
+            @keyframes moonSet   { 0%{transform:translateY(0) scale(1);opacity:1} 100%{transform:translateY(28px) scale(0.7);opacity:0} }
+            @keyframes sunGlow   { 0%,100%{filter:drop-shadow(0 0 4px #f59e0b88)} 50%{filter:drop-shadow(0 0 10px #f59e0bcc)} }
+            @keyframes moonGlow  { 0%,100%{filter:drop-shadow(0 0 3px #94a3b888)} 50%{filter:drop-shadow(0 0 8px #c7d2fecc)} }
           `}</style>
           <button
             onClick={() => setMode(T.isDark ? 'light' : 'dark')}
-            style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 8, WebkitTapHighlightColor: 'transparent', overflow: 'hidden' }}
+            style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 8, WebkitTapHighlightColor: 'transparent', overflow: 'hidden', width: 38, height: 38, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
           >
-            <div key={T.isDark ? 'moon' : 'sun'} style={{ animation: 'iconSpin .25s ease both', display: 'flex' }}>
-              <SvgIcon
-                name={T.isDark ? 'moon' : 'sun'}
-                size={22}
-                color={T.textMuted}
-                style={{ opacity: 0.6 }}
-              />
+            <div key={T.isDark ? 'moon' : 'sun'} style={{
+              animation: T.isDark ? 'moonRise 0.6s cubic-bezier(0.34,1.56,0.64,1) both, moonGlow 3s ease 0.6s 1' : 'sunRise 0.6s cubic-bezier(0.34,1.56,0.64,1) both, sunGlow 3s ease 0.6s 1',
+              display: 'flex',
+            }}>
+              {T.isDark
+                ? <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#c7d2fe" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" fill="#e0e7ff22"/>
+                  </svg>
+                : <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#f59e0b" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                    <circle cx="12" cy="12" r="5" fill="#fef3c722"/>
+                    <line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/>
+                    <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/>
+                    <line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/>
+                    <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>
+                  </svg>
+              }
             </div>
           </button>
 
@@ -353,7 +424,8 @@ export default function NewHomeScreen({ stream, onGoToAdminLogin, onGoToMyBookin
 
                   /* ── Admin pending notis ── */
                   if (item.type === 'admin_pending') return (
-                    <div key="admin-pending" style={{ borderBottom: `1px solid ${T.border}`, background: T.isDark ? 'rgba(245,158,11,0.07)' : 'rgba(245,158,11,0.05)' }}>
+                    <SwipeableItem key="admin-pending" onDismiss={() => setAdminNotifDismissedThisSession(true)}>
+                    <div style={{ borderBottom: `1px solid ${T.border}`, background: T.isDark ? 'rgba(245,158,11,0.07)' : 'rgba(245,158,11,0.05)' }}>
                       <div onClick={handleAdminNotifClick} style={{ padding: '12px 14px 8px', display: 'flex', alignItems: 'flex-start', gap: 10, cursor: 'pointer' }}>
                         <div style={{ width: 28, height: 28, borderRadius: 8, flexShrink: 0, background: '#f59e0b22', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#f59e0b" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
@@ -381,13 +453,15 @@ export default function NewHomeScreen({ stream, onGoToAdminLogin, onGoToMyBookin
                         </div>
                       )}
                     </div>
+                    </SwipeableItem>
                   );
 
                   /* ── Bokningsnotis ── */
                   if (item.type === 'booking') {
                     const color = bookingNotifColor(item.status);
                     return (
-                      <div key={`booking-${item.id}`}
+                      <SwipeableItem key={`booking-${item.id}`} onDismiss={() => markVisitorSeen()}>
+                      <div
                         onClick={() => { setShowBellPanel(false); markVisitorSeen(); onGoToMyBookings?.(item.id); }}
                         style={{ padding: '11px 14px', borderBottom: `1px solid ${T.border}`, background: T.isDark ? `${color}09` : `${color}07`, display: 'flex', alignItems: 'flex-start', gap: 10, cursor: 'pointer' }}>
                         <div style={{ width: 28, height: 28, borderRadius: 8, flexShrink: 0, background: `${color}20`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -402,6 +476,7 @@ export default function NewHomeScreen({ stream, onGoToAdminLogin, onGoToMyBookin
                           <div style={{ fontSize: 11, color: color, fontWeight: 600, marginTop: 4 }}>Visa bokning →</div>
                         </div>
                       </div>
+                      </SwipeableItem>
                     );
                   }
 

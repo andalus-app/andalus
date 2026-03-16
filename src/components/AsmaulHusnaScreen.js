@@ -39,24 +39,10 @@ function Heart({ filled, size = 20 }) {
   );
 }
 
-// ── Grid card — 2 columns, no Swedish, play button, rounded + shadow ──
+// ── Grid card — no play button, bigger Arabic/transliteration ──
 function GridCard({ name, onPress, isFav, onToggleFav, T }) {
-  const audioRef = useRef(null);
-  const [playing, setPlaying] = useState(false);
-
-  const togglePlay = e => {
-    e.stopPropagation();
-    const audio = audioRef.current;
-    if (!audio) return;
-    if (playing) { audio.pause(); audio.currentTime = 0; setPlaying(false); }
-    else { audio.play().then(() => setPlaying(true)).catch(() => {}); }
-  };
-
   return (
     <div style={{ position: 'relative' }}>
-      <audio ref={audioRef} src={`audio/${name.nr}.mp3`} preload="none" onEnded={() => setPlaying(false)} />
-
-      {/* Heart — top right, own tap target */}
       <button
         onClick={e => { e.stopPropagation(); onToggleFav(); }}
         style={{
@@ -70,70 +56,40 @@ function GridCard({ name, onPress, isFav, onToggleFav, T }) {
         <Heart filled={isFav} size={18} />
       </button>
 
-      {/* Card — tappable for detail */}
       <button
         onClick={onPress}
         style={{
-          width: '100%',
-          background: T.card,
-          border: `1px solid ${T.border}`,
+          width: '100%', background: T.card, border: `1px solid ${T.border}`,
           borderRadius: 22,
-          boxShadow: T.isDark
-            ? '0 4px 20px rgba(0,0,0,0.4)'
-            : '0 4px 20px rgba(0,0,0,0.09)',
-          padding: '12px 12px 14px',
-          cursor: 'pointer', textAlign: 'center',
+          boxShadow: T.isDark ? '0 4px 20px rgba(0,0,0,0.4)' : '0 4px 20px rgba(0,0,0,0.09)',
+          padding: '14px 12px 16px', cursor: 'pointer', textAlign: 'center',
           WebkitTapHighlightColor: 'transparent',
           display: 'flex', flexDirection: 'column', alignItems: 'center',
-          gap: 6, boxSizing: 'border-box',
+          gap: 8, boxSizing: 'border-box',
           fontFamily: "'Inter',system-ui,sans-serif",
-          transition: 'transform .1s',
         }}
       >
-        {/* Number — top left */}
         <div style={{
-          alignSelf: 'flex-start',
-          width: 26, height: 26, borderRadius: 13,
-          background: `${T.accent}18`,
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-          fontSize: 10, fontWeight: 700, color: T.accent,
-          fontVariantNumeric: 'tabular-nums',
+          alignSelf: 'flex-start', width: 26, height: 26, borderRadius: 13,
+          background: `${T.accent}18`, display: 'flex', alignItems: 'center', justifyContent: 'center',
+          fontSize: 10, fontWeight: 700, color: T.accent, fontVariantNumeric: 'tabular-nums',
         }}>{name.nr}</div>
 
-        {/* Arabic — large centre */}
         <div style={{
-          fontSize: 40, lineHeight: 1.35, color: T.text,
+          fontSize: 46, lineHeight: 1.3, color: T.text,
           fontFamily: "'Scheherazade New','Traditional Arabic','Arial Unicode MS',serif",
-          direction: 'rtl', minHeight: 58,
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          direction: 'rtl', display: 'flex', alignItems: 'center', justifyContent: 'center',
           width: '100%',
         }}>{name.arabic}</div>
 
-        {/* Transliteration only */}
         <div style={{
-          fontSize: 12, fontWeight: 700, color: T.text,
+          fontSize: 13, fontWeight: 700, color: T.text,
           lineHeight: 1.2, textAlign: 'center', letterSpacing: '-.1px',
         }}>{name.transliteration}</div>
 
-        {/* Play button */}
-        <button
-          onClick={togglePlay}
-          style={{
-            marginTop: 4,
-            display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-            width: 32, height: 32, borderRadius: 16,
-            background: playing ? T.accent : `${T.accent}18`,
-            border: `1.5px solid ${T.accent}`,
-            cursor: 'pointer', color: playing ? '#fff' : T.accent,
-            WebkitTapHighlightColor: 'transparent',
-            transition: 'all .15s',
-          }}
-        >
-          {playing
-            ? <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>
-            : <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor"><polygon points="6 3 20 12 6 21 6 3"/></svg>
-          }
-        </button>
+        <div style={{ fontSize: 11, color: T.textMuted, lineHeight: 1.2, textAlign: 'center' }}>
+          {name.swedish}
+        </div>
       </button>
     </div>
   );
@@ -394,6 +350,7 @@ export default function AsmaulHusnaScreen({ onBack, onMount }) {
   const [search, setSearch] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const listScrollRef = useRef(null);
+  const savedListScrollRef = useRef(0);
 
   useEffect(() => { onMount?.(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -532,7 +489,7 @@ export default function AsmaulHusnaScreen({ onBack, onMount }) {
       )}
 
       {/* List screen */}
-      <div style={{ display: selected ? 'none' : 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
+      <div style={{ display: (selected || activeSection || activeQA) ? 'none' : 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
       <style>{`@keyframes fadeUp{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}`}</style>
 
       {/* Sticky header */}
@@ -657,13 +614,13 @@ export default function AsmaulHusnaScreen({ onBack, onMount }) {
           <>
             <div style={{ display: viewMode === 'grid' ? 'grid' : 'none', gridTemplateColumns: 'repeat(2, 1fr)', gap: 12, padding: '14px 16px' }}>
               {filtered.map(n => (
-                <GridCard key={n.nr} name={n} onPress={() => setSelected(n)}
+                <GridCard key={n.nr} name={n} onPress={() => { savedListScrollRef.current = listScrollRef.current?.scrollTop || 0; setSelected(n); }}
                   isFav={favs.has(n.nr)} onToggleFav={() => toggleFav(n.nr)} T={T} />
               ))}
             </div>
             <div style={{ display: viewMode === 'list' ? 'block' : 'none', paddingTop: 4 }}>
               {filtered.map(n => (
-                <ListRow key={n.nr} name={n} onPress={() => setSelected(n)}
+                <ListRow key={n.nr} name={n} onPress={() => { savedListScrollRef.current = listScrollRef.current?.scrollTop || 0; setSelected(n); }}
                   isFav={favs.has(n.nr)} onToggleFav={() => toggleFav(n.nr)} T={T} />
               ))}
             </div>
@@ -673,4 +630,57 @@ export default function AsmaulHusnaScreen({ onBack, onMount }) {
       </div>
     </div>
   );
+}// ── List row — no play button, bigger text ──────────────────────────────
+function ListRow({ name, onPress, isFav, onToggleFav, T }) {
+  return (
+    <div style={{
+      display: 'flex', alignItems: 'center',
+      borderBottom: `1px solid ${T.border}`, background: T.card,
+      fontFamily: "'Inter',system-ui,sans-serif",
+    }}>
+      <button
+        onClick={onPress}
+        style={{
+          flex: 1, display: 'flex', alignItems: 'center', gap: 14,
+          padding: '14px 0 14px 16px',
+          background: 'none', border: 'none', cursor: 'pointer', textAlign: 'left',
+          WebkitTapHighlightColor: 'transparent', minWidth: 0,
+        }}
+      >
+        <div style={{
+          width: 36, height: 36, borderRadius: 18, flexShrink: 0,
+          background: `${T.accent}18`, display: 'flex', alignItems: 'center', justifyContent: 'center',
+          fontSize: 11, fontWeight: 700, color: T.accent, fontVariantNumeric: 'tabular-nums',
+        }}>{name.nr}</div>
+
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ fontSize: 15, fontWeight: 700, color: T.text, lineHeight: 1.2 }}>
+            {name.transliteration}
+          </div>
+          <div style={{ fontSize: 12, color: T.textMuted, fontWeight: 400, marginTop: 3, lineHeight: 1.3 }}>
+            {name.swedish}
+          </div>
+        </div>
+
+        <div style={{
+          fontSize: 30, color: T.text, lineHeight: 1,
+          fontFamily: "'Scheherazade New','Traditional Arabic','Arial Unicode MS',serif",
+          direction: 'rtl', flexShrink: 0, paddingRight: 8,
+        }}>{name.arabic}</div>
+      </button>
+
+      <button
+        onClick={onToggleFav}
+        style={{
+          background: 'none', border: 'none', cursor: 'pointer',
+          padding: '14px 14px', color: isFav ? '#e53e3e' : T.textMuted,
+          WebkitTapHighlightColor: 'transparent', display: 'flex', alignItems: 'center', flexShrink: 0,
+        }}
+      >
+        <Heart filled={isFav} size={17} />
+      </button>
+    </div>
+  );
 }
+
+

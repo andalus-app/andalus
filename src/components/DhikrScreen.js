@@ -425,7 +425,7 @@ function AccordionPanel({ us, onSelectDhikr, favorites, bookmarks, T, isOpen }) 
           const isFav = favorites.includes(key);
           const isBm  = bookmarks.includes(key);
           return (
-            <button key={i} onClick={() => onSelectDhikr(d)} style={{
+            <button key={i} onClick={() => onSelectDhikr(d, us.dhikr_poster)} style={{
               display:'flex', alignItems:'center', gap:12,
               width:'100%',
               background: T.isDark ? 'rgba(255,255,255,.025)' : 'rgba(36,100,93,.025)',
@@ -728,6 +728,7 @@ export default function DhikrScreen({ onBack }) {
   const [bookmarks, setBookmarks] = useState(() => loadStorage(STORAGE_KEY_BM));
   const bodyRef   = useRef(null);
   const searchRef = useRef(null);
+  const [selUndersida, setSelUndersida] = useState(null); // track which undersida dhikr came from
 
   const scrollTop = () => { if (bodyRef.current) bodyRef.current.scrollTop = 0; };
 
@@ -739,9 +740,10 @@ export default function DhikrScreen({ onBack }) {
   }, []); // eslint-disable-line
 
   const goToCat   = useCallback(g  => { setSelGrupp(g);  setView('cat');  setCatOpenIdx(null); scrollTop(); }, []);
-  const goToDhikr = useCallback(d  => {
+  const goToDhikr = useCallback((d, siblings) => {
     setDhikrOriginTab(mainTab);
     setSelDhikr(d);
+    setSelUndersida(siblings || null);
     setView('dhikr');
     scrollTop();
   }, [mainTab]);
@@ -749,6 +751,7 @@ export default function DhikrScreen({ onBack }) {
   const goBack = useCallback(() => {
     if (view === 'dhikr') {
       setSelDhikr(null);
+      setSelUndersida(null);
       if (dhikrOriginTab && dhikrOriginTab !== 'grid' && dhikrOriginTab !== 'list') {
         // Came from saved/search — go back to that tab's home
         setMainTab(dhikrOriginTab);
@@ -866,7 +869,7 @@ export default function DhikrScreen({ onBack }) {
               </svg>
               <input ref={searchRef} type="text" placeholder="Sök kategori, dhikr eller text…" value={searchQ}
                 onChange={e => setSearchQ(e.target.value)}
-                style={{flex:1,background:'none',border:'none',outline:'none',color:T.text,fontSize:14,fontFamily:'system-ui'}}
+                style={{flex:1,background:'none',border:'none',outline:'none',color:T.text,fontSize:16,fontFamily:'system-ui'}}
               />
               {searchQ && <button onClick={() => setSearchQ('')} style={{background:'none',border:'none',cursor:'pointer',color:T.textMuted,fontSize:18,lineHeight:1,padding:0}}>×</button>}
             </div>
@@ -913,8 +916,29 @@ export default function DhikrScreen({ onBack }) {
         )}
 
         {/* DHIKR DETAIL */}
-        {view==='dhikr' && selDhikr && (
+        {view==='dhikr' && selDhikr && (() => {
+          const siblings = selUndersida || [];
+          const currIdx = siblings.findIndex(d => d === selDhikr || (d.id && d.id === selDhikr.id) || (d.titel === selDhikr.titel && d._undersida === selDhikr._undersida));
+          const hasPrev = siblings.length > 1 && currIdx > 0;
+          const hasNext = siblings.length > 1 && currIdx < siblings.length - 1;
+          const goPrev = () => { if (hasPrev) { setSelDhikr(siblings[currIdx - 1]); scrollTop(); } };
+          const goNext = () => { if (hasNext) { setSelDhikr(siblings[currIdx + 1]); scrollTop(); } };
+          return (
           <div style={{padding:'16px 14px 48px', animation:'dhFade .2s ease both'}}>
+            {/* Prev / Next navigation */}
+            {siblings.length > 1 && (
+              <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:12}}>
+                <button onClick={goPrev} disabled={!hasPrev} style={{display:'flex',alignItems:'center',gap:4,background:'none',border:'none',cursor:hasPrev?'pointer':'default',color:hasPrev?T.accent:T.border,fontSize:13,fontWeight:600,fontFamily:'system-ui',padding:'6px 0',WebkitTapHighlightColor:'transparent',opacity:hasPrev?1:0,transition:'opacity .15s'}}>
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+                  Föregående
+                </button>
+                <span style={{fontSize:11,color:T.textMuted,fontFamily:'system-ui'}}>{currIdx+1} / {siblings.length}</span>
+                <button onClick={goNext} disabled={!hasNext} style={{display:'flex',alignItems:'center',gap:4,background:'none',border:'none',cursor:hasNext?'pointer':'default',color:hasNext?T.accent:T.border,fontSize:13,fontWeight:600,fontFamily:'system-ui',padding:'6px 0',WebkitTapHighlightColor:'transparent',opacity:hasNext?1:0,transition:'opacity .15s'}}>
+                  Nästa
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+                </button>
+              </div>
+            )}
             <DhikrCard d={selDhikr} T={T} favorites={favorites} bookmarks={bookmarks} onToggleFav={toggleFav} onToggleBm={toggleBm}
               onGoToCat={(kategoriNamn, undersidaTitel) => {
                 const grupp = GRUPPER.find(g =>
@@ -935,7 +959,8 @@ export default function DhikrScreen({ onBack }) {
               }}
             />
           </div>
-        )}
+          );
+        })()}
       </div>
     </div>
   );

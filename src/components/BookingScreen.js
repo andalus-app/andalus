@@ -19,6 +19,7 @@ const STORAGE_EMAIL     = 'islamnu_user_email';
 const STORAGE_PHONE     = 'islamnu_user_phone';
 const STORAGE_PIN       = 'islamnu_user_pin';       // klartext PIN (för att visa användaren)
 const STORAGE_PIN_HASH  = 'islamnu_user_pin_hash';  // hash (för snabb lokal jämförelse)
+const STORAGE_PIN_SHOWN = 'islamnu_pin_shown';      // flagga: PIN har visats, visa inte igen
 const RATE_LIMIT_KEY    = 'islamnu_recover_attempts';
 const MAX_ATTEMPTS      = 5;
 const LOCKOUT_MS        = 15 * 60 * 1000; // 15 min
@@ -1802,7 +1803,8 @@ export default function BookingScreen({onBack, activateForDevice, registerAdminD
     showToast(rows.length>1?`${rows.length} bokningsförfrågningar skickade!`:'Bokningsförfrågan skickad!');
     // Visa PIN om det är ny person (pin finns i localStorage)
     const freshPin = localStorage.getItem(STORAGE_PIN);
-    if(freshPin) setPendingPinToShow(freshPin);
+    const alreadyShownPin = localStorage.getItem(STORAGE_PIN_SHOWN) === 'true';
+    if(freshPin && !alreadyShownPin) setPendingPinToShow(freshPin);
     else setView('my-bookings');
   },[showToast, deviceId, activateForDevice]);
 
@@ -2047,7 +2049,7 @@ export default function BookingScreen({onBack, activateForDevice, registerAdminD
   if(pendingPinToShow){
     onTabBarHide?.();
     return <div style={{background:T.bg,minHeight:'100%',paddingBottom:0}}>
-      <PinRevealScreen pin={pendingPinToShow} onContinue={()=>{setPendingPinToShow(null);setView('my-bookings');onTabBarShow?.();}} T={T}/>
+      <PinRevealScreen pin={pendingPinToShow} onContinue={()=>{setPendingPinToShow(null);localStorage.setItem(STORAGE_PIN_SHOWN,'true');setView('my-bookings');onTabBarShow?.();}} T={T}/>
     </div>;
   }
 

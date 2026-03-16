@@ -226,11 +226,10 @@ export function useBookingNotifications() {
   // ── Re-calculate when admin state changes (login/logout) ──────────────
   useEffect(() => {
     if (isAdminState) {
-      // Admin just logged in — activate and calculate immediately
       setActive(true);
-      calculate();
-    } else if (active) {
-      // Admin logged out — recalculate as non-admin device
+      // Small delay to ensure isAdminRef is updated before calculate reads it
+      setTimeout(() => calculate(), 0);
+    } else {
       calculate();
     }
   }, [isAdminState]); // eslint-disable-line
