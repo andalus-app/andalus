@@ -299,5 +299,6 @@ export function useBookingNotifications() {
     dismissAdminDevice,
     markVisitorSeen,
     markAdminSeen,
+    refresh: calculate, // expose for immediate post-action refresh
   };
 }

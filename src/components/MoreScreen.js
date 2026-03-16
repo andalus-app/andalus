@@ -316,7 +316,7 @@ function SupportScreen({ onBack, T }) {
   );
 }
 
-export default function MoreScreen({ onTabBarHide, onTabBarShow, initialView, markVisitorSeen, markAdminSeen, activateForDevice, registerAdminDevice, dismissAdminDevice, bookingBadge = 0, visitorBadge = 0, adminBadge = 0 }) {
+export default function MoreScreen({ onTabBarHide, onTabBarShow, initialView, markVisitorSeen, markAdminSeen, activateForDevice, registerAdminDevice, dismissAdminDevice, bookingBadge = 0, visitorBadge = 0, adminBadge = 0, onRefreshNotifications }) {
   const { theme: T } = useTheme();
   const [view, setView] = useState(initialView || 'menu');
   const scrollRef = useRef(null);
@@ -371,6 +371,7 @@ export default function MoreScreen({ onTabBarHide, onTabBarShow, initialView, ma
       onTabBarHide={onTabBarHide}
       onTabBarShow={onTabBarShow}
       onMarkAdminSeen={markAdminSeen}
+      onRefreshNotifications={onRefreshNotifications}
     />;
 
   return (

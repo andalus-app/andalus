@@ -1667,7 +1667,7 @@ function AdminLogin({onSuccess,onBack,T}){
 }
 
 /* ── Root ── */
-export default function BookingScreen({onBack, activateForDevice, registerAdminDevice, dismissAdminDevice, startAtAdminLogin, startAtAdmin, onTabBarHide, onTabBarShow, onMarkAdminSeen}){
+export default function BookingScreen({onBack, activateForDevice, registerAdminDevice, dismissAdminDevice, startAtAdminLogin, startAtAdmin, onTabBarHide, onTabBarShow, onMarkAdminSeen, onRefreshNotifications}){
   const scrollRef = useRef(null);
   const {theme:T}=useTheme();
   const [bookings,setBookings]=useState([]);
@@ -1916,9 +1916,10 @@ export default function BookingScreen({onBack, activateForDevice, registerAdminD
     const {error}=await supabase.from('bookings').update({status:action,admin_comment:comment,resolved_at:Date.now()}).eq('id',bookingId);
     setActionLoading(false);
     if(error){showToast('Något gick fel.');return;}
-    onMarkAdminSeen?.(); // clear badge immediately after action
+    onMarkAdminSeen?.(); // clear adminUnread badge immediately
+    onRefreshNotifications?.(); // re-fetch pending count from DB
     showToast(action==='approved'?'Bokning godkänd ✓':'Bokning avböjd');
-  },[showToast,onMarkAdminSeen]);
+  },[showToast,onMarkAdminSeen,onRefreshNotifications]);
 
   /* Admin redigerar bokning */
   const handleAdminEdit=useCallback(async(data)=>{
@@ -1927,8 +1928,9 @@ export default function BookingScreen({onBack, activateForDevice, registerAdminD
     setActionLoading(false);
     if(error){showToast('Något gick fel.');return;}
     onMarkAdminSeen?.();
+    onRefreshNotifications?.();
     showToast('Bokning ändrad & besökare notifierad ✓');
-  },[showToast,onMarkAdminSeen]);
+  },[showToast,onMarkAdminSeen,onRefreshNotifications]);
 
   /* Admin tar bort bokning */
   const handleAdminDelete=useCallback(async(bookingId,explanation)=>{
@@ -1936,8 +1938,9 @@ export default function BookingScreen({onBack, activateForDevice, registerAdminD
     const {error}=await supabase.from('bookings').update({status:'cancelled',admin_comment:explanation,resolved_at:Date.now()}).eq('id',bookingId);
     setActionLoading(false);
     if(error){showToast('Något gick fel.');return;}
+    onRefreshNotifications?.();
     showToast('Bokning borttagen & besökare notifierad');
-  },[showToast]);
+  },[showToast,onRefreshNotifications]);
 
   /* Admin tar bort flera bokningar (enstaka + kommande) */
   const handleAdminDeleteMany=useCallback(async(bookingIds,explanation)=>{
