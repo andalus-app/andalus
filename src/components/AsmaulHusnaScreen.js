@@ -128,9 +128,9 @@ function DetailScreen({ name, onBack, isFav, onToggleFav, T }) {
       <style>{`@keyframes detailIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}`}</style>
       <audio ref={audioRef} src={`audio/${name.nr}.mp3`} preload="none" onEnded={() => setPlaying(false)} />
 
-      {/* Floating back arrow — top left, ovanpå scrollat innehåll */}
+      {/* Floating back arrow */}
       <button onClick={onBack} style={{
-        position: 'absolute', top: 12, left: 10, zIndex: 20,
+        position: 'absolute', top: 'calc(env(safe-area-inset-top, 0px) + 12px)', left: 10, zIndex: 20,
         background: T.isDark ? 'rgba(0,0,0,0.45)' : 'rgba(255,255,255,0.75)',
         backdropFilter: 'blur(10px)', WebkitBackdropFilter: 'blur(10px)',
         border: `1px solid ${T.border}`,
@@ -141,9 +141,9 @@ function DetailScreen({ name, onBack, isFav, onToggleFav, T }) {
         paddingBottom: 1,
       }}>‹</button>
 
-      {/* Floating heart — top right */}
+      {/* Floating heart */}
       <button onClick={onToggleFav} style={{
-        position: 'absolute', top: 12, right: 10, zIndex: 20,
+        position: 'absolute', top: 'calc(env(safe-area-inset-top, 0px) + 12px)', right: 10, zIndex: 20,
         background: T.isDark ? 'rgba(0,0,0,0.45)' : 'rgba(255,255,255,0.75)',
         backdropFilter: 'blur(10px)', WebkitBackdropFilter: 'blur(10px)',
         border: `1px solid ${T.border}`,
@@ -155,9 +155,9 @@ function DetailScreen({ name, onBack, isFav, onToggleFav, T }) {
         <Heart filled={isFav} size={20} />
       </button>
 
-      {/* Content — scrollbar börjar från toppen, ingen header i vägen */}
+      {/* Content */}
       <div style={{ flex: 1, overflowY: 'auto', paddingBottom: 48, animation: 'detailIn .22s ease both' }}>
-        <div style={{ textAlign: 'center', padding: '28px 24px 20px', paddingTop: 56 }}>
+        <div style={{ textAlign: 'center', padding: '28px 24px 20px', paddingTop: 'calc(env(safe-area-inset-top, 0px) + 56px)' }}>
           <div style={{
             display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
             width: 44, height: 44, borderRadius: 22,
@@ -440,10 +440,11 @@ export default function AsmaulHusnaScreen({ onBack, onMount }) {
       }}>
       <style>{`@keyframes fadeUp{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}`}</style>
 
-      {/* Header — alltid synlig, inga scroll-hide effekter som orsakar glitch */}
+      {/* Header — alltid synlig, safe-area hanteras här */}
       <div style={{
         flexShrink: 0, zIndex: 20,
         background: T.bg, borderBottom: `1px solid ${T.border}`,
+        paddingTop: 'env(safe-area-inset-top, 0px)',
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '14px 16px 10px' }}>
           <button onClick={onBack} style={{ background: 'none', border: 'none', cursor: 'pointer', color: T.accent, fontSize: 22, padding: '2px 8px 2px 0', WebkitTapHighlightColor: 'transparent', fontWeight: 300, lineHeight: 1 }}>‹</button>

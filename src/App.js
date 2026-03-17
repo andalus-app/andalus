@@ -231,7 +231,9 @@ function Shell() {
         style={{
           flex: 1, overflowY: scrollLocked ? 'hidden' : 'auto', overflowX: 'hidden',
           WebkitOverflowScrolling: 'touch',
-          paddingTop: isPWA ? 'env(safe-area-inset-top, 0px)' : '0px',
+          // Ingen paddingTop här — varje skärms header hanterar safe-area-inset-top själv
+          // Det förhindrar att bakgrunden syns ovanför sticky headers i PWA
+          paddingTop: 0,
           paddingBottom: effectiveTabBarVisible
             ? isPWA ? 'calc(env(safe-area-inset-bottom, 0px) + 82px)' : '90px'
             : 0,
@@ -241,17 +243,17 @@ function Shell() {
 
       {/* ── FLOATING TAB BAR ── */}
       <div style={{
-        position: 'absolute',
-        // PWA: hemknappens safe-area är ~34px. Vi lägger tab-baren precis ovanför den + 8px luft.
-        // Safari: webbläsarens verktygsfält finns i botten, safe-area är nästan 0. Lägger 12px luft.
+        // PWA: position:fixed sitter alltid fast relativt viewport — aldrig påverkat av scroll eller layout
+        // Safari: position:absolute fungerar bra eftersom Shell-diven inte scrollar
+        position: isPWA ? 'fixed' : 'absolute',
         bottom: isPWA
           ? `calc(env(safe-area-inset-bottom, 0px) + 8px)`
           : '12px',
-        left: '50%',
+        left: isPWA ? '50%' : '50%',
         transform: effectiveTabBarVisible
           ? 'translateX(-50%) translateY(0)'
           : 'translateX(-50%) translateY(calc(100% + 24px))',
-        width: 'calc(100% - 32px)',
+        width: isPWA ? 'min(calc(100vw - 32px), 460px)' : 'calc(100% - 32px)',
         maxWidth: 460,
         display: 'flex',
         background: T.isDark ? 'rgba(18,18,18,0.82)' : 'rgba(245,248,247,0.82)',

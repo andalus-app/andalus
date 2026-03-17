@@ -111,7 +111,9 @@ export default function MonthlyScreen({ onBack }) {
 
       {/* Top header — scroll-hide */}
       <div style={{
-        flexShrink:0, padding:'16px 14px 10px', borderBottom: headerVisible ? `1px solid ${T.border}` : 'none',
+        flexShrink:0, padding:'16px 14px 10px',
+        paddingTop: 'max(16px, env(safe-area-inset-top, 0px))',
+        borderBottom: headerVisible ? `1px solid ${T.border}` : 'none',
         maxHeight: headerVisible ? 300 : 0,
         overflow: 'hidden',
         transition: 'max-height 0.28s cubic-bezier(0.4, 0, 0.2, 1)',
