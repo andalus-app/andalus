@@ -76,8 +76,10 @@ function Shell() {
 
   // Reset scroll to top and show tab bar again when tab or monthly view changes
   useEffect(() => {
-    if (scrollContainerRef.current) {
-      scrollContainerRef.current.scrollTop = 0;
+    const el = scrollContainerRef.current;
+    if (el) {
+      el.scrollTop = 0;
+      requestAnimationFrame(() => { if (el) el.scrollTop = 0; });
     }
     if (!tabBarHiddenByChild) showTabBar();
   }, [tab, showMonthly]); // eslint-disable-line

@@ -22,6 +22,15 @@ export default function MonthlyScreen({ onBack }) {
   const { location, settings } = useApp();
   const { visible: headerVisible, onScroll } = useScrollHide({ threshold: 40 });
   const scrollBodyRef = useRef(null);
+  // iOS scroll-restore guard — tvinga scrollTop=0 vid mount
+  useEffect(() => {
+    const el = scrollBodyRef.current;
+    if (el) {
+      el.scrollTop = 0;
+      requestAnimationFrame(() => { if (el) el.scrollTop = 0; });
+    }
+  }, []); // eslint-disable-line
+
 
   const today = new Date();
 

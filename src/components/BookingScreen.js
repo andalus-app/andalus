@@ -1703,6 +1703,15 @@ function AdminLogin({onSuccess,onBack,T}){
 /* ── Root ── */
 export default function BookingScreen({onBack, activateForDevice, registerAdminDevice, dismissAdminDevice, startAtAdminLogin, startAtAdmin, startAtMyBookings, highlightBookingId, onTabBarHide, onTabBarShow, onMarkAdminSeen, onMarkVisitorSeen, onRefreshNotifications}){
   const scrollRef = useRef(null);
+  // iOS scroll-restore guard — tvinga scrollTop=0 vid mount
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (el) {
+      el.scrollTop = 0;
+      requestAnimationFrame(() => { if (el) el.scrollTop = 0; });
+    }
+  }, []); // eslint-disable-line
+
   const {theme:T}=useTheme();
   const { visible: headerVisible, onScroll } = useScrollHide({ threshold: 40 });
   const [bookings,setBookings]=useState([]);

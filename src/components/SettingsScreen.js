@@ -63,6 +63,15 @@ function ModalSheet({ title, onClose, children, T, topContent }) {
 export default function SettingsScreen({ onBack }) {
   const { theme: T, mode, setMode } = useTheme();
   const scrollRef = useRef(null);
+  // iOS scroll-restore guard — tvinga scrollTop=0 vid mount
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (el) {
+      el.scrollTop = 0;
+      requestAnimationFrame(() => { if (el) el.scrollTop = 0; });
+    }
+  }, []); // eslint-disable-line
+
   const { location, settings, dispatch } = useApp();
   const { visible: headerVisible, onScroll } = useScrollHide({ threshold: 40 });
 

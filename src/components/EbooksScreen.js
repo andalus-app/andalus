@@ -762,6 +762,15 @@ const SORT_OPTS = [
 
 function Library({ books, onSelect, onBack, T }) {
   const scrollRef = useRef(null);
+  // iOS scroll-restore guard — tvinga scrollTop=0 vid mount
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (el) {
+      el.scrollTop = 0;
+      requestAnimationFrame(() => { if (el) el.scrollTop = 0; });
+    }
+  }, []); // eslint-disable-line
+
   const [cat,      setCat]      = useState('all');
   const [sort,     setSort]     = useState('newest');
   const [query,    setQuery]    = useState('');

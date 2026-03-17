@@ -738,6 +738,15 @@ export default function DhikrScreen({ onTabBarHide, onTabBarShow, onBack }) {
   const searchRef = useRef(null);
   const [selUndersida, setSelUndersida] = useState(null); // track which undersida dhikr came from
 
+  // iOS scroll-restore guard — tvinga scrollTop=0 vid mount
+  useEffect(() => {
+    const el = bodyRef.current;
+    if (el) {
+      el.scrollTop = 0;
+      requestAnimationFrame(() => { if (el) el.scrollTop = 0; });
+    }
+  }, []); // eslint-disable-line
+
   const scrollTop = () => {
     if (bodyRef.current) bodyRef.current.scrollTop = 0;
     showHeader(); // visa alltid header vid navigation

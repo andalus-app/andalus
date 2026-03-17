@@ -182,6 +182,15 @@ function GridCard({ item, onPress, T, badge = 0, adminBadge = 0, pulse = false }
 
 function SupportScreen({ onBack, T }) {
   const scrollRef = useRef(null);
+  // iOS scroll-restore guard — tvinga scrollTop=0 vid mount
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (el) {
+      el.scrollTop = 0;
+      requestAnimationFrame(() => { if (el) el.scrollTop = 0; });
+    }
+  }, []); // eslint-disable-line
+
   const { visible: headerVisible, onScroll } = useScrollHide({ threshold: 40 });
   useEffect(() => {
     const handler = () => onBack();
