@@ -52,17 +52,17 @@ function editRequiresApproval(original, updated) {
   return false;
 }
 
-const OPEN_HOUR  = 0;
+const OPEN_HOUR  = 8;
 const CLOSE_HOUR = 24;
-// Halvtimmes-steg: 8, 8.5, 9, 9.5 ... 23.5
+// Halvtimmes-steg: 8, 8.5, 9 ... 23.5
 const ALL_HOURS = Array.from({length:(CLOSE_HOUR-OPEN_HOUR)*2},(_,i)=>OPEN_HOUR+i*0.5);
 function parseSlotStart(timeSlot){ const s=timeSlot.split('–')[0]; const[hh,mm]=s.split(':').map(Number); return hh+(mm===30?0.5:0); }
 
 const DAYS_SV   = ['Mån','Tis','Ons','Tor','Fre','Lör','Sön'];
 const MONTHS_SV = ['Januari','Februari','Mars','April','Maj','Juni','Juli','Augusti','September','Oktober','November','December'];
 
-// Halvtimmes-steg från 1h till 12h
-const DURATION_OPTIONS = [0.5,1,1.5,2,2.5,3,3.5,4,4.5,5,5.5,6,6.5,7,7.5,8,8.5,9,9.5,10,10.5,11,11.5,12];
+// 30 min → 16 tim (08:00–00:00 = hela dagen)
+const DURATION_OPTIONS = [0.5,1,1.5,2,2.5,3,3.5,4,4.5,5,5.5,6,6.5,7,7.5,8,8.5,9,9.5,10,10.5,11,11.5,12,12.5,13,13.5,14,14.5,15,15.5,16];
 function fmtDuration(h){ return h===0.5?'30 min':h%1===0?`${h} tim`:`${Math.floor(h)} tim 30 min`; }
 const RECUR_OPTIONS      = [
   { value:'none',    label:'Ingen upprepning' },
