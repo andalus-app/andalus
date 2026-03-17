@@ -15,6 +15,7 @@ import MoreScreen        from './components/MoreScreen';
 import MoreAppIcon       from './icons/more-app-svgrepo-com.svg';
 import { useYoutubeLive } from './hooks/useYoutubeLive';
 import { useBookingNotifications } from './hooks/useBookingNotifications';
+import { useIsPWA } from './hooks/useIsPWA';
 
 import DhikrMenuIcon     from './icons/dhikr-tab.svg';
 
@@ -53,6 +54,7 @@ const SILENT_UPDATE_THRESHOLD_KM = 30;
 function Shell() {
   const { theme: T } = useTheme();
   const { location, dispatch } = useApp();
+  const isPWA = useIsPWA();
   const [tab, setTab] = useState(() => {
     // Restore tab from sessionStorage — prevents iOS PWA from jumping to home on wake
     try { return sessionStorage.getItem('activeTab') || 'home'; } catch { return 'home'; }
@@ -214,8 +216,12 @@ function Shell() {
       <div ref={scrollContainerRef} style={{
         flex: 1, overflowY: 'auto', overflowX: 'hidden',
         WebkitOverflowScrolling: 'touch',
-        paddingTop: 'env(safe-area-inset-top, 0px)',
-        paddingBottom: tabBarVisible ? 90 : 0,
+        // PWA: safe-area-inset-top täcker notch/Dynamic Island korrekt.
+        // Safari: webbläsarens chrome tar redan hand om det, inset är 0 eller liten.
+        paddingTop: isPWA ? 'env(safe-area-inset-top, 0px)' : '0px',
+        paddingBottom: tabBarVisible
+          ? isPWA ? 'calc(env(safe-area-inset-bottom, 0px) + 82px)' : '90px'
+          : 0,
       }}>
         {renderScreen()}
       </div>
@@ -223,7 +229,11 @@ function Shell() {
       {/* ── FLOATING TAB BAR ── */}
       <div style={{
         position: 'absolute',
-        bottom: `calc(env(safe-area-inset-bottom, 0px) + 8px)`,
+        // PWA: hemknappens safe-area är ~34px. Vi lägger tab-baren precis ovanför den + 8px luft.
+        // Safari: webbläsarens verktygsfält finns i botten, safe-area är nästan 0. Lägger 12px luft.
+        bottom: isPWA
+          ? `calc(env(safe-area-inset-bottom, 0px) + 8px)`
+          : '12px',
         left: '50%',
         transform: tabBarVisible
           ? 'translateX(-50%) translateY(0)'

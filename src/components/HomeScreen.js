@@ -2,6 +2,7 @@ import React, { useEffect, useState, useCallback, useRef, useMemo } from 'react'
 import { useApp } from '../context/AppContext';
 import { useTheme } from '../context/ThemeContext';
 import { useCountdown } from '../hooks/useCountdown';
+import { useIsPWA } from '../hooks/useIsPWA';
 import { fetchPrayerTimes, fetchTomorrowPrayerTimes, calcMidnight } from '../services/prayerApi';
 
 import {
@@ -118,6 +119,7 @@ function PrayerTable({ times, isTomorrow, prayerStatus, T }) {
 
 export default function HomeScreen({ onMonthlyPress }) {
   const { theme: T } = useTheme();
+  const isPWA = useIsPWA();
   const { prayerTimes, tomorrowTimes, hijriDate, location, settings, isLoading, error, dispatch } = useApp();
   const { nextPrayer, secondsUntil } = useCountdown(prayerTimes);
 
@@ -255,7 +257,13 @@ export default function HomeScreen({ onMonthlyPress }) {
   const activeTimes       = isShowingTomorrow ? tomorrowTimes : prayerTimes;
 
   return (
-    <div style={{ padding:'12px 14px 12px', background:T.bg, minHeight:'100%', boxSizing:'border-box' }}
+    <div style={{
+      padding:'12px 14px 12px',
+      // PWA: extra top-padding för notch hanteras av Shell, men header-logon
+      // behöver lite extra luft så att den inte kolliderar med status-baren.
+      paddingTop: isPWA ? 'max(12px, calc(env(safe-area-inset-top, 0px) + 4px))' : '12px',
+      background:T.bg, minHeight:'100%', boxSizing:'border-box',
+    }}
       onTouchStart={onTouchStart} onTouchEnd={onTouchEnd}
     >
       {showModal && (

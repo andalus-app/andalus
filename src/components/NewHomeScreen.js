@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useTheme } from '../context/ThemeContext';
 import { useBanner } from '../hooks/useBanner';
 import { useBookingNotifications } from '../hooks/useBookingNotifications';
+import { useIsPWA } from '../hooks/useIsPWA';
 import SvgIcon from './SvgIcon';
 
 /* ── Andalus logotyp — inline SVG, färg följer tema ── */
@@ -293,6 +294,7 @@ function SwipeableItem({ onDismiss, children }) {
 /* ── Main screen ── */
 export default function NewHomeScreen({ stream, onGoToAdminLogin, onGoToMyBookings }) {
   const { theme: T, mode, setMode } = useTheme();
+  const isPWA = useIsPWA();
   const prevModeRef = React.useRef(mode);
   const [justToggled, setJustToggled] = React.useState(false);
   React.useEffect(() => {
@@ -361,7 +363,10 @@ export default function NewHomeScreen({ stream, onGoToAdminLogin, onGoToMyBookin
         position: 'relative',
         display: 'flex', alignItems: 'center', justifyContent: 'center',
         padding: 0,
-        minHeight: 104,
+        // PWA: lägg till safe-area för notch/Dynamic Island ovanpå standard padding.
+        // Safari: webbläsarens chrome sköter det, ingen extra padding behövs.
+        paddingTop: isPWA ? 'env(safe-area-inset-top, 0px)' : 0,
+        minHeight: isPWA ? 'calc(104px + env(safe-area-inset-top, 0px))' : 104,
       }}>
         {/* Logo — left:22 matches HomeScreen outer padding(14) + left(8) */}
         <div style={{ position: 'absolute', top: 12, left: 22, pointerEvents: 'none', userSelect: 'none' }}>
