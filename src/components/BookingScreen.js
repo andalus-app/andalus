@@ -10,6 +10,7 @@
 
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useTheme } from '../context/ThemeContext';
+import { useScrollHide } from '../hooks/useScrollHide';
 import { supabase } from '../services/supabaseClient';
 
 const ADMIN_PIN      = '4242';
@@ -1703,6 +1704,7 @@ function AdminLogin({onSuccess,onBack,T}){
 export default function BookingScreen({onBack, activateForDevice, registerAdminDevice, dismissAdminDevice, startAtAdminLogin, startAtAdmin, startAtMyBookings, highlightBookingId, onTabBarHide, onTabBarShow, onMarkAdminSeen, onMarkVisitorSeen, onRefreshNotifications}){
   const scrollRef = useRef(null);
   const {theme:T}=useTheme();
+  const { visible: headerVisible, onScroll } = useScrollHide({ threshold: 40 });
   const [bookings,setBookings]=useState([]);
   const [dbLoading,setDbLoading]=useState(true);
   const [submitLoading,setSubmitLoading]=useState(false);
@@ -1742,6 +1744,23 @@ export default function BookingScreen({onBack, activateForDevice, registerAdminD
     window.addEventListener('edgeSwipeBack',handler);
     return ()=>window.removeEventListener('edgeSwipeBack',handler);
   },[onBack,view,pendingPinToShow]);
+
+  // ── Tab-bar synlighet per vy ────────────────────────────────────────────
+  // Hanteras som effekt istället för i render för att undvika side effects.
+  useEffect(() => {
+    if (pendingPinToShow) {
+      // PIN-skärm täcker allt — dölj alltid
+      onTabBarHide?.();
+      return;
+    }
+    if (cancelDialog) {
+      // Dialog öppen — dölj tab-bar så den inte syns bakom sheet
+      onTabBarHide?.();
+      return;
+    }
+    // Alla andra vyer: visa tab-bar
+    onTabBarShow?.();
+  }, [view, pendingPinToShow, cancelDialog]); // eslint-disable-line
 
   /* Ny bokning */
   const handleSubmitBooking=useCallback(async(formData)=>{
@@ -2047,9 +2066,8 @@ export default function BookingScreen({onBack, activateForDevice, registerAdminD
 
   /* Views */
   if(pendingPinToShow){
-    onTabBarHide?.();
     return <div style={{background:T.bg,minHeight:'100%',paddingBottom:0}}>
-      <PinRevealScreen pin={pendingPinToShow} onContinue={()=>{setPendingPinToShow(null);localStorage.setItem(STORAGE_PIN_SHOWN,'true');setView('my-bookings');onTabBarShow?.();}} T={T}/>
+      <PinRevealScreen pin={pendingPinToShow} onContinue={()=>{setPendingPinToShow(null);localStorage.setItem(STORAGE_PIN_SHOWN,'true');setView('my-bookings');}} T={T}/>
     </div>;
   }
 
@@ -2065,8 +2083,6 @@ export default function BookingScreen({onBack, activateForDevice, registerAdminD
 
   if(view==='my-bookings'){
     if(viewConfirmation) return <div style={{background:T.bg,minHeight:'100%'}}><ConfirmationScreen booking={viewConfirmation} onBack={()=>setViewConfirmation(null)} T={T}/></div>;
-    // Dölj tab-bar när dialog är öppen
-    if(cancelDialog) onTabBarHide?.(); else onTabBarShow?.();
     return <div style={{background:T.bg,minHeight:'100%'}}>
       {cancelDialog&&<ConfirmDialog
         title={['pending','edit_pending'].includes(cancelDialog.status)?'Återkalla bokning':'Avboka bokning'}
@@ -2077,8 +2093,8 @@ export default function BookingScreen({onBack, activateForDevice, registerAdminD
         confirmColor="#ef4444"
         requireText={['approved','edited'].includes(cancelDialog.status)?'ANLEDNING TILL AVBOKNING *':undefined}
         requirePlaceholder="Förklara varför du avbokar..."
-        onConfirm={(reason)=>{handleVisitorCancel(cancelDialog,reason);onTabBarShow?.();}}
-        onCancel={()=>{setCancelDialog(null);onTabBarShow?.();}}
+        onConfirm={(reason)=>{handleVisitorCancel(cancelDialog,reason);}}
+        onCancel={()=>{setCancelDialog(null);}}
         T={T}
       />}
       <MyBookings
@@ -2103,9 +2119,9 @@ export default function BookingScreen({onBack, activateForDevice, registerAdminD
     <Toast message={toast} T={T}/>
   </div>;
 
-  return <div ref={scrollRef} style={{background:T.bg,minHeight:'100%',fontFamily:'system-ui, sans-serif'}}>
+  return <div ref={scrollRef} onScroll={onScroll} style={{background:T.bg,minHeight:'100%',fontFamily:'system-ui, sans-serif'}}>
     <style>{`@keyframes fadeInUp{from{opacity:0;transform:translateX(-50%) translateY(8px)}to{opacity:1;transform:translateX(-50%) translateY(0)}} @keyframes spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}} @keyframes slideUp{from{transform:translateY(100%)}to{transform:translateY(0)}}`}</style>
-    <div style={{padding:'16px 16px 12px',paddingTop:'max(16px, env(safe-area-inset-top))',position:'sticky',top:0,zIndex:20,background:T.bg,borderBottom:`1px solid ${T.border}`}}>
+    <div style={{padding:'16px 16px 12px',paddingTop:'max(16px, env(safe-area-inset-top))',position:'sticky',top:0,zIndex:20,background:T.bg,borderBottom:`1px solid ${T.border}`,transform:headerVisible?'translateY(0)':'translateY(-110%)',transition:'transform 0.28s cubic-bezier(0.4, 0, 0.2, 1)'}}>
       <div style={{display:'flex',alignItems:'center',justifyContent:'space-between'}}>
         <div style={{display:'flex',alignItems:'center',gap:4}}>
           <button onClick={onBack} style={{background:'none',border:'none',cursor:'pointer',color:T.accent,fontSize:22,fontWeight:300,lineHeight:1,padding:'4px 8px 4px 0',WebkitTapHighlightColor:'transparent'}}>‹</button>
