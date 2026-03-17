@@ -790,13 +790,19 @@ export default function DhikrScreen({ onTabBarHide, onTabBarShow, onBack }) {
     return () => window.removeEventListener('edgeSwipeBack', handler);
   }, [goBack]);
 
-  const switchMainTab = (id) => {
-    setMainTab(id);
+  // Auto-fokusera sökfältet när sök-tabben aktiveras
+  useEffect(() => {
+    if (mainTab === 'search' && !isInSubView) {
+      // Kort delay för att låta React rendera inputen i DOM först
+      const t = setTimeout(() => searchRef.current?.focus(), 50);
+      return () => clearTimeout(t);
+    }
+  }, [mainTab, isInSubView]);
     setView('home');
     setSelGrupp(null);
     setSelDhikr(null);
     scrollTop();
-    if (id === 'search') setTimeout(() => searchRef.current?.focus(), 100);
+    if (id === 'search') setSearchQ('');
   };
 
   const toggleFav = useCallback(key => {
