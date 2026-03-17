@@ -800,7 +800,8 @@ function Library({ books, onSelect, onBack, T }) {
 
       <div style={{ padding:'16px 16px 0', paddingTop:'max(16px, env(safe-area-inset-top))', position:'sticky', top:0, zIndex:20, background:T.bg, borderBottom:`1px solid ${T.border}`,
         transform: headerVisible ? 'translateY(0)' : 'translateY(-110%)',
-        transition: 'transform 0.28s cubic-bezier(0.4, 0, 0.2, 1)',
+        marginBottom: headerVisible ? 0 : -1000,
+        transition: 'transform 0.28s cubic-bezier(0.4, 0, 0.2, 1), margin-bottom 0s linear 0.28s',
       }}>
         <div style={{ display:'flex', alignItems:'center', gap:10, marginBottom:12 }}>
           {onBack && <button onClick={onBack} style={{ background:'none', border:'none', cursor:'pointer', color:T.accent, fontSize:22, padding:'4px 8px 4px 0', lineHeight:1, fontWeight:300, WebkitTapHighlightColor:'transparent' }}>‹</button>}

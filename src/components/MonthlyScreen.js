@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useApp } from '../context/AppContext';
 import { useTheme } from '../context/ThemeContext';
+import { useScrollHide } from '../hooks/useScrollHide';
 import { fetchMonthlyTimes, calcMidnight } from '../services/prayerApi';
 import { fmt24, swedishMonthYear } from '../utils/prayerUtils';
 import { generatePrayerPdf } from '../utils/generatePrayerPdf';
@@ -19,6 +20,8 @@ const COLS = [
 export default function MonthlyScreen({ onBack }) {
   const { theme: T } = useTheme();
   const { location, settings } = useApp();
+  const { visible: headerVisible, onScroll } = useScrollHide({ threshold: 40 });
+  const scrollBodyRef = useRef(null);
 
   const today = new Date();
 
@@ -97,8 +100,14 @@ export default function MonthlyScreen({ onBack }) {
   return (
     <div style={{ background:T.bg, height:'100%', display:'flex', flexDirection:'column' }}>
 
-      {/* Fixed top header */}
-      <div style={{ flexShrink:0, padding:'16px 14px 10px', borderBottom:`1px solid ${T.border}` }}>
+      {/* Top header — scroll-hide */}
+      <div style={{
+        flexShrink:0, padding:'16px 14px 10px', borderBottom: headerVisible ? `1px solid ${T.border}` : 'none',
+        transform: headerVisible ? 'translateY(0)' : 'translateY(-110%)',
+        marginBottom: headerVisible ? 0 : -1000,
+        transition: 'transform 0.28s cubic-bezier(0.4, 0, 0.2, 1), margin-bottom 0s linear 0.28s',
+        background: T.bg, zIndex: 20,
+      }}>
         <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:10 }}>
           {onBack && (
             <button onClick={onBack} style={{
@@ -134,14 +143,17 @@ export default function MonthlyScreen({ onBack }) {
         </div>
       </div>
 
-      {/* Sticky table header */}
+      {/* Sticky column header — scroll-hide together with top header */}
       {days.length > 0 && (
         <div style={{
           flexShrink:0, display:'flex', alignItems:'center',
           padding:'6px 14px',
           background:T.bgSecondary,
           borderBottom:`1px solid ${T.border}`,
-          position:'sticky', top:0, zIndex:10,
+          transform: headerVisible ? 'translateY(0)' : 'translateY(-110%)',
+          marginBottom: headerVisible ? 0 : -1000,
+          transition: 'transform 0.28s cubic-bezier(0.4, 0, 0.2, 1), margin-bottom 0s linear 0.28s',
+          zIndex: 10,
         }}>
           {/* Day col */}
           <div style={{ width:DAY_W, flexShrink:0, fontSize:8, fontWeight:700, color:T.textMuted, textTransform:'uppercase', letterSpacing:.5 }}>Dag</div>
@@ -179,7 +191,7 @@ export default function MonthlyScreen({ onBack }) {
 
       {/* Scrollable table body */}
       {!loading && !error && days.length > 0 && (
-        <div style={{ flex:1, overflowY:'auto', WebkitOverflowScrolling:'touch' }}>
+        <div ref={scrollBodyRef} onScroll={onScroll} style={{ flex:1, overflowY:'auto', WebkitOverflowScrolling:'touch' }}>
           {days.map((d) => {
             const ht = isToday(d.gregorianDay);
             return (

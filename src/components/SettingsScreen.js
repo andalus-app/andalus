@@ -179,7 +179,8 @@ export default function SettingsScreen({ onBack }) {
         display:'flex', alignItems:'center', gap:8,
         padding:'16px 16px 12px', paddingTop:'max(16px,env(safe-area-inset-top))',
         transform: headerVisible ? 'translateY(0)' : 'translateY(-110%)',
-        transition: 'transform 0.28s cubic-bezier(0.4, 0, 0.2, 1)',
+        marginBottom: headerVisible ? 0 : -1000,
+        transition: 'transform 0.28s cubic-bezier(0.4, 0, 0.2, 1), margin-bottom 0s linear 0.28s',
       }}>
         {onBack && (
           <button onClick={onBack} style={{
