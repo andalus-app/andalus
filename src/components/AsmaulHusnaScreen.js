@@ -511,10 +511,14 @@ export default function AsmaulHusnaScreen({ onBack, onMount }) {
         <div style={{ padding: '6px 16px 0', fontSize: 12, color: T.textMuted }}>Visar {filtered.length} av {names.length} namn</div>
       )}
 
-      {/* Scroll-container — ref callback sätter scrollTop=0 direkt innan iOS hinner cacha position */}
+      {/* Scroll-container — ref callback sätter scrollTop=0 direkt + efter layout */}
       <div ref={el => {
         listScrollRef.current = el;
-        if (el && el.scrollTop !== 0) el.scrollTop = 0;
+        if (el) {
+          el.scrollTop = 0;
+          // Dubbelgaranti: kör även efter layout för att hantera iOS scroll-restore
+          requestAnimationFrame(() => { if (el) el.scrollTop = 0; });
+        }
       }} onScroll={onListScroll} style={{
         flex: 1, overflowY: 'auto', overflowX: 'hidden',
         WebkitOverflowScrolling: 'touch',
