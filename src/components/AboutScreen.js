@@ -1,5 +1,6 @@
 import React, { useEffect, useRef } from 'react';
 import { useTheme } from '../context/ThemeContext';
+import { useScrollHide } from '../hooks/useScrollHide';
 import IslamNuLogoTeal from '../icons/islamnu-logga-light.svg';
 
 const SECTIONS = [
@@ -20,6 +21,7 @@ const SECTIONS = [
 export default function AboutScreen({ onBack }) {
   const { theme: T } = useTheme();
   const scrollRef = useRef(null);
+  const { visible: headerVisible, onScroll } = useScrollHide({ threshold: 40 });
 
   useEffect(() => {
     if (!onBack) return;
@@ -29,7 +31,7 @@ export default function AboutScreen({ onBack }) {
   }, [onBack]);
 
   return (
-    <div ref={scrollRef} style={{ background: T.bg, minHeight: '100%', fontFamily: 'system-ui, sans-serif' }}>
+    <div ref={scrollRef} onScroll={onScroll} style={{ background: T.bg, minHeight: '100%', fontFamily: 'system-ui, sans-serif' }}>
       {/* Header */}
       <div style={{
         display: 'flex', alignItems: 'center', gap: 10,
@@ -37,6 +39,8 @@ export default function AboutScreen({ onBack }) {
         paddingTop: 'max(16px, env(safe-area-inset-top))',
         borderBottom: `1px solid ${T.border}`,
         position: 'sticky', top: 0, background: T.bg, zIndex: 10,
+        transform: headerVisible ? 'translateY(0)' : 'translateY(-110%)',
+        transition: 'transform 0.28s cubic-bezier(0.4, 0, 0.2, 1)',
       }}>
         <button onClick={onBack} style={{
           background: 'none', border: 'none', cursor: 'pointer',

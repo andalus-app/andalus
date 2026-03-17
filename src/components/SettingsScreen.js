@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef} from 'react';
 import { useApp } from '../context/AppContext';
 import { useTheme } from '../context/ThemeContext';
+import { useScrollHide } from '../hooks/useScrollHide';
 import { CALC_METHODS } from '../utils/prayerUtils';
 import { searchCity, reverseGeocode } from '../services/prayerApi';
 import SvgIcon from './SvgIcon';
@@ -63,6 +64,7 @@ export default function SettingsScreen({ onBack }) {
   const { theme: T, mode, setMode } = useTheme();
   const scrollRef = useRef(null);
   const { location, settings, dispatch } = useApp();
+  const { visible: headerVisible, onScroll } = useScrollHide({ threshold: 40 });
 
   const [cityModal,   setCityModal]   = useState(false);
   const [methodModal, setMethodModal] = useState(false);
@@ -168,7 +170,7 @@ export default function SettingsScreen({ onBack }) {
   );
 
   return (
-    <div ref={scrollRef} style={{ background:T.bg, minHeight:'100%', fontFamily:"'Inter',system-ui,sans-serif" }}>
+    <div ref={scrollRef} onScroll={onScroll} style={{ background:T.bg, minHeight:'100%', fontFamily:"'Inter',system-ui,sans-serif" }}>
 
       {/* Sticky header */}
       <div style={{
@@ -176,6 +178,8 @@ export default function SettingsScreen({ onBack }) {
         borderBottom:`1px solid ${T.border}`,
         display:'flex', alignItems:'center', gap:8,
         padding:'16px 16px 12px', paddingTop:'max(16px,env(safe-area-inset-top))',
+        transform: headerVisible ? 'translateY(0)' : 'translateY(-110%)',
+        transition: 'transform 0.28s cubic-bezier(0.4, 0, 0.2, 1)',
       }}>
         {onBack && (
           <button onClick={onBack} style={{

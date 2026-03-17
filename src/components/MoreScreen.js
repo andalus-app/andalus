@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useTheme } from '../context/ThemeContext';
+import { useScrollHide } from '../hooks/useScrollHide';
 import SettingsScreen from './SettingsScreen';
 import AboutScreen from './AboutScreen';
 import EbooksScreen from './EbooksScreen';
@@ -181,6 +182,7 @@ function GridCard({ item, onPress, T, badge = 0, adminBadge = 0, pulse = false }
 
 function SupportScreen({ onBack, T }) {
   const scrollRef = useRef(null);
+  const { visible: headerVisible, onScroll } = useScrollHide({ threshold: 40 });
   useEffect(() => {
     const handler = () => onBack();
     window.addEventListener('edgeSwipeBack', handler);
@@ -196,7 +198,7 @@ function SupportScreen({ onBack, T }) {
   );
 
   return (
-    <div ref={scrollRef} style={{ background: T.bg, minHeight: '100%', display: 'flex', flexDirection: 'column', fontFamily: 'system-ui, sans-serif' }}>
+    <div ref={scrollRef} onScroll={onScroll} style={{ background: T.bg, minHeight: '100%', display: 'flex', flexDirection: 'column', fontFamily: 'system-ui, sans-serif' }}>
       {/* Header */}
       <div style={{
         display: 'flex', alignItems: 'center', gap: 10,
@@ -204,6 +206,8 @@ function SupportScreen({ onBack, T }) {
         paddingTop: 'max(16px, env(safe-area-inset-top))',
         borderBottom: `1px solid ${T.border}`,
         background: T.bg, zIndex: 10, position: 'sticky', top: 0,
+        transform: headerVisible ? 'translateY(0)' : 'translateY(-110%)',
+        transition: 'transform 0.28s cubic-bezier(0.4, 0, 0.2, 1)',
       }}>
         <button onClick={onBack} style={{
           background: 'none', border: 'none', cursor: 'pointer',
@@ -318,6 +322,7 @@ function SupportScreen({ onBack, T }) {
 
 export default function MoreScreen({ onTabBarHide, onTabBarShow, initialView, markVisitorSeen, markAdminSeen, activateForDevice, registerAdminDevice, dismissAdminDevice, bookingBadge = 0, visitorBadge = 0, adminBadge = 0, onRefreshNotifications }) {
   const { theme: T } = useTheme();
+  const { visible: headerVisible, onScroll } = useScrollHide({ threshold: 40 });
   // Parse initialView — supports 'booking-my:<bookingId>' for deep-linking to My Bookings
   const [highlightBookingId] = useState(() => {
     if (initialView?.startsWith('booking-my:')) return initialView.split(':')[1] || null;
@@ -386,7 +391,7 @@ export default function MoreScreen({ onTabBarHide, onTabBarShow, initialView, ma
     />;
 
   return (
-    <div ref={scrollRef} style={{ background: T.bg, minHeight: '100%', fontFamily: 'system-ui, sans-serif' }}>
+    <div ref={scrollRef} onScroll={onScroll} style={{ background: T.bg, minHeight: '100%', fontFamily: 'system-ui, sans-serif' }}>
       <style>{`
         @keyframes cardPulse {
           0%   { box-shadow: 0 0 0 0px rgba(245,158,11,0.45); border-color: #f59e0b66; }
@@ -399,7 +404,13 @@ export default function MoreScreen({ onTabBarHide, onTabBarShow, initialView, ma
           100% { transform: scale(1); }
         }
       `}</style>
-      <div style={{ padding: '20px 16px 12px', paddingTop: 'max(20px, env(safe-area-inset-top))', position: 'sticky', top: 0, zIndex: 20, background: T.bg, borderBottom: `1px solid ${T.border}` }}>
+      <div style={{
+        padding: '20px 16px 12px', paddingTop: 'max(20px, env(safe-area-inset-top))',
+        position: 'sticky', top: 0, zIndex: 20, background: T.bg,
+        borderBottom: `1px solid ${T.border}`,
+        transform: headerVisible ? 'translateY(0)' : 'translateY(-110%)',
+        transition: 'transform 0.28s cubic-bezier(0.4, 0, 0.2, 1)',
+      }}>
 
         {/* Header row: title + settings icon */}
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 0 }}>

@@ -16,6 +16,7 @@ import MoreAppIcon       from './icons/more-app-svgrepo-com.svg';
 import { useYoutubeLive } from './hooks/useYoutubeLive';
 import { useBookingNotifications } from './hooks/useBookingNotifications';
 import { useIsPWA } from './hooks/useIsPWA';
+import { useScrollHide } from './hooks/useScrollHide';
 
 import DhikrMenuIcon     from './icons/dhikr-tab.svg';
 
@@ -56,23 +57,29 @@ function Shell() {
   const { location, dispatch } = useApp();
   const isPWA = useIsPWA();
   const [tab, setTab] = useState(() => {
-    // Restore tab from sessionStorage — prevents iOS PWA from jumping to home on wake
     try { return sessionStorage.getItem('activeTab') || 'home'; } catch { return 'home'; }
   });
   const [showMonthly, setShowMonthly] = useState(false);
   const [tabBarVisible, setTabBarVisible] = useState(true);
+  const [tabBarHiddenByChild, setTabBarHiddenByChild] = useState(false);
+  const [scrollLocked, setScrollLocked] = useState(false);
   const [ebooksReset, setEbooksReset] = useState(0);
-  const [moreResetKey, setMoreResetKey]   = useState(0);
+  const [moreResetKey, setMoreResetKey] = useState(0);
   const scrollContainerRef = useRef(null);
+  const { visible: tabBarScrollVisible, onScroll: onShellScroll, show: showTabBar } = useScrollHide({ threshold: 40 });
   const { isLive, isUpcoming, stream } = useYoutubeLive();
   const { totalUnread, visitorUnread, adminUnread, adminPendingCount, markVisitorSeen, markAdminSeen, activateForDevice, registerAdminDevice, dismissAdminDevice, adminPendingNotif, refresh: refreshNotifications } = useBookingNotifications();
 
-  // Reset scroll to top when tab or monthly view changes
+  // Effective tab bar visibility: hidden by child (BookingScreen etc) OR hidden by scroll
+  const effectiveTabBarVisible = !tabBarHiddenByChild && (tabBarVisible && tabBarScrollVisible);
+
+  // Reset scroll to top and show tab bar again when tab or monthly view changes
   useEffect(() => {
     if (scrollContainerRef.current) {
       scrollContainerRef.current.scrollTop = 0;
     }
-  }, [tab, showMonthly]);
+    if (!tabBarHiddenByChild) showTabBar();
+  }, [tab, showMonthly]); // eslint-disable-line
 
   // Listen for scroll-to-top and scroll-restore requests from child components
   useEffect(() => {
@@ -124,6 +131,9 @@ function Shell() {
 
 
   const handleTabPress = (id) => {
+    // Alltid visa tab-bar vid tab-tryck
+    showTabBar();
+    setTabBarVisible(true);
     if (id === 'ebooks') {
       if (tab === 'ebooks') {
         setEbooksReset(n => n + 1);
@@ -170,7 +180,7 @@ function Shell() {
       case 'prayer':   return <PrayerScreen onMonthlyPress={() => setShowMonthly(true)} />;
       case 'qibla':    return <QiblaScreen />;
       case 'dhikr':    return <DhikrScreen />;
-      case 'more':     return <MoreScreen key={moreResetKey} onTabBarHide={() => setTabBarVisible(false)} onTabBarShow={() => setTabBarVisible(true)} initialView={moreInitialView} markVisitorSeen={markVisitorSeen} markAdminSeen={markAdminSeen} activateForDevice={activateForDevice} registerAdminDevice={registerAdminDevice} dismissAdminDevice={dismissAdminDevice} bookingBadge={totalUnread} visitorBadge={visitorUnread} adminBadge={adminUnread || adminPendingCount} onRefreshNotifications={refreshNotifications} />;
+      case 'more':     return <MoreScreen key={moreResetKey} onTabBarHide={() => { setTabBarHiddenByChild(true); setTabBarVisible(false); setScrollLocked(true); }} onTabBarShow={() => { setTabBarHiddenByChild(false); setTabBarVisible(true); setScrollLocked(false); }} initialView={moreInitialView} markVisitorSeen={markVisitorSeen} markAdminSeen={markAdminSeen} activateForDevice={activateForDevice} registerAdminDevice={registerAdminDevice} dismissAdminDevice={dismissAdminDevice} bookingBadge={totalUnread} visitorBadge={visitorUnread} adminBadge={adminUnread || adminPendingCount} onRefreshNotifications={refreshNotifications} />;
       default:         return <NewHomeScreen />;
     }
   };
@@ -213,16 +223,16 @@ function Shell() {
       position: 'relative',
     }}>
 
-      <div ref={scrollContainerRef} style={{
-        flex: 1, overflowY: 'auto', overflowX: 'hidden',
-        WebkitOverflowScrolling: 'touch',
-        // PWA: safe-area-inset-top täcker notch/Dynamic Island korrekt.
-        // Safari: webbläsarens chrome tar redan hand om det, inset är 0 eller liten.
-        paddingTop: isPWA ? 'env(safe-area-inset-top, 0px)' : '0px',
-        paddingBottom: tabBarVisible
-          ? isPWA ? 'calc(env(safe-area-inset-bottom, 0px) + 82px)' : '90px'
-          : 0,
-      }}>
+      <div ref={scrollContainerRef}
+        onScroll={!tabBarHiddenByChild ? onShellScroll : undefined}
+        style={{
+          flex: 1, overflowY: scrollLocked ? 'hidden' : 'auto', overflowX: 'hidden',
+          WebkitOverflowScrolling: 'touch',
+          paddingTop: isPWA ? 'env(safe-area-inset-top, 0px)' : '0px',
+          paddingBottom: effectiveTabBarVisible
+            ? isPWA ? 'calc(env(safe-area-inset-bottom, 0px) + 82px)' : '90px'
+            : 0,
+        }}>
         {renderScreen()}
       </div>
 
@@ -235,7 +245,7 @@ function Shell() {
           ? `calc(env(safe-area-inset-bottom, 0px) + 8px)`
           : '12px',
         left: '50%',
-        transform: tabBarVisible
+        transform: effectiveTabBarVisible
           ? 'translateX(-50%) translateY(0)'
           : 'translateX(-50%) translateY(calc(100% + 24px))',
         width: 'calc(100% - 32px)',

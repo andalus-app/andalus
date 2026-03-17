@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useTheme } from '../context/ThemeContext';
 import { useIsPWA } from '../hooks/useIsPWA';
+import { useScrollHide } from '../hooks/useScrollHide';
 import names from '../data/asmaul_husna.json';
 
 // Pre-build search index once at module load — zero cost at runtime
@@ -262,12 +263,13 @@ export default function AsmaulHusnaScreen({ onBack, onMount }) {
   const isPWA = useIsPWA();
   const [viewMode, setViewMode] = useState('grid');
   const [selected, setSelected] = useState(null);
-  const [activeSection, setActiveSection] = useState(null); // 'qa' | 'lardomar' | 'hadith' | 'quiz'
-  const [activeQA, setActiveQA] = useState(null); // selected Q&A item
+  const [activeSection, setActiveSection] = useState(null);
+  const [activeQA, setActiveQA] = useState(null);
   const [favs, setFavs] = useState(loadFavs);
   const [filterFavs, setFilterFavs] = useState(false);
   const [search, setSearch] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
+  const { visible: headerVisible, onScroll: onListScroll } = useScrollHide({ threshold: 30 });
   const listScrollRef = useRef(null);
   const savedListScrollRef = useRef(0);
 
@@ -418,20 +420,24 @@ export default function AsmaulHusnaScreen({ onBack, onMount }) {
         </div>
       )}
 
-      {/* List screen */}
-      <div style={{ visibility: (selected || activeSection || activeQA) ? 'hidden' : 'visible', pointerEvents: (selected || activeSection || activeQA) ? 'none' : 'auto', display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
+      {/* List screen — täcker hela sin container, hanterar egen scroll */}
+      <div style={{
+        visibility: (selected || activeSection || activeQA) ? 'hidden' : 'visible',
+        pointerEvents: (selected || activeSection || activeQA) ? 'none' : 'auto',
+        display: 'flex', flexDirection: 'column',
+        position: 'absolute', inset: 0,   // täcker exakt Shell-scrollerns viewport
+        background: T.bg,
+      }}>
       <style>{`@keyframes fadeUp{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}`}</style>
 
-      {/* Sticky header */}
-      <div style={{ position: 'sticky', top: 0, zIndex: 20, background: T.bg, borderBottom: `1px solid ${T.border}` }}>
-        {/* PWA safe-area fill — täcker gapet mellan notch och header i standalone-läge */}
-        {isPWA && (
-          <div style={{
-            height: 'env(safe-area-inset-top, 0px)',
-            background: T.bg,
-            marginBottom: 0,
-          }} />
-        )}
+      {/* Sticky header — glider upp vid scroll ned, tillbaka vid scroll upp */}
+      <div style={{
+        flexShrink: 0, background: T.bg, borderBottom: `1px solid ${T.border}`, zIndex: 20,
+        transform: headerVisible ? 'translateY(0)' : 'translateY(-110%)',
+        transition: 'transform 0.28s cubic-bezier(0.4, 0, 0.2, 1)',
+        // Behåller utrymme i layouten även när headern är dold,
+        // så scroll-containern inte hoppar — vi använder marginTop istället.
+      }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '14px 16px 10px' }}>
           <button onClick={onBack} style={{ background: 'none', border: 'none', cursor: 'pointer', color: T.accent, fontSize: 22, padding: '2px 8px 2px 0', WebkitTapHighlightColor: 'transparent', fontWeight: 300, lineHeight: 1 }}>‹</button>
           <button onClick={() => listScrollRef.current?.scrollTo({ top: 0, behavior: 'smooth' })} style={{ flex: 1, background: 'none', border: 'none', cursor: 'pointer', padding: 0, textAlign: 'left', WebkitTapHighlightColor: 'transparent' }}>
@@ -543,21 +549,11 @@ export default function AsmaulHusnaScreen({ onBack, onMount }) {
         </div>
       )}
 
-      {/* Scroll-wrapper — position:relative för mask-overlay */}
-      <div style={{ flex: 1, minHeight: 0, position: 'relative' }}>
-        {/* Fade-mask i toppen — kort tonar bort när de glider upp bakom headern */}
-        <div style={{
-          position: 'absolute', top: 0, left: 0, right: 0, height: 32,
-          background: `linear-gradient(to bottom, ${T.bg}, transparent)`,
-          zIndex: 10, pointerEvents: 'none',
-        }} />
-
-      <div ref={listScrollRef} style={{
-        height: '100%', overflowY: 'auto',
-        // Extra bottom-padding: tab-baren är ~70px + safe-area. AsmaulHusna
-        // döljer tab-baren via onMount→onTabBarHide, men under mount-ticken
-        // eller om hide misslyckas täcker extra padding så att inget kortas av.
-        paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 96px)',
+      {/* Scroll-container — hanterar all scroll själv, Shell-scrollern är låst */}
+      <div ref={listScrollRef} onScroll={onListScroll} style={{
+        flex: 1, overflowY: 'auto', overflowX: 'hidden',
+        WebkitOverflowScrolling: 'touch',
+        paddingBottom: 32,
         animation: 'fadeUp .2s ease both',
       }}>
         {filtered.length === 0 ? (
@@ -580,14 +576,6 @@ export default function AsmaulHusnaScreen({ onBack, onMount }) {
             </div>
           </>
         )}
-      </div>
-        {/* Fade-mask i botten — täcker eventuellt tab-bar-bleed under mount-tick */}
-        <div style={{
-          position: 'absolute', bottom: 0, left: 0, right: 0,
-          height: 'calc(env(safe-area-inset-bottom, 0px) + 96px)',
-          background: `linear-gradient(to top, ${T.bg} 60%, transparent)`,
-          zIndex: 10, pointerEvents: 'none',
-        }} />
       </div>
       </div>
     </div>
