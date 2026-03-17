@@ -71,7 +71,8 @@ function Shell() {
   const { totalUnread, visitorUnread, adminUnread, adminPendingCount, markVisitorSeen, markAdminSeen, activateForDevice, registerAdminDevice, dismissAdminDevice, adminPendingNotif, refresh: refreshNotifications } = useBookingNotifications();
 
   // Effective tab bar visibility: hidden by child (BookingScreen etc) OR hidden by scroll
-  const effectiveTabBarVisible = !tabBarHiddenByChild && (tabBarVisible && tabBarScrollVisible);
+  // Tab 'prayer' (Bönetider) undantas från auto-hide — tab-baren är alltid synlig där.
+  const effectiveTabBarVisible = !tabBarHiddenByChild && (tabBarVisible && (tab === 'prayer' || tabBarScrollVisible));
 
   // Reset scroll to top and show tab bar again when tab or monthly view changes
   useEffect(() => {
@@ -224,7 +225,7 @@ function Shell() {
     }}>
 
       <div ref={scrollContainerRef}
-        onScroll={!tabBarHiddenByChild ? onShellScroll : undefined}
+        onScroll={(!tabBarHiddenByChild && tab !== 'prayer') ? onShellScroll : undefined}
         style={{
           flex: 1, overflowY: scrollLocked ? 'hidden' : 'auto', overflowX: 'hidden',
           WebkitOverflowScrolling: 'touch',
