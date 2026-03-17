@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import { useTheme } from '../context/ThemeContext';
+import { useScrollHide } from '../hooks/useScrollHide';
 import { useBooks } from '../hooks/useBooks';
 import { CATEGORIES } from '../data/books';
 import PdfCover from './PdfCover';
@@ -765,6 +766,7 @@ function Library({ books, onSelect, onBack, T }) {
   const [sort,     setSort]     = useState('newest');
   const [query,    setQuery]    = useState('');
   const [sortOpen, setSortOpen] = useState(false);
+  const { visible: headerVisible, onScroll } = useScrollHide({ threshold: 40 });
 
   const favorites  = useMemo(() => books.filter(b => b.isFavorite), [books]);
   const inProgress = useMemo(() => books.filter(b => b.progressPercent > 0 && b.progressPercent < 100 && b.available), [books]);
@@ -789,14 +791,17 @@ function Library({ books, onSelect, onBack, T }) {
   const showSections = !query && cat === 'all';
 
   return (
-    <div ref={scrollRef} style={{ background:T.bg, minHeight:'100%', fontFamily:'system-ui,sans-serif' }} onClick={() => setSortOpen(false)}>
+    <div ref={scrollRef} onScroll={onScroll} style={{ background:T.bg, minHeight:'100%', fontFamily:'system-ui,sans-serif' }} onClick={() => setSortOpen(false)}>
       <style>{`
         @keyframes fadeIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
         ::-webkit-scrollbar{display:none}
         input::placeholder{color:${T.textMuted};opacity:.7}
       `}</style>
 
-      <div style={{ padding:'16px 16px 0', paddingTop:'max(16px, env(safe-area-inset-top))', position:'sticky', top:0, zIndex:20, background:T.bg, borderBottom:`1px solid ${T.border}` }}>
+      <div style={{ padding:'16px 16px 0', paddingTop:'max(16px, env(safe-area-inset-top))', position:'sticky', top:0, zIndex:20, background:T.bg, borderBottom:`1px solid ${T.border}`,
+        transform: headerVisible ? 'translateY(0)' : 'translateY(-110%)',
+        transition: 'transform 0.28s cubic-bezier(0.4, 0, 0.2, 1)',
+      }}>
         <div style={{ display:'flex', alignItems:'center', gap:10, marginBottom:12 }}>
           {onBack && <button onClick={onBack} style={{ background:'none', border:'none', cursor:'pointer', color:T.accent, fontSize:22, padding:'4px 8px 4px 0', lineHeight:1, fontWeight:300, WebkitTapHighlightColor:'transparent' }}>‹</button>}
           <button onClick={() => window.dispatchEvent(new CustomEvent('scrollToTop'))} style={{ background:'none', border:'none', cursor:'pointer', padding:0, WebkitTapHighlightColor:'transparent' }}>

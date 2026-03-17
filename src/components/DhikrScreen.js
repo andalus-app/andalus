@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import { useTheme } from '../context/ThemeContext';
+import { useScrollHide } from '../hooks/useScrollHide';
 import rawData from '../data/dhikr.json';
 // Category icons — uploaded SVG files
 import IkonMorgon      from '../icons/morgon-kvall.svg';
@@ -717,6 +718,7 @@ const TABS = [
 
 export default function DhikrScreen({ onBack }) {
   const { theme: T } = useTheme();
+  const { visible: headerVisible, onScroll: onBodyScroll, show: showHeader } = useScrollHide({ threshold: 40 });
   const [mainTab,   setMainTab]   = useState('grid');   // grid|list|saved|search
   const [view,      setView]      = useState('home');    // home|cat|dhikr
   const [selGrupp,  setSelGrupp]  = useState(null);
@@ -730,7 +732,10 @@ export default function DhikrScreen({ onBack }) {
   const searchRef = useRef(null);
   const [selUndersida, setSelUndersida] = useState(null); // track which undersida dhikr came from
 
-  const scrollTop = () => { if (bodyRef.current) bodyRef.current.scrollTop = 0; };
+  const scrollTop = () => {
+    if (bodyRef.current) bodyRef.current.scrollTop = 0;
+    showHeader(); // visa alltid header vid navigation
+  };
 
   // Listen for App-level scrollToTop event (top nav tap)
   useEffect(() => {
@@ -819,7 +824,10 @@ export default function DhikrScreen({ onBack }) {
       `}</style>
 
       {/* ── HEADER ── */}
-      <div style={{flexShrink:0, background:T.bg, borderBottom:`1px solid ${T.border}`, paddingTop:'max(16px,env(safe-area-inset-top))', position:'sticky', top:0, zIndex:20}}>
+      <div style={{flexShrink:0, background:T.bg, borderBottom:`1px solid ${T.border}`, paddingTop:'max(16px,env(safe-area-inset-top))', position:'sticky', top:0, zIndex:20,
+        transform: headerVisible ? 'translateY(0)' : 'translateY(-110%)',
+        transition: 'transform 0.28s cubic-bezier(0.4, 0, 0.2, 1)',
+      }}>
         {/* Top row */}
         <div style={{display:'flex', alignItems:'center', gap:6, padding:'0 14px 10px'}}>
           {showBackArrow && (
@@ -878,7 +886,7 @@ export default function DhikrScreen({ onBack }) {
       </div>
 
       {/* ── BODY ── */}
-      <div ref={bodyRef} style={{flex:1, overflowY:'auto', WebkitOverflowScrolling:'touch'}}>
+      <div ref={bodyRef} onScroll={onBodyScroll} style={{flex:1, overflowY:'auto', WebkitOverflowScrolling:'touch'}}>
 
         {/* GRID */}
         {mainTab==='grid' && view==='home' && (
