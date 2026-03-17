@@ -179,7 +179,7 @@ function Shell() {
       case 'home':     return <NewHomeScreen stream={stream} onGoToAdminLogin={handleGoToAdminLogin} onGoToMyBookings={handleGoToMyBookings} />;
       case 'prayer':   return <PrayerScreen onMonthlyPress={() => setShowMonthly(true)} />;
       case 'qibla':    return <QiblaScreen />;
-      case 'dhikr':    return <DhikrScreen />;
+      case 'dhikr':    return <DhikrScreen onTabBarHide={() => { setTabBarHiddenByChild(true); setTabBarVisible(false); setScrollLocked(true); }} onTabBarShow={() => { setTabBarHiddenByChild(false); setTabBarVisible(true); setScrollLocked(false); }} />;
       case 'more':     return <MoreScreen key={moreResetKey} onTabBarHide={() => { setTabBarHiddenByChild(true); setTabBarVisible(false); setScrollLocked(true); }} onTabBarShow={() => { setTabBarHiddenByChild(false); setTabBarVisible(true); setScrollLocked(false); }} initialView={moreInitialView} markVisitorSeen={markVisitorSeen} markAdminSeen={markAdminSeen} activateForDevice={activateForDevice} registerAdminDevice={registerAdminDevice} dismissAdminDevice={dismissAdminDevice} bookingBadge={totalUnread} visitorBadge={visitorUnread} adminBadge={adminUnread || adminPendingCount} onRefreshNotifications={refreshNotifications} />;
       default:         return <NewHomeScreen />;
     }

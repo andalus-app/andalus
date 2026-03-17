@@ -213,6 +213,7 @@ function bookingNotifColor(status) {
 
 /* ── SwipeableItem — iOS-style swipe left to dismiss ── */
 function SwipeableItem({ onDismiss, children }) {
+  const { theme: T } = useTheme();
   const [offsetX, setOffsetX] = React.useState(0);
   const [dismissing, setDismissing] = React.useState(false);
   const startX = React.useRef(null);
@@ -220,7 +221,10 @@ function SwipeableItem({ onDismiss, children }) {
   const isDragging = React.useRef(false);
   const isScrolling = React.useRef(false);
 
-  const revealed = -offsetX; // how many px of red is showing (0 to 80)
+  const MAX_REVEAL = 80; // px
+  const revealed = Math.min(-offsetX, MAX_REVEAL);
+  // Label opacity: starts fading in after 20px, fully visible at 60px
+  const labelOpacity = Math.max(0, Math.min(1, (revealed - 20) / 40));
 
   const handleTouchStart = e => {
     startX.current = e.touches[0].clientX;
@@ -238,8 +242,8 @@ function SwipeableItem({ onDismiss, children }) {
     }
     if (isScrolling.current) return;
     if (isDragging.current && dx < 0) {
-      e.preventDefault(); // prevent scroll while swiping
-      setOffsetX(Math.max(dx, -80));
+      e.preventDefault();
+      setOffsetX(Math.max(dx, -MAX_REVEAL));
     }
   };
   const handleTouchEnd = () => {
@@ -255,25 +259,28 @@ function SwipeableItem({ onDismiss, children }) {
     isScrolling.current = false;
   };
 
-  // Don't render red background at all until actually swiping
   return (
     <div style={{ position: 'relative', overflow: 'hidden' }}>
-      {/* Red strip — only rendered when swiping, slides in from right */}
+      {/* iOS-stil Rensa-knapp — grå, text syns progressivt */}
       {(revealed > 0 || dismissing) && (
         <div style={{
           position: 'absolute', right: 0, top: 0, bottom: 0,
-          width: dismissing ? '100%' : `${Math.min(revealed, 80)}px`,
-          background: '#ef4444',
-          display: 'flex', alignItems: 'center', justifyContent: 'flex-start',
-          paddingLeft: 16,
+          width: dismissing ? '100%' : `${revealed}px`,
+          background: T.isDark ? 'rgba(99,99,102,0.9)' : 'rgba(142,142,147,0.9)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
           transition: (dismissing || offsetX === 0) ? 'width 0.28s cubic-bezier(0.4,0,0.2,1)' : 'none',
+          overflow: 'hidden',
         }}>
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.5" strokeLinecap="round">
-            <polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/>
-          </svg>
+          <span style={{
+            fontSize: 13, fontWeight: 600, color: '#fff',
+            opacity: labelOpacity,
+            fontFamily: "'Inter',system-ui,sans-serif",
+            whiteSpace: 'nowrap',
+            transition: 'opacity 0.1s',
+          }}>Rensa</span>
         </div>
       )}
-      {/* Content — slides left on swipe, covers the red background at rest */}
+      {/* Content */}
       <div
         onTouchStart={handleTouchStart}
         onTouchMove={handleTouchMove}
@@ -592,7 +599,7 @@ export default function NewHomeScreen({ stream, onGoToAdminLogin, onGoToMyBookin
             <div style={{
               background: T.card, border: `1px solid ${T.accent}44`, borderLeft: `4px solid ${T.accent}`,
               borderRadius: 14, padding: '13px 14px', display: 'flex', alignItems: 'flex-start', gap: 12,
-              boxShadow: `0 2px 16px ${T.accentGlow}`, animation: `bannerIn .3s ease both`, animationDelay: `${i * 60}ms`,
+              animation: `bannerIn .3s ease both`, animationDelay: `${i * 60}ms`,
             }}>
               <AndalusLogo size={26} color={T.isDark ? T.accent : T.accent} />
               <div style={{ flex: 1, minWidth: 0 }}>

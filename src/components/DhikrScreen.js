@@ -716,9 +716,15 @@ const TABS = [
   { id:'search',  icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg> },
 ];
 
-export default function DhikrScreen({ onBack }) {
+export default function DhikrScreen({ onTabBarHide, onTabBarShow }) {
   const { theme: T } = useTheme();
   const { visible: headerVisible, onScroll: onBodyScroll, show: showHeader } = useScrollHide({ threshold: 40 });
+
+  // Dölj tab-bar och lås Shell-scroll vid mount, återställ vid unmount
+  React.useEffect(() => {
+    onTabBarHide?.();
+    return () => onTabBarShow?.();
+  }, []); // eslint-disable-line
   const [mainTab,   setMainTab]   = useState('grid');   // grid|list|saved|search
   const [view,      setView]      = useState('home');    // home|cat|dhikr
   const [selGrupp,  setSelGrupp]  = useState(null);
@@ -817,16 +823,17 @@ export default function DhikrScreen({ onBack }) {
   const groupCount = g => g.undersidor.reduce((s,us) => s+us.dhikr_poster.length, 0);
 
   return (
-    <div style={{height:'100%', display:'flex', flexDirection:'column', background:T.bg}}>
+    <div style={{position:'absolute', inset:0, display:'flex', flexDirection:'column', background:T.bg, overflow:'hidden'}}>
       <style>{`
         @keyframes dhSpin{to{transform:rotate(360deg)}}
         @keyframes dhFade{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:translateY(0)}}
       `}</style>
 
       {/* ── HEADER ── */}
-      <div style={{flexShrink:0, background:T.bg, borderBottom:`1px solid ${T.border}`, paddingTop:'max(16px,env(safe-area-inset-top))', position:'sticky', top:0, zIndex:20,
+      <div style={{flexShrink:0, background:T.bg, borderBottom: headerVisible ? `1px solid ${T.border}` : 'none', paddingTop:'max(16px,env(safe-area-inset-top))',
         transform: headerVisible ? 'translateY(0)' : 'translateY(-110%)',
-        transition: 'transform 0.28s cubic-bezier(0.4, 0, 0.2, 1)',
+        marginBottom: headerVisible ? 0 : -1000,
+        transition: 'transform 0.28s cubic-bezier(0.4, 0, 0.2, 1), margin-bottom 0s linear 0.28s',
       }}>
         {/* Top row */}
         <div style={{display:'flex', alignItems:'center', gap:6, padding:'0 14px 10px'}}>
