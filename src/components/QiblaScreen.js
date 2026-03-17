@@ -196,7 +196,7 @@ export default function QiblaScreen() {
     );
   }, [dispatch]);
 
-  const compassSize = Math.min(window.innerWidth - 64, Math.min(window.innerHeight * 0.44, 300));
+  const compassSize = Math.min(window.innerWidth - 64, Math.min(window.innerHeight * 0.40, 280));
 
   const getHint = () => {
     if (!compassAvail || qiblaDir == null) return null;
@@ -211,9 +211,31 @@ export default function QiblaScreen() {
   const hint = getHint();
 
   return (
-    <div style={{ padding:'16px 16px 24px', background:T.bg, minHeight:'100%', display:'flex', flexDirection:'column', alignItems:'center', fontFamily:"'Inter',system-ui,sans-serif" }}>
+    <div style={{ paddingTop:'max(16px, env(safe-area-inset-top, 0px))', paddingLeft:16, paddingRight:16, paddingBottom:24, background:T.bg, minHeight:'100%', display:'flex', flexDirection:'column', alignItems:'center', fontFamily:"'Inter',system-ui,sans-serif", position:'relative' }}>
 
-      {/* No location — GPS request */}
+      {/* Kompass-åtkomst som overlay-banner högst upp — blockerar inte kompassen */}
+      {location && needsPermission && (
+        <div style={{
+          width:'100%', marginBottom:12,
+          background:T.card, border:`1px solid ${T.border}`,
+          borderRadius:14, padding:'14px 16px',
+          display:'flex', alignItems:'center', gap:12,
+        }}>
+          <span style={{fontSize:22}}>🧭</span>
+          <div style={{flex:1}}>
+            <div style={{ fontSize:14, fontWeight:700, color:T.text, marginBottom:2 }}>Kompass-åtkomst</div>
+            <div style={{ fontSize:12, color:T.textMuted, lineHeight:1.4 }}>
+              Behövs för live-kompassen. Vi frågar bara en gång.
+            </div>
+          </div>
+          <button onClick={requestPermission} style={{
+            padding:'8px 14px', borderRadius:10, flexShrink:0,
+            background:T.accent, color:'#fff',
+            fontSize:13, fontWeight:700, border:'none', cursor:'pointer',
+            WebkitTapHighlightColor:'transparent',
+          }}>Tillåt</button>
+        </div>
+      )}
       {!location && (
         <div style={{ flex:1, display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', textAlign:'center', paddingTop:40, width:'100%', maxWidth:320 }}>
           <div style={{ fontSize:56, marginBottom:16 }}>🧭</div>
@@ -285,24 +307,7 @@ export default function QiblaScreen() {
 
       {location && (
         <>
-          {/* Permission prompt */}
-          {needsPermission && (
-            <div style={{
-              width:'100%', marginBottom:16,
-              background:T.card, border:`1px solid ${T.border}`,
-              borderRadius:14, padding:'16px',
-            }}>
-              <div style={{ fontSize:15, fontWeight:700, color:T.text, marginBottom:6 }}>🧭 Kompass-åtkomst</div>
-              <div style={{ fontSize:13, color:T.textMuted, lineHeight:1.5, marginBottom:12 }}>
-                För att live-kompassen ska fungera behöver appen åtkomst till enhetens rörelsesensorer. Vi frågar bara en gång.
-              </div>
-              <button onClick={requestPermission} style={{
-                width:'100%', padding:'12px', borderRadius:11,
-                background:T.accent, color:'#fff',
-                fontSize:14, fontWeight:700, border:'none', cursor:'pointer',
-              }}>Tillåt kompass</button>
-            </div>
-          )}
+          {/* Permission prompt är nu ovanför som compact banner, inte här */}
 
           {loading && (
             <div style={{ marginBottom:12, display:'flex', alignItems:'center', gap:10, color:T.textMuted }}>
