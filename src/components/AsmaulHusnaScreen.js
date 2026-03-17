@@ -275,6 +275,15 @@ export default function AsmaulHusnaScreen({ onBack, onMount }) {
 
   useEffect(() => { onMount?.(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Säkerställ att listan alltid börjar på toppen vid mount —
+  // iOS Safari kan annars återanvända en cachad scroll-position
+  useEffect(() => {
+    const el = listScrollRef.current;
+    if (el) el.scrollTop = 0;
+    savedListScrollRef.current = 0;
+    return () => { savedListScrollRef.current = 0; };
+  }, []); // eslint-disable-line
+
   useEffect(() => {
     const t = setTimeout(() => setDebouncedSearch(search), 120);
     return () => clearTimeout(t);
@@ -431,14 +440,13 @@ export default function AsmaulHusnaScreen({ onBack, onMount }) {
       }}>
       <style>{`@keyframes fadeUp{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}`}</style>
 
-      {/* Header — flexShrink:0 + marginTop negativ när dold så den inte tar utrymme */}
+      {/* Header — maxHeight collapse så scroll-containern inte trycks ned */}
       <div style={{
         flexShrink: 0, zIndex: 20,
         background: T.bg, borderBottom: headerVisible ? `1px solid ${T.border}` : 'none',
-        transform: headerVisible ? 'translateY(0)' : 'translateY(-110%)',
-        // marginTop negativ = drar upp scroll-containern och täcker gapet
-        marginBottom: headerVisible ? 0 : -1000,
-        transition: 'transform 0.28s cubic-bezier(0.4, 0, 0.2, 1), margin-bottom 0s linear 0.28s',
+        maxHeight: headerVisible ? 300 : 0,
+        overflow: 'hidden',
+        transition: 'max-height 0.28s cubic-bezier(0.4, 0, 0.2, 1)',
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '14px 16px 10px' }}>
           <button onClick={onBack} style={{ background: 'none', border: 'none', cursor: 'pointer', color: T.accent, fontSize: 22, padding: '2px 8px 2px 0', WebkitTapHighlightColor: 'transparent', fontWeight: 300, lineHeight: 1 }}>‹</button>
@@ -503,12 +511,14 @@ export default function AsmaulHusnaScreen({ onBack, onMount }) {
         <div style={{ padding: '6px 16px 0', fontSize: 12, color: T.textMuted }}>Visar {filtered.length} av {names.length} namn</div>
       )}
 
-      {/* Scroll-container — hanterar all scroll själv, Shell-scrollern är låst */}
-      <div ref={listScrollRef} onScroll={onListScroll} style={{
+      {/* Scroll-container — ref callback sätter scrollTop=0 direkt innan iOS hinner cacha position */}
+      <div ref={el => {
+        listScrollRef.current = el;
+        if (el && el.scrollTop !== 0) el.scrollTop = 0;
+      }} onScroll={onListScroll} style={{
         flex: 1, overflowY: 'auto', overflowX: 'hidden',
         WebkitOverflowScrolling: 'touch',
         paddingBottom: 32,
-        animation: 'fadeUp .2s ease both',
       }}>
         {filtered.length === 0 ? (
           <div style={{ textAlign: 'center', padding: '64px 20px', color: T.textMuted, fontSize: 15 }}>

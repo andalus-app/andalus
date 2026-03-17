@@ -2121,7 +2121,7 @@ export default function BookingScreen({onBack, activateForDevice, registerAdminD
 
   return <div ref={scrollRef} onScroll={onScroll} style={{background:T.bg,minHeight:'100%',fontFamily:'system-ui, sans-serif'}}>
     <style>{`@keyframes fadeInUp{from{opacity:0;transform:translateX(-50%) translateY(8px)}to{opacity:1;transform:translateX(-50%) translateY(0)}} @keyframes spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}} @keyframes slideUp{from{transform:translateY(100%)}to{transform:translateY(0)}}`}</style>
-    <div style={{padding:'16px 16px 12px',paddingTop:'max(16px, env(safe-area-inset-top))',position:'sticky',top:0,zIndex:20,background:T.bg,borderBottom:headerVisible?`1px solid ${T.border}`:'none',transform:headerVisible?'translateY(0)':'translateY(-110%)',marginBottom:headerVisible?0:-1000,transition:'transform 0.28s cubic-bezier(0.4, 0, 0.2, 1), margin-bottom 0s linear 0.28s'}}>
+    <div style={{padding:'16px 16px 12px',paddingTop:'max(16px, env(safe-area-inset-top))',position:'sticky',top:0,zIndex:20,background:T.bg,borderBottom:headerVisible?`1px solid ${T.border}`:'none',maxHeight:headerVisible?300:0,overflow:'hidden',transition:'max-height 0.28s cubic-bezier(0.4, 0, 0.2, 1)'}}>
       <div style={{display:'flex',alignItems:'center',justifyContent:'space-between'}}>
         <div style={{display:'flex',alignItems:'center',gap:4}}>
           <button onClick={onBack} style={{background:'none',border:'none',cursor:'pointer',color:T.accent,fontSize:22,fontWeight:300,lineHeight:1,padding:'4px 8px 4px 0',WebkitTapHighlightColor:'transparent'}}>‹</button>

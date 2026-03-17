@@ -103,9 +103,9 @@ export default function MonthlyScreen({ onBack }) {
       {/* Top header — scroll-hide */}
       <div style={{
         flexShrink:0, padding:'16px 14px 10px', borderBottom: headerVisible ? `1px solid ${T.border}` : 'none',
-        transform: headerVisible ? 'translateY(0)' : 'translateY(-110%)',
-        marginBottom: headerVisible ? 0 : -1000,
-        transition: 'transform 0.28s cubic-bezier(0.4, 0, 0.2, 1), margin-bottom 0s linear 0.28s',
+        maxHeight: headerVisible ? 300 : 0,
+        overflow: 'hidden',
+        transition: 'max-height 0.28s cubic-bezier(0.4, 0, 0.2, 1)',
         background: T.bg, zIndex: 20,
       }}>
         <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:10 }}>
@@ -150,9 +150,9 @@ export default function MonthlyScreen({ onBack }) {
           padding:'6px 14px',
           background:T.bgSecondary,
           borderBottom:`1px solid ${T.border}`,
-          transform: headerVisible ? 'translateY(0)' : 'translateY(-110%)',
-          marginBottom: headerVisible ? 0 : -1000,
-          transition: 'transform 0.28s cubic-bezier(0.4, 0, 0.2, 1), margin-bottom 0s linear 0.28s',
+          maxHeight: headerVisible ? 300 : 0,
+        overflow: 'hidden',
+        transition: 'max-height 0.28s cubic-bezier(0.4, 0, 0.2, 1)',
           zIndex: 10,
         }}>
           {/* Day col */}

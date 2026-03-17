@@ -206,9 +206,9 @@ function SupportScreen({ onBack, T }) {
         paddingTop: 'max(16px, env(safe-area-inset-top))',
         borderBottom: `1px solid ${T.border}`,
         background: T.bg, zIndex: 10, position: 'sticky', top: 0,
-        transform: headerVisible ? 'translateY(0)' : 'translateY(-110%)',
-        marginBottom: headerVisible ? 0 : -1000,
-        transition: 'transform 0.28s cubic-bezier(0.4, 0, 0.2, 1), margin-bottom 0s linear 0.28s',
+        maxHeight: headerVisible ? 300 : 0,
+        overflow: 'hidden',
+        transition: 'max-height 0.28s cubic-bezier(0.4, 0, 0.2, 1)',
       }}>
         <button onClick={onBack} style={{
           background: 'none', border: 'none', cursor: 'pointer',
@@ -409,9 +409,9 @@ export default function MoreScreen({ onTabBarHide, onTabBarShow, initialView, ma
         padding: '20px 16px 12px', paddingTop: 'max(20px, env(safe-area-inset-top))',
         position: 'sticky', top: 0, zIndex: 20, background: T.bg,
         borderBottom: `1px solid ${T.border}`,
-        transform: headerVisible ? 'translateY(0)' : 'translateY(-110%)',
-        marginBottom: headerVisible ? 0 : -1000,
-        transition: 'transform 0.28s cubic-bezier(0.4, 0, 0.2, 1), margin-bottom 0s linear 0.28s',
+        maxHeight: headerVisible ? 300 : 0,
+        overflow: 'hidden',
+        transition: 'max-height 0.28s cubic-bezier(0.4, 0, 0.2, 1)',
       }}>
 
         {/* Header row: title + settings icon */}

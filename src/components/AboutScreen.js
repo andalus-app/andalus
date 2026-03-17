@@ -39,9 +39,9 @@ export default function AboutScreen({ onBack }) {
         paddingTop: 'max(16px, env(safe-area-inset-top))',
         borderBottom: `1px solid ${T.border}`,
         position: 'sticky', top: 0, background: T.bg, zIndex: 10,
-        transform: headerVisible ? 'translateY(0)' : 'translateY(-110%)',
-        marginBottom: headerVisible ? 0 : -1000,
-        transition: 'transform 0.28s cubic-bezier(0.4, 0, 0.2, 1), margin-bottom 0s linear 0.28s',
+        maxHeight: headerVisible ? 300 : 0,
+        overflow: 'hidden',
+        transition: 'max-height 0.28s cubic-bezier(0.4, 0, 0.2, 1)',
       }}>
         <button onClick={onBack} style={{
           background: 'none', border: 'none', cursor: 'pointer',

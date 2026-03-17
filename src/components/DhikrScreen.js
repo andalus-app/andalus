@@ -830,10 +830,16 @@ export default function DhikrScreen({ onTabBarHide, onTabBarShow, onBack }) {
       `}</style>
 
       {/* ── HEADER ── */}
-      <div style={{flexShrink:0, background:T.bg, borderBottom: headerVisible ? `1px solid ${T.border}` : 'none', paddingTop:'max(16px,env(safe-area-inset-top))',
-        transform: headerVisible ? 'translateY(0)' : 'translateY(-110%)',
-        marginBottom: headerVisible ? 0 : -1000,
-        transition: 'transform 0.28s cubic-bezier(0.4, 0, 0.2, 1), margin-bottom 0s linear 0.28s',
+      <div style={{
+        flexShrink: 0, background: T.bg,
+        borderBottom: headerVisible ? `1px solid ${T.border}` : 'none',
+        paddingTop: 'max(16px,env(safe-area-inset-top))',
+        // maxHeight collapse: 0 when hidden = no layout space taken, transitions smoothly
+        maxHeight: headerVisible ? 300 : 0,
+        overflow: 'hidden',
+        transition: headerVisible
+          ? 'max-height 0.28s cubic-bezier(0.4, 0, 0.2, 1)'
+          : 'max-height 0.28s cubic-bezier(0.4, 0, 0.2, 1)',
       }}>
         {/* Top row */}
         <div style={{display:'flex', alignItems:'center', gap:6, padding:'0 14px 10px'}}>
