@@ -269,7 +269,7 @@ export default function AsmaulHusnaScreen({ onBack, onMount }) {
   const [filterFavs, setFilterFavs] = useState(false);
   const [search, setSearch] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
-  const { visible: headerVisible, onScroll: onListScroll } = useScrollHide({ threshold: 30 });
+  const { visible: headerVisible, onScroll: onListScroll } = { visible: true, onScroll: () => {} }; // header alltid synlig
   const listScrollRef = useRef(null);
   const savedListScrollRef = useRef(0);
 
@@ -436,17 +436,14 @@ export default function AsmaulHusnaScreen({ onBack, onMount }) {
         display: 'flex', flexDirection: 'column',
         position: 'absolute', inset: 0,
         background: T.bg,
-        overflow: 'hidden', // krävs för att translateY(-110%) inte ska synas ovanför
+        // Ingen overflow:hidden — det blockerade scroll på iOS
       }}>
       <style>{`@keyframes fadeUp{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}`}</style>
 
-      {/* Header — maxHeight collapse så scroll-containern inte trycks ned */}
+      {/* Header — alltid synlig, inga scroll-hide effekter som orsakar glitch */}
       <div style={{
         flexShrink: 0, zIndex: 20,
-        background: T.bg, borderBottom: headerVisible ? `1px solid ${T.border}` : 'none',
-        maxHeight: headerVisible ? 300 : 0,
-        overflow: 'hidden',
-        transition: 'max-height 0.28s cubic-bezier(0.4, 0, 0.2, 1)',
+        background: T.bg, borderBottom: `1px solid ${T.border}`,
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '14px 16px 10px' }}>
           <button onClick={onBack} style={{ background: 'none', border: 'none', cursor: 'pointer', color: T.accent, fontSize: 22, padding: '2px 8px 2px 0', WebkitTapHighlightColor: 'transparent', fontWeight: 300, lineHeight: 1 }}>‹</button>
@@ -511,15 +508,8 @@ export default function AsmaulHusnaScreen({ onBack, onMount }) {
         <div style={{ padding: '6px 16px 0', fontSize: 12, color: T.textMuted }}>Visar {filtered.length} av {names.length} namn</div>
       )}
 
-      {/* Scroll-container — ref callback sätter scrollTop=0 direkt + efter layout */}
-      <div ref={el => {
-        listScrollRef.current = el;
-        if (el) {
-          el.scrollTop = 0;
-          // Dubbelgaranti: kör även efter layout för att hantera iOS scroll-restore
-          requestAnimationFrame(() => { if (el) el.scrollTop = 0; });
-        }
-      }} onScroll={onListScroll} style={{
+      {/* Scroll-container */}
+      <div ref={listScrollRef} style={{
         flex: 1, overflowY: 'auto', overflowX: 'hidden',
         WebkitOverflowScrolling: 'touch',
         paddingBottom: 32,

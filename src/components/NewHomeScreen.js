@@ -261,21 +261,27 @@ function SwipeableItem({ onDismiss, children }) {
 
   return (
     <div style={{ position: 'relative', overflow: 'hidden' }}>
-      {/* iOS-stil Rensa-knapp — grå, text syns progressivt */}
+      {/* iOS 26-stil dismiss-knapp — glas, rundade kanter, Rensa-text */}
       {(revealed > 0 || dismissing) && (
         <div style={{
-          position: 'absolute', right: 0, top: 0, bottom: 0,
-          width: dismissing ? '100%' : `${revealed}px`,
-          background: T.isDark ? 'rgba(99,99,102,0.9)' : 'rgba(142,142,147,0.9)',
+          position: 'absolute', right: 0, top: 4, bottom: 4,
+          width: dismissing ? 'calc(100% - 8px)' : `${Math.max(revealed - 4, 0)}px`,
+          background: T.isDark ? 'rgba(99,99,102,0.75)' : 'rgba(142,142,147,0.75)',
+          backdropFilter: 'blur(16px)',
+          WebkitBackdropFilter: 'blur(16px)',
+          borderRadius: 14,
+          marginRight: 4,
           display: 'flex', alignItems: 'center', justifyContent: 'center',
           transition: (dismissing || offsetX === 0) ? 'width 0.28s cubic-bezier(0.4,0,0.2,1)' : 'none',
           overflow: 'hidden',
+          minWidth: revealed > 20 ? 0 : undefined,
         }}>
           <span style={{
-            fontSize: 13, fontWeight: 600, color: '#fff',
+            fontSize: 14, fontWeight: 600, color: '#fff',
             opacity: labelOpacity,
             fontFamily: "'Inter',system-ui,sans-serif",
             whiteSpace: 'nowrap',
+            letterSpacing: '-0.1px',
             transition: 'opacity 0.1s',
           }}>Rensa</span>
         </div>

@@ -718,13 +718,8 @@ const TABS = [
 
 export default function DhikrScreen({ onTabBarHide, onTabBarShow, onBack }) {
   const { theme: T } = useTheme();
-  const { visible: headerVisible, onScroll: onBodyScroll, show: showHeader } = useScrollHide({ threshold: 40 });
-
-  // Dölj tab-bar och lås Shell-scroll vid mount, återställ vid unmount
-  React.useEffect(() => {
-    onTabBarHide?.();
-    return () => onTabBarShow?.();
-  }, []); // eslint-disable-line
+  // Header alltid synlig — ingen scroll-hide
+  const { show: showHeader } = useScrollHide({ threshold: 40 });
   const [mainTab,   setMainTab]   = useState('grid');   // grid|list|saved|search
   const [view,      setView]      = useState('home');    // home|cat|dhikr
   const [selGrupp,  setSelGrupp]  = useState(null);
@@ -832,23 +827,17 @@ export default function DhikrScreen({ onTabBarHide, onTabBarShow, onBack }) {
   const groupCount = g => g.undersidor.reduce((s,us) => s+us.dhikr_poster.length, 0);
 
   return (
-    <div style={{position:'absolute', inset:0, display:'flex', flexDirection:'column', background:T.bg, overflow:'hidden'}}>
+    <div style={{height:'100%', display:'flex', flexDirection:'column', background:T.bg}}>
       <style>{`
         @keyframes dhSpin{to{transform:rotate(360deg)}}
         @keyframes dhFade{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:translateY(0)}}
       `}</style>
 
-      {/* ── HEADER ── */}
+      {/* ── HEADER — alltid synlig ── */}
       <div style={{
         flexShrink: 0, background: T.bg,
-        borderBottom: headerVisible ? `1px solid ${T.border}` : 'none',
+        borderBottom: `1px solid ${T.border}`,
         paddingTop: 'max(16px,env(safe-area-inset-top))',
-        // maxHeight collapse: 0 when hidden = no layout space taken, transitions smoothly
-        maxHeight: headerVisible ? 300 : 0,
-        overflow: 'hidden',
-        transition: headerVisible
-          ? 'max-height 0.28s cubic-bezier(0.4, 0, 0.2, 1)'
-          : 'max-height 0.28s cubic-bezier(0.4, 0, 0.2, 1)',
       }}>
         {/* Top row */}
         <div style={{display:'flex', alignItems:'center', gap:6, padding:'0 14px 10px'}}>
@@ -908,7 +897,7 @@ export default function DhikrScreen({ onTabBarHide, onTabBarShow, onBack }) {
       </div>
 
       {/* ── BODY ── */}
-      <div ref={bodyRef} onScroll={onBodyScroll} style={{flex:1, overflowY:'auto', WebkitOverflowScrolling:'touch'}}>
+      <div ref={bodyRef} style={{flex:1, overflowY:'auto', WebkitOverflowScrolling:'touch'}}>
 
         {/* GRID */}
         {mainTab==='grid' && view==='home' && (
