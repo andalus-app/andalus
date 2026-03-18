@@ -167,33 +167,20 @@ export default function CompassSVG({ heading, qiblaDir, isAligned, alignDelta, t
       })()}
 
       {/* ── STATIC NEEDLE — always points up, SVG from red-arrow.svg ── */}
-      {/* The source SVG viewBox is 304×300. We scale it to fit inside the compass
-          and center it at (C, C). The needle tip is at the top (12 o'clock). */}
       {(() => {
-        const needleH = AR * 2 + 20;   // total rendered height of needle
-        const needleW = needleH * (304 / 300); // keep aspect ratio
+        // Needle: tip at AR above center, base exactly at center pivot.
+        // Height = AR, width kept proportional but capped narrow.
+        const needleH = AR;
+        const needleW = needleH * (304 / 300) * 0.38; // 38% of natural width = slim needle
         const nx = C - needleW / 2;
-        const ny = C - AR - 10;        // top of needle = arrow tip radius
-        const col1 = isAligned ? green : '#af1917'; // dark half
-        const col2 = isAligned ? green : '#e52a1e'; // light half
+        const ny = C - AR;
+        const col1 = isAligned ? green : '#af1917';
+        const col2 = isAligned ? green : '#e52a1e';
         return (
           <g filter={isAligned ? 'url(#cglow)' : 'url(#rglow)'}>
-            <svg
-              x={nx} y={ny}
-              width={needleW} height={needleH}
-              viewBox="0 0 304 300"
-              overflow="visible"
-            >
-              {/* Dark half (right side of needle) */}
-              <polygon
-                points="151.6,226 287.4,290.4 151.6,9.6"
-                fill={col1}
-              />
-              {/* Light half (left side of needle) */}
-              <polygon
-                points="151.6,226 15.9,290.4 151.6,9.6"
-                fill={col2}
-              />
+            <svg x={nx} y={ny} width={needleW} height={needleH} viewBox="0 0 304 300">
+              <polygon points="151.6,226 287.4,290.4 151.6,9.6" fill={col1} />
+              <polygon points="151.6,226 15.9,290.4 151.6,9.6" fill={col2} />
             </svg>
           </g>
         );
