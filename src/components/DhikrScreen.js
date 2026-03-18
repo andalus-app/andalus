@@ -790,14 +790,8 @@ export default function DhikrScreen({ onTabBarHide, onTabBarShow, onBack }) {
     return () => window.removeEventListener('edgeSwipeBack', handler);
   }, [goBack]);
 
-  // Auto-fokusera sökfältet när sök-tabben aktiveras
-  useEffect(() => {
-    if (mainTab === 'search' && !isInSubView) {
-      // Kort delay för att låta React rendera inputen i DOM först
-      const t = setTimeout(() => searchRef.current?.focus(), 50);
-      return () => clearTimeout(t);
-    }
-  }, [mainTab, isInSubView]);
+  const switchMainTab = (id) => {
+    setMainTab(id);
     setView('home');
     setSelGrupp(null);
     setSelDhikr(null);
@@ -821,6 +815,14 @@ export default function DhikrScreen({ onTabBarHide, onTabBarShow, onBack }) {
 
   const isInSubView = view !== 'home';
   const showBackArrow = isInSubView || !!onBack;
+
+  // Auto-fokusera sökfältet när sök-tabben aktiveras
+  useEffect(() => {
+    if (mainTab === 'search' && !isInSubView) {
+      const t = setTimeout(() => searchRef.current?.focus(), 50);
+      return () => clearTimeout(t);
+    }
+  }, [mainTab, isInSubView]); // eslint-disable-line
 
   // Header
   let headerTitle = "Dhikr & Du'a";
