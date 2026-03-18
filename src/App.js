@@ -32,8 +32,11 @@ const TABS = [
   { id: 'qibla',    type: 'custom', icon: 'kaba',       label: 'Qibla'      },
   { id: 'prayer',   type: 'custom', icon: 'prayer',     label: 'Bönetider'  },
   { id: 'booking',  type: 'custom', icon: 'booking',    label: 'Boka lokal' },
+  { id: 'ebooks',   type: 'custom', icon: 'ebooks',     label: 'E-böcker'   },
   { id: 'more',     type: 'custom', icon: 'more',       label: 'Visa mer'   },
 ];
+
+const SCROLL_NUDGE_THRESHOLD = 5; // nudge-animation visas bara om fler än 5 ikoner
 
 const GPS_PROMPT_KEY = 'gps-prompt-shown'; // set to 'done' once user responded
 
@@ -137,7 +140,9 @@ function Shell() {
   }, []); // eslint-disable-line
 
   // Nudge-animation — kör en gång för att visa att tab-baren scrollar
+  // Aktiveras bara om det finns fler än 5 ikoner
   useEffect(() => {
+    if (TABS.length <= SCROLL_NUDGE_THRESHOLD) return;
     try { if (localStorage.getItem(nudgeDoneKey)) return; } catch {}
     const t = setTimeout(() => {
       setNudging(true);
@@ -152,7 +157,7 @@ function Shell() {
     return () => clearTimeout(t);
   }, []); // eslint-disable-line
 
- = (id) => {
+  const handleTabPress = (id) => {
     // Alltid visa tab-bar vid tab-tryck
     showTabBar();
     setTabBarVisible(true);
@@ -195,6 +200,7 @@ function Shell() {
       case 'prayer':   return <PrayerScreen onMonthlyPress={() => setShowMonthly(true)} />;
       case 'qibla':    return <QiblaScreen />;
       case 'booking':  return <BookingScreen onTabBarHide={() => { setTabBarHiddenByChild(true); setTabBarVisible(false); setScrollLocked(true); }} onTabBarShow={() => { setTabBarHiddenByChild(false); setTabBarVisible(true); setScrollLocked(false); }} activateForDevice={activateForDevice} registerAdminDevice={registerAdminDevice} dismissAdminDevice={dismissAdminDevice} onRefreshNotifications={refreshNotifications} />;
+      case 'ebooks':   return <EbooksScreen key={ebooksReset} onTabBarHide={() => { setTabBarHiddenByChild(true); setTabBarVisible(false); setScrollLocked(true); }} onTabBarShow={() => { setTabBarHiddenByChild(false); setTabBarVisible(true); setScrollLocked(false); }} onReaderOpen={() => {}} onReaderClose={() => {}} resetToLibrary={false} />;
       case 'more':     return <MoreScreen key={moreResetKey} onTabBarHide={() => { setTabBarHiddenByChild(true); setTabBarVisible(false); setScrollLocked(true); }} onTabBarShow={() => { setTabBarHiddenByChild(false); setTabBarVisible(true); setScrollLocked(false); }} initialView={moreInitialView} markVisitorSeen={markVisitorSeen} markAdminSeen={markAdminSeen} activateForDevice={activateForDevice} registerAdminDevice={registerAdminDevice} dismissAdminDevice={dismissAdminDevice} bookingBadge={totalUnread} visitorBadge={visitorUnread} adminBadge={adminUnread || adminPendingCount} onRefreshNotifications={refreshNotifications} />;
       default:         return <NewHomeScreen />;
     }
@@ -330,6 +336,14 @@ function Shell() {
                         <line x1="9" y1="15" x2="15" y2="15"/>
                         <line x1="12" y1="12" x2="12" y2="18"/>
                       </svg>
+                    ) : t.icon === 'ebooks' ? (
+                      <svg width="22" height="22" viewBox="0 0 24 24" fill="none"
+                        stroke={active ? T.accent : T.isDark ? T.accent : T.text}
+                        strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"
+                        style={{ opacity: active ? 1 : T.isDark ? 0.75 : 1, transition: 'all .2s' }}>
+                        <path d="M2 6s2-2 5-2 5 2 5 2v14s-2-1-5-1-5 1-5 1V6z"/>
+                        <path d="M12 6s2-2 5-2 5 2 5 2v14s-2-1-5-1-5 1-5 1V6z"/>
+                      </svg>
                     ) : (
                       <img
                         src={t.icon === 'kaba' ? KabaIcon : t.icon === 'more' ? MoreAppIcon : PrayerTimesIcon}
@@ -441,16 +455,17 @@ function Shell() {
           })}
         </div>
 
-        {/* Peek-fade i höger kant — tonar ut sista ikonen för att visa att det scrollar */}
-        <div style={{
-          position: 'absolute', top: 0, right: 0, bottom: 0, width: 32,
-          background: T.isDark
-            ? 'linear-gradient(to right, transparent, rgba(18,18,18,0.75))'
-            : 'linear-gradient(to right, transparent, rgba(245,248,247,0.75))',
-          borderRadius: '0 28px 28px 0',
-          pointerEvents: 'none',
-          transition: 'opacity 0.3s',
-        }} />
+        {/* Peek-fade i höger kant — visas bara när fler än 5 ikoner finns */}
+        {TABS.length > SCROLL_NUDGE_THRESHOLD && (
+          <div style={{
+            position: 'absolute', top: 0, right: 0, bottom: 0, width: 32,
+            background: T.isDark
+              ? 'linear-gradient(to right, transparent, rgba(18,18,18,0.75))'
+              : 'linear-gradient(to right, transparent, rgba(245,248,247,0.75))',
+            borderRadius: '0 28px 28px 0',
+            pointerEvents: 'none',
+          }} />
+        )}
       </div>
 
     </div>
