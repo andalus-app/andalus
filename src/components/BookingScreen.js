@@ -1713,6 +1713,25 @@ function UserLogin({onSuccess, onBack, T}){
   const [loading,setLoading]=useState(false);
   const [error,setError]=useState('');
   const [userData,setUserData]=useState(null);
+  const lookupRef = React.useRef(null);
+
+  // Auto-sök när telefonnummer verkar komplett (10+ siffror efter normalisering)
+  const handlePhoneChange = (val) => {
+    setPhone(val);
+    setError('');
+    clearTimeout(lookupRef.current);
+    const norm = normalizePhone(val);
+    if(norm.length >= 10){
+      lookupRef.current = setTimeout(async () => {
+        const {data} = await supabase.from('app_users').select('id,name,role,invite_used,pin_hash').eq('phone',norm).maybeSingle();
+        if(data){
+          setUserData({...data,norm});
+          if(!data.invite_used) setStep('invite');
+          else setStep('pin');
+        }
+      }, 400);
+    }
+  };
 
   const handlePhoneNext=async()=>{
     if(!phone.trim()){setError('Ange ditt telefonnummer.');return;}
@@ -1787,11 +1806,11 @@ function UserLogin({onSuccess, onBack, T}){
       {step==='phone'&&<>
         <div style={{textAlign:'center',marginBottom:24}}>
           <div style={iconStyle}><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke={T.accent} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></div>
-          <div style={{fontSize:20,fontWeight:800,color:T.text}}>Logga in</div>
+          <div style={{fontSize:20,fontWeight:800,color:T.text}}>Åtkomst endast för behöriga</div>
           <div style={{fontSize:13,color:T.textMuted,marginTop:4}}>Ange ditt telefonnummer</div>
         </div>
         <div style={{display:'flex',flexDirection:'column',gap:12}}>
-          <input type="tel" value={phone} onChange={e=>{setPhone(e.target.value);setError('');}} onKeyDown={e=>e.key==='Enter'&&handlePhoneNext()} placeholder="07X-XXX XX XX" autoFocus
+          <input type="tel" value={phone} onChange={e=>handlePhoneChange(e.target.value)} onKeyDown={e=>e.key==='Enter'&&handlePhoneNext()} placeholder="07X-XXX XX XX" autoFocus
             style={{background:T.cardElevated,border:`1px solid ${T.border}`,borderRadius:12,padding:'13px 16px',fontSize:18,color:T.text,outline:'none',width:'100%',boxSizing:'border-box'}}/>
           {error&&<div style={{fontSize:13,color:T.error,textAlign:'center',background:`${T.error}15`,borderRadius:8,padding:'8px 12px'}}>{error}</div>}
           <button onClick={handlePhoneNext} disabled={loading} style={{background:T.accent,color:'#fff',border:'none',borderRadius:12,padding:'13px',fontSize:15,fontWeight:700,cursor:'pointer',WebkitTapHighlightColor:'transparent'}}>

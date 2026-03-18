@@ -360,7 +360,10 @@ export default function NewHomeScreen({ stream, onGoToAdminLogin, onGoToMyBookin
 
   return (
     <div
-      style={{ background: T.bg, minHeight: '100%', fontFamily: "'Inter',system-ui,sans-serif", padding: '0 14px' }}
+      style={{ background: T.bg, minHeight: '100%', fontFamily: "'Inter',system-ui,sans-serif",
+        paddingTop: isPWA ? 'max(12px, calc(env(safe-area-inset-top, 0px) + 4px))' : '12px',
+        paddingLeft: '14px', paddingRight: '14px',
+      }}
       onClick={() => setShowBellPanel(false)}
     >
       <style>{`
@@ -371,15 +374,14 @@ export default function NewHomeScreen({ stream, onGoToAdminLogin, onGoToMyBookin
         @keyframes liveCardRing{ 0%{box-shadow:0 0 0 2px rgba(255,0,0,0.2),0 4px 24px rgba(255,0,0,0.15)} 50%{box-shadow:0 0 0 4px rgba(255,0,0,0.08),0 4px 24px rgba(255,0,0,0.1)} 100%{box-shadow:0 0 0 2px rgba(255,0,0,0.2),0 4px 24px rgba(255,0,0,0.15)} }
       `}</style>
 
-      {/* ── TOP BAR — exakt samma struktur som HomeScreen/Bönetider ── */}
+      {/* ── TOP BAR — identisk struktur med HomeScreen/Bönetider ── */}
       <div style={{
         position: 'relative',
         textAlign: 'center',
         marginBottom: 16,
-        paddingTop: isPWA ? 'max(12px, calc(env(safe-area-inset-top, 0px) + 4px))' : '12px',
         minHeight: 104,
       }}>
-        {/* Logo — left:8, top:0, identiskt med HomeScreen */}
+        {/* Logo — top:0, left:8 — identiskt med HomeScreen */}
         <div style={{ position: 'absolute', top: 0, left: 8, pointerEvents: 'none', userSelect: 'none' }}>
           <AndalusLogo size={80} color={T.isDark ? T.accent : T.accent} />
         </div>
@@ -387,7 +389,7 @@ export default function NewHomeScreen({ stream, onGoToAdminLogin, onGoToMyBookin
         <div style={{ fontSize: 18, fontWeight: 600, color: T.text, letterSpacing: '-.3px', paddingTop: 20 }}>Hem</div>
 
         {/* Right side */}
-        <div style={{ position: 'absolute', top: 4, right: 18, display: 'flex', alignItems: 'center', gap: 0 }}>
+        <div style={{ position: 'absolute', top: 4, right: 4, display: 'flex', alignItems: 'center', gap: 0 }}>
 
           {/* Theme toggle — sun sets / moon rises with glow */}
           <style>{`

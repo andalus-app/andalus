@@ -65,15 +65,20 @@ export function useBookingNotifications() {
     const isAdmin = isAdminRef.current;
 
     try {
-      // 1. Besökar-notiser — alltid om enheten har en bokning
-      if (deviceId) {
+      // 1. Besökar-notiser — använd user_id om inloggad, annars device_id
+      const userId = localStorage.getItem('islamnu_user_id');
+      if (userId || deviceId) {
         const seenAt = parseInt(localStorage.getItem(STORAGE_VISITOR_SEEN) || '0', 10);
-        const { data } = await supabase
+        let query = supabase
           .from('bookings')
           .select('id, status, resolved_at, date, time_slot, admin_comment')
-          .eq('device_id', deviceId)
           .in('status', ['approved', 'rejected', 'cancelled', 'edited'])
           .gt('resolved_at', seenAt);
+        // Prioritera user_id om inloggad
+        if (userId) query = query.eq('user_id', userId);
+        else query = query.eq('device_id', deviceId);
+
+        const { data } = await query;
         if (data) {
           setVisitorUnread(data.length);
           setBellNotifs(data.map(b => ({
