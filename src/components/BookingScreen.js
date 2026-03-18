@@ -286,7 +286,7 @@ function ConfirmDialog({ title, message, confirmLabel, confirmColor='#ef4444', o
   const [text, setText] = useState('');
   const canConfirm = !requireText || text.trim().length > 0;
   return (
-    <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.5)',zIndex:1000,display:'flex',alignItems:'flex-end',justifyContent:'center'}} onClick={onCancel}>
+    <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.5)',zIndex:1000,display:'flex',alignItems:'flex-end',justifyContent:'center',overscrollBehavior:'none',touchAction:'none'}} onClick={onCancel}>
       <div onClick={e=>e.stopPropagation()} style={{background:T.card,borderRadius:'20px 20px 0 0',padding:'24px 20px 36px',width:'100%',maxWidth:500,boxSizing:'border-box',animation:'slideUp .25s cubic-bezier(0.32,0.72,0,1)'}}>
         <div style={{fontSize:18,fontWeight:800,color:T.text,marginBottom:8,fontFamily:'system-ui'}}>{title}</div>
         <div style={{fontSize:14,color:T.textMuted,marginBottom:16,fontFamily:'system-ui',lineHeight:1.5}}>{message}</div>
@@ -832,7 +832,7 @@ function MyBookings({ bookings, exceptions, loading, onBack, onCancel, onCancelF
 
         {/* Delete sheet — Outlook-stil */}
         {deleteSheet && (
-          <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.5)',zIndex:1000,display:'flex',alignItems:'flex-end',justifyContent:'center'}} onClick={()=>setDeleteSheet(null)}>
+          <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.5)',zIndex:1000,display:'flex',alignItems:'flex-end',justifyContent:'center',overscrollBehavior:'none',touchAction:'none'}} onClick={()=>setDeleteSheet(null)}>
             <div onClick={e=>e.stopPropagation()} style={{background:T.card,borderRadius:'20px 20px 0 0',padding:'24px 20px 36px',width:'100%',maxWidth:500,boxSizing:'border-box',animation:'slideUp .25s cubic-bezier(0.32,0.72,0,1)'}}>
               <div style={{fontSize:16,fontWeight:800,color:T.text,marginBottom:16,fontFamily:'system-ui'}}>
                 {deleteSheet.deleteAll ? 'Avboka hela serien?' : `Avboka ${isoToDisplay(deleteSheet.occurrence_date)}?`}
@@ -1127,8 +1127,31 @@ function AdminAddForm({ bookings, exceptions, onSubmit, onClose, T }) {
   };
 
   return (
-    <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.5)',zIndex:1000,display:'flex',alignItems:'flex-end',justifyContent:'center'}} onClick={onClose}>
-      <div onClick={e=>e.stopPropagation()} style={{background:T.card,borderRadius:'20px 20px 0 0',padding:'24px 20px 36px',width:'100%',maxWidth:500,boxSizing:'border-box',animation:'slideUp .25s cubic-bezier(0.32,0.72,0,1)',maxHeight:'90vh',overflowY:'auto'}}>
+    <div
+      style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.5)',zIndex:1000,display:'flex',alignItems:'flex-end',justifyContent:'center',overscrollBehavior:'none',touchAction:'none'}}
+      onClick={onClose}
+    >
+      <div
+        onClick={e=>e.stopPropagation()}
+        style={{
+          background:T.card,
+          borderRadius:'20px 20px 0 0',
+          width:'100%',
+          maxWidth:500,
+          boxSizing:'border-box',
+          animation:'slideUp .25s cubic-bezier(0.32,0.72,0,1)',
+          /* Use dvh so the sheet resizes when keyboard appears, keeping content reachable */
+          maxHeight:'85dvh',
+          height:'85dvh',
+          display:'flex',
+          flexDirection:'column',
+          /* Isolate stacking so tab bar (outside this tree) isn't affected */
+          isolation:'isolate',
+          willChange:'transform',
+        }}
+      >
+        {/* Scrollable body — only this div scrolls, not the page behind */}
+        <div style={{flex:1,overflowY:'auto',WebkitOverflowScrolling:'touch',padding:'24px 20px 36px',overscrollBehavior:'contain'}}>
         <div style={{fontSize:18,fontWeight:800,color:T.text,marginBottom:16,fontFamily:'system-ui'}}>Lägg till återkommande bokning</div>
 
         {step==='date' && <>
@@ -1184,7 +1207,8 @@ function AdminAddForm({ bookings, exceptions, onSubmit, onClose, T }) {
           </div>
           <button onClick={()=>setStep('time')} style={{marginTop:12,background:'none',border:'none',color:T.accent,cursor:'pointer',fontSize:13,fontWeight:600,fontFamily:'system-ui',padding:0}}>← Byt tid</button>
         </>}
-      </div>
+      </div>{/* end scroll body */}
+      </div>{/* end modal shell */}
     </div>
   );
 }
@@ -1518,7 +1542,7 @@ function ConflictDialog({ conflict, onBookAvailable, onCancel, T }) {
   const hasAvailable = availableDates.length > 0;
 
   return (
-    <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.6)',zIndex:2000,display:'flex',alignItems:'flex-end',justifyContent:'center'}} onClick={onCancel}>
+    <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.6)',zIndex:2000,display:'flex',alignItems:'flex-end',justifyContent:'center',overscrollBehavior:'none',touchAction:'none'}} onClick={onCancel}>
       <div onClick={e=>e.stopPropagation()} style={{background:T.card,borderRadius:'20px 20px 0 0',padding:'24px 20px 36px',width:'100%',maxWidth:500,boxSizing:'border-box',animation:'slideUp .25s cubic-bezier(0.32,0.72,0,1)',maxHeight:'80vh',overflowY:'auto'}}>
         <div style={{fontSize:18,fontWeight:800,color:'#ef4444',marginBottom:8,fontFamily:'system-ui',display:'flex',alignItems:'center',gap:8}}>
           ⚠️ Återkommande bokning krockar
