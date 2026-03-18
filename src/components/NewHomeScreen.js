@@ -307,7 +307,6 @@ function SwipeableItem({ onDismiss, children }) {
 /* ── Main screen ── */
 export default function NewHomeScreen({ stream, onGoToAdminLogin, onGoToMyBookings }) {
   const { theme: T, mode, setMode } = useTheme();
-  const isPWA = useIsPWA();
   const prevModeRef = React.useRef(mode);
   const [justToggled, setJustToggled] = React.useState(false);
   React.useEffect(() => {
@@ -375,21 +374,19 @@ export default function NewHomeScreen({ stream, onGoToAdminLogin, onGoToMyBookin
       <div style={{
         position: 'relative',
         display: 'flex', alignItems: 'center', justifyContent: 'center',
-        padding: 0,
-        // PWA: lägg till safe-area för notch/Dynamic Island ovanpå standard padding.
-        // Safari: webbläsarens chrome sköter det, ingen extra padding behövs.
-        paddingTop: isPWA ? 'env(safe-area-inset-top, 0px)' : 0,
-        minHeight: isPWA ? 'calc(104px + env(safe-area-inset-top, 0px))' : 104,
+        paddingTop: 'max(12px, env(safe-area-inset-top, 0px))',
+        paddingBottom: 0,
+        minHeight: 'calc(104px + max(0px, env(safe-area-inset-top, 0px) - 12px))',
       }}>
-        {/* Logo — left:22 matches HomeScreen outer padding(14) + left(8) */}
-        <div style={{ position: 'absolute', top: 12, left: 22, pointerEvents: 'none', userSelect: 'none' }}>
+        {/* Logo */}
+        <div style={{ position: 'absolute', top: 'max(12px, env(safe-area-inset-top, 0px))', left: 22, pointerEvents: 'none', userSelect: 'none' }}>
           <AndalusLogo size={80} color={T.isDark ? T.accent : T.accent} />
         </div>
 
-        <div style={{ fontSize: 18, fontWeight: 600, color: T.text, letterSpacing: '-.3px' }}>Hem</div>
+        <div style={{ fontSize: 18, fontWeight: 600, color: T.text, letterSpacing: '-.3px', marginTop: 'max(0px, calc(env(safe-area-inset-top, 0px) - 12px))' }}>Hem</div>
 
-        {/* Right side — absolute right, same pattern as Bönetider */}
-        <div style={{ position: 'absolute', top: 4, right: 18, display: 'flex', alignItems: 'center', gap: 0 }}>
+        {/* Right side */}
+        <div style={{ position: 'absolute', top: 'max(4px, calc(env(safe-area-inset-top, 0px) - 8px))', right: 18, display: 'flex', alignItems: 'center', gap: 0 }}>
 
           {/* Theme toggle — sun sets / moon rises with glow */}
           <style>{`
