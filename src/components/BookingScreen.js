@@ -1511,6 +1511,61 @@ function UserManagement({ onBack, T }) {
   );
 }
 
+// ── ConflictDialog — shown when a recurring booking clashes with existing ones ─
+
+function ConflictDialog({ conflict, onBookAvailable, onCancel, T }) {
+  const { conflicts, conflictDetails, availableDates, hasNoEndDate, formData } = conflict;
+  const hasAvailable = availableDates.length > 0;
+
+  return (
+    <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.6)',zIndex:2000,display:'flex',alignItems:'flex-end',justifyContent:'center'}} onClick={onCancel}>
+      <div onClick={e=>e.stopPropagation()} style={{background:T.card,borderRadius:'20px 20px 0 0',padding:'24px 20px 36px',width:'100%',maxWidth:500,boxSizing:'border-box',animation:'slideUp .25s cubic-bezier(0.32,0.72,0,1)',maxHeight:'80vh',overflowY:'auto'}}>
+        <div style={{fontSize:18,fontWeight:800,color:'#ef4444',marginBottom:8,fontFamily:'system-ui',display:'flex',alignItems:'center',gap:8}}>
+          ⚠️ Återkommande bokning krockar
+        </div>
+        <div style={{fontSize:13,color:T.textMuted,marginBottom:14,fontFamily:'system-ui',lineHeight:1.5}}>
+          Din återkommande bokning ({formData.time_slot} · {fmtDuration(formData.duration_hours)}) krockar med{' '}
+          <strong style={{color:T.text}}>{conflicts.length} befintlig{conflicts.length > 1 ? 'a bokningar' : ' bokning'}</strong>:
+        </div>
+
+        <div style={{background:T.cardElevated,borderRadius:12,padding:'12px 14px',marginBottom:16,border:`1px solid #ef444433`}}>
+          {conflicts.slice(0,5).map((c, i) => (
+            <div key={i} style={{paddingBottom: i < Math.min(conflicts.length,5)-1 ? 10 : 0, marginBottom: i < Math.min(conflicts.length,5)-1 ? 10 : 0, borderBottom: i < Math.min(conflicts.length,5)-1 ? `1px solid ${T.border}` : 'none'}}>
+              <div style={{fontSize:13,fontWeight:700,color:T.text,fontFamily:'system-ui'}}>{isoToDisplay(c.date)}</div>
+              <div style={{fontSize:12,color:'#ef4444',fontFamily:'system-ui'}}>{c.existingSlot} · {c.activity}</div>
+              <div style={{fontSize:11,color:T.textMuted,fontFamily:'system-ui'}}>Bokad av: {c.name}</div>
+            </div>
+          ))}
+          {conflicts.length > 5 && (
+            <div style={{fontSize:12,color:T.textMuted,marginTop:8,fontFamily:'system-ui'}}>...och {conflicts.length - 5} till.</div>
+          )}
+        </div>
+
+        <div style={{display:'flex',flexDirection:'column',gap:10}}>
+          {hasAvailable && (
+            <button onClick={()=>onBookAvailable(availableDates)}
+              style={{padding:'13px',borderRadius:12,border:'none',background:T.accent,color:'#fff',fontSize:14,fontWeight:700,cursor:'pointer',fontFamily:'system-ui',textAlign:'left',WebkitTapHighlightColor:'transparent'}}>
+              ✓ Boka {availableDates.length} lediga dag{availableDates.length !== 1 ? 'ar' : ''} och hoppa över krockarna
+              <div style={{fontSize:12,fontWeight:400,marginTop:3,opacity:.85}}>
+                {hasNoEndDate ? 'Hoppar permanent över dagar som redan är bokade' : 'Bokar bara de tillgängliga datumen'}
+              </div>
+            </button>
+          )}
+          {!hasAvailable && (
+            <div style={{padding:'12px 14px',borderRadius:12,background:'#ef444411',border:'1px solid #ef444433',fontSize:13,color:'#ef4444',fontFamily:'system-ui',fontWeight:600}}>
+              Inga lediga dagar finns inom serien. Välj en annan tid eller annat datum.
+            </div>
+          )}
+          <button onClick={onCancel}
+            style={{padding:'13px',borderRadius:12,border:`1px solid ${T.border}`,background:'none',color:T.text,fontSize:14,fontWeight:600,cursor:'pointer',fontFamily:'system-ui',WebkitTapHighlightColor:'transparent'}}>
+            Avbryt och ändra bokning
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── Main BookingScreen ────────────────────────────────────────────────────────
 
 export default function BookingScreen({
@@ -1526,6 +1581,7 @@ export default function BookingScreen({
   const [exceptions, setExceptions] = useState([]);
   const [dbLoading, setDbLoading] = useState(true);
   const [submitLoading, setSubmitLoading] = useState(false);
+  const [pendingConflict, setPendingConflict] = useState(null);
   const [toast, setToast] = useState('');
   const [view, setView] = useState(() => {
     const userId = localStorage.getItem(STORAGE_USER_ID);
@@ -1574,18 +1630,31 @@ export default function BookingScreen({
     return () => { clearTimeout(timer); supabase.removeChannel(ch); };
   }, [fetchAll]);
 
-  // Edge swipe back
+  // Edge swipe back — never allow unauthenticated calendar access
   useEffect(() => {
-    const handler = () => { setView('calendar'); };
+    const handler = () => {
+      const userId = localStorage.getItem(STORAGE_USER_ID);
+      if (!userId) {
+        setView('login');
+        return;
+      }
+      const role = localStorage.getItem(STORAGE_USER_ROLE);
+      if (role === 'admin') {
+        setView('admin');
+      } else {
+        setView('calendar');
+      }
+    };
     window.addEventListener('edgeSwipeBack', handler);
     return () => window.removeEventListener('edgeSwipeBack', handler);
   }, []); // eslint-disable-line
 
   // Tab bar hide/show based on view
   useEffect(() => {
-    if (view === 'admin' || view === 'my-bookings' || view === 'form') {
+    if (view === 'my-bookings' || view === 'form' || view === 'users') {
       onTabBarHide?.();
     } else {
+      // Admin panel and calendar both show the tab bar
       onTabBarShow?.();
     }
   }, [view]); // eslint-disable-line
@@ -1602,7 +1671,113 @@ export default function BookingScreen({
 
   const handleSubmitBooking = useCallback(async (formData) => {
     setSubmitLoading(true);
+
+    // ── Recurring conflict check ───────────────────────────────────────────
+    if (formData.recurrence !== 'none') {
+      const windowEnd = formData.end_date
+        ? formData.end_date
+        : (() => { const d=new Date(); d.setFullYear(d.getFullYear()+2); return toISO(d); })();
+
+      // Build a temporary booking object to expand its occurrences
+      const tempBooking = {
+        id: '__temp__',
+        start_date: formData.date,
+        end_date: formData.end_date || null,
+        recurrence: formData.recurrence,
+        time_slot: formData.time_slot,
+        duration_hours: formData.duration_hours,
+        status: 'pending',
+      };
+
+      const occurrences = expandBooking(tempBooking, formData.date, windowEnd, []);
+
+      // Check each occurrence against existing approved/pending bookings
+      const conflicts = [];
+      for (const occ of occurrences) {
+        const iso = occ.date;
+        const startH = parseSlotStart(formData.time_slot);
+        const dur = formData.duration_hours;
+
+        // Get booked blocks for this date (exclude our temp booking)
+        const occsOnDate = getOccurrencesForDate(bookings, exceptions, iso);
+        for (const existing of occsOnDate) {
+          if (existing.status === 'cancelled' || existing.status === 'rejected') continue;
+          const existStartH = parseSlotStart(existing.time_slot);
+          const existEnd = existStartH + existing.duration_hours;
+          const newEnd = startH + dur;
+          // Check overlap
+          if (startH < existEnd && newEnd > existStartH) {
+            conflicts.push({
+              date: iso,
+              existingSlot: existing.time_slot,
+              activity: existing.activity,
+              name: existing.name,
+            });
+            break; // one conflict per date is enough
+          }
+        }
+      }
+
+      if (conflicts.length > 0) {
+        setSubmitLoading(false);
+        // Build conflict message
+        const conflictDetails = conflicts.slice(0,5).map(c =>
+          `• ${isoToDisplay(c.date)}: ${c.existingSlot} — "${c.activity}" (${c.name})`
+        ).join('\n');
+        const moreText = conflicts.length > 5 ? `\n...och ${conflicts.length - 5} till.` : '';
+
+        const hasNoEndDate = !formData.end_date;
+        const availableDates = occurrences
+          .filter(occ => !conflicts.find(c => c.date === occ.date))
+          .map(occ => occ.date);
+
+        // Store conflict info for the UI prompt
+        setPendingConflict({
+          formData,
+          conflicts,
+          conflictDetails: conflictDetails + moreText,
+          availableDates,
+          hasNoEndDate,
+        });
+        return;
+      }
+    }
+
+    await _doSubmitBooking(formData);
+  }, [bookings, exceptions, loggedInUser, deviceId, showToast, activateForDevice]); // eslint-disable-line
+
+  const _doSubmitBooking = useCallback(async (formData, overrideDates = null) => {
+    setSubmitLoading(true);
     const userId = localStorage.getItem(STORAGE_USER_ID) || loggedInUser?.id || null;
+
+    if (overrideDates && overrideDates.length > 0 && formData.recurrence !== 'none') {
+      // Book only specific dates as individual non-recurring bookings
+      const inserts = overrideDates.map(date => ({
+        id: uid(),
+        name: formData.name,
+        phone: formData.phone,
+        activity: formData.activity,
+        time_slot: formData.time_slot,
+        duration_hours: formData.duration_hours,
+        start_date: date,
+        end_date: null,
+        recurrence: 'none',
+        status: 'pending',
+        admin_comment: '',
+        created_at: Date.now(),
+        resolved_at: null,
+        device_id: deviceId,
+        user_id: userId,
+      }));
+      const { error } = await supabase.from('bookings').insert(inserts);
+      setSubmitLoading(false);
+      if (error) { showToast(`Fel: ${error.message}`); return; }
+      activateForDevice?.();
+      showToast(`${inserts.length} bokningsförfrågningar skickade!`);
+      setView('my-bookings');
+      return;
+    }
+
     const booking = {
       id: uid(),
       name: formData.name,
@@ -1776,6 +1951,8 @@ export default function BookingScreen({
 
   const handleSelectSlot = useCallback((date, slotLbl, startH, durationHours, existingBooking) => {
     if (adminMode && existingBooking) { setView('admin'); return; }
+    const userId = localStorage.getItem(STORAGE_USER_ID);
+    if (!userId) { setView('login'); return; }
     setPendingSlot({ date, slotLabel:slotLbl, startH, durationHours });
     setView('form');
   }, [adminMode]);
@@ -1846,7 +2023,7 @@ export default function BookingScreen({
       {view === 'login' && (
         <UserLogin
           onSuccess={handleLoginSuccess}
-          onBack={loggedInUser ? ()=>setView('calendar') : undefined}
+          onBack={loggedInUser ? ()=>setView(localStorage.getItem(STORAGE_USER_ROLE)==='admin' ? 'admin' : 'calendar') : undefined}
           T={T}
         />
       )}
@@ -1866,6 +2043,19 @@ export default function BookingScreen({
           onRefreshNotifications={onRefreshNotifications}
           onMarkAdminSeen={onMarkAdminSeen}
           onManageUsers={()=>setView('users')}
+          T={T}
+        />
+      )}
+
+      {pendingConflict && (
+        <ConflictDialog
+          conflict={pendingConflict}
+          onBookAvailable={(availableDates) => {
+            const fd = pendingConflict.formData;
+            setPendingConflict(null);
+            _doSubmitBooking(fd, availableDates);
+          }}
+          onCancel={() => setPendingConflict(null)}
           T={T}
         />
       )}

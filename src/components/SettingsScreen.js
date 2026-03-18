@@ -19,15 +19,20 @@ function ModalSheet({ title, onClose, children, T, topContent }) {
   return (
     <div
       style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.65)', zIndex:9999,
-        display:'flex', alignItems:'flex-end', justifyContent:'center' }}
+        display:'flex', alignItems:'flex-end', justifyContent:'center',
+        /* Prevent keyboard from pushing overlay up on iOS */
+        bottom:0, top:0, overscrollBehavior:'none' }}
       onMouseDown={e => { if (e.target === e.currentTarget) onClose(); }}
       onTouchStart={e => { if (e.target === e.currentTarget) onClose(); }}
     >
       <div style={{
         background:T.bgSecondary, borderRadius:'22px 22px 0 0', width:'100%', maxWidth:500,
-        /* Fixed height — never jumps */
-        height:'72dvh', display:'flex', flexDirection:'column',
+        /* Fixed height — never jumps when keyboard opens */
+        height:'72dvh', maxHeight:'72dvh', display:'flex', flexDirection:'column',
         animation:'fadeUp .25s ease both',
+        position:'relative', bottom:0,
+        /* Prevent keyboard from resizing this sheet */
+        transform:'translateZ(0)',
       }}
         onMouseDown={e => e.stopPropagation()}
         onTouchStart={e => e.stopPropagation()}

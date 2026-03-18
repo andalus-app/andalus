@@ -154,17 +154,15 @@ export default function MonthlyScreen({ onBack }) {
         </div>
       </div>
 
-      {/* Sticky column header — scroll-hide together with top header */}
+      {/* Sticky column header — stays visible when header collapses */}
       {days.length > 0 && (
         <div style={{
           flexShrink:0, display:'flex', alignItems:'center',
           padding:'6px 14px',
           background:T.bgSecondary,
           borderBottom:`1px solid ${T.border}`,
-          maxHeight: headerVisible ? 300 : 0,
-        overflow: 'hidden',
-        transition: 'max-height 0.28s cubic-bezier(0.4, 0, 0.2, 1)',
           zIndex: 10,
+          position:'sticky', top:0,
         }}>
           {/* Day col */}
           <div style={{ width:DAY_W, flexShrink:0, fontSize:8, fontWeight:700, color:T.textMuted, textTransform:'uppercase', letterSpacing:.5 }}>Dag</div>
