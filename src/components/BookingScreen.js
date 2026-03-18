@@ -16,7 +16,6 @@ import { supabase } from '../services/supabaseClient';
 const ADMIN_PIN      = '4242';
 const STORAGE_ADMIN  = 'islamnu_admin_mode';
 const STORAGE_DEVICE    = 'islamnu_device_id';
-const STORAGE_EMAIL     = 'islamnu_user_email';
 const STORAGE_PHONE     = 'islamnu_user_phone';
 const STORAGE_PIN       = 'islamnu_user_pin';
 const STORAGE_PIN_HASH  = 'islamnu_user_pin_hash';
@@ -2157,7 +2156,7 @@ export default function BookingScreen({onBack, activateForDevice, registerAdminD
     }
 
     const rows=(formData.recur_dates||[formData.date]).map(iso=>({
-      id:uid(),name:formData.name,phone:formData.phone,email:'',
+      id:uid(),name:formData.name,phone:formData.phone,
       activity:formData.activity,date:iso,time_slot:formData.time_slot,
       duration_hours:formData.duration_hours,status:'pending',admin_comment:'',
       created_at:Date.now(),resolved_at:null,device_id:deviceId,
@@ -2287,7 +2286,7 @@ export default function BookingScreen({onBack, activateForDevice, registerAdminD
       const {error: delErr} = await supabase.from('bookings').delete().eq('id', data.id);
       if(delErr){ showToast('Något gick fel.'); setSubmitLoading(false); return; }
       const newBooking = {
-        id: uid(), name: original.name, phone: original.phone, email: '',
+        id: uid(), name: original.name, phone: original.phone,
         activity: data.activity, date: data.date, time_slot: data.time_slot,
         duration_hours: data.duration_hours, status: 'pending', admin_comment: '',
         created_at: Date.now(), resolved_at: null, device_id: deviceId,
@@ -2377,7 +2376,7 @@ export default function BookingScreen({onBack, activateForDevice, registerAdminD
   const handleAdminAddRecurring=useCallback(async(formData)=>{
     const groupId=uid();
     const rows=(formData.recur_dates||[formData.date]).map(iso=>({
-      id:uid(),name:formData.name,phone:formData.phone||'',email:'',
+      id:uid(),name:formData.name,phone:formData.phone||'',
       activity:formData.activity,date:iso,time_slot:formData.time_slot,
       duration_hours:formData.duration_hours,status:'approved',admin_comment:'',
       created_at:Date.now(),resolved_at:Date.now(),device_id:'admin',
