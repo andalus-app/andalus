@@ -168,10 +168,10 @@ export default function CompassSVG({ heading, qiblaDir, isAligned, alignDelta, t
 
       {/* ── STATIC NEEDLE — always points up, SVG from red-arrow.svg ── */}
       {(() => {
-        // Needle: tip at AR above center, base exactly at center pivot.
-        // Height = AR, width kept proportional but capped narrow.
-        const needleH = AR;
-        const needleW = needleH * (304 / 300) * 0.38; // 38% of natural width = slim needle
+        // Tip at AR above center, base at CR (inner circle edge) above center.
+        // Needle lives entirely above the pivot, touching the inner circle.
+        const needleH = AR - CR;
+        const needleW = needleH * (304 / 300) * 0.55;
         const nx = C - needleW / 2;
         const ny = C - AR;
         const col1 = isAligned ? green : '#af1917';
