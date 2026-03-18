@@ -24,88 +24,140 @@ function loadPdfJs() {
   return loadPromise;
 }
 
-// ── Cache version — bump this number to invalidate ALL cached thumbnails ──
-// e.g. when a PDF file is replaced or cover quality needs refresh
+// ── Cache version — bump to invalidate ALL cached thumbnails ──────────────────
 const COVER_CACHE_VERSION = 2;
+const DB_NAME    = 'pdfcovers';
+const DB_STORE   = 'covers';
+const DB_VERSION = 1;
 
-// ── Cache: in-memory (session) + localStorage (persistent) ────────────────
-// Cache key includes pdfPath so if the file changes (new upload), cache busts
+// ── In-memory cache (instant re-renders within a session) ────────────────────
 const MEM_CACHE = {};
 
 function getCacheKey(bookId, pdfPath) {
-  // Simple hash: bookId + last segment of path (filename) + version
   const fileName = pdfPath.split('/').pop();
   return `pdfcover_v${COVER_CACHE_VERSION}_${bookId}_${fileName}`;
 }
 
-function loadFromStorage(key) {
-  try { return localStorage.getItem(key); } catch { return null; }
+// ── IndexedDB helpers ─────────────────────────────────────────────────────────
+let _db = null;
+
+function openDB() {
+  if (_db) return Promise.resolve(_db);
+  return new Promise((resolve, reject) => {
+    const req = indexedDB.open(DB_NAME, DB_VERSION);
+    req.onupgradeneeded = e => {
+      e.target.result.createObjectStore(DB_STORE);
+    };
+    req.onsuccess = e => { _db = e.target.result; resolve(_db); };
+    req.onerror   = () => reject(req.error);
+  });
 }
 
-function saveToStorage(key, dataUrl) {
-  try { localStorage.setItem(key, dataUrl); } catch {
-    // localStorage full — clear old covers and try again
-    try {
-      Object.keys(localStorage)
-        .filter(k => k.startsWith('pdfcover_'))
-        .forEach(k => localStorage.removeItem(k));
-      localStorage.setItem(key, dataUrl);
-    } catch { /* ignore */ }
-  }
+async function idbGet(key) {
+  try {
+    const db = await openDB();
+    return new Promise((resolve) => {
+      const tx  = db.transaction(DB_STORE, 'readonly');
+      const req = tx.objectStore(DB_STORE).get(key);
+      req.onsuccess = () => resolve(req.result ?? null);
+      req.onerror   = () => resolve(null);
+    });
+  } catch { return null; }
 }
 
+async function idbSet(key, value) {
+  try {
+    const db = await openDB();
+    return new Promise((resolve) => {
+      const tx = db.transaction(DB_STORE, 'readwrite');
+      tx.objectStore(DB_STORE).put(value, key);
+      tx.oncomplete = () => resolve();
+      tx.onerror    = () => resolve();
+    });
+  } catch { /* ignore */ }
+}
+
+// ── Skeleton shimmer — matches Tailwind animate-pulse style ──────────────────
+function CoverSkeleton({ width, height, borderRadius }) {
+  return (
+    <div
+      style={{
+        width,
+        height,
+        borderRadius: borderRadius ?? 8,
+        flexShrink: 0,
+        background: 'linear-gradient(90deg, #222 25%, #333 50%, #222 75%)',
+        backgroundSize: '200% 100%',
+        animation: 'shimmer 1.6s ease-in-out infinite',
+      }}
+    />
+  );
+}
+
+// ── Main component ────────────────────────────────────────────────────────────
 export default function PdfCover({ pdfPath, bookId, width, height, fallback, style }) {
   const cacheKey = getCacheKey(bookId, pdfPath);
 
-  // Check memory cache first, then localStorage
-  const initialUrl = MEM_CACHE[cacheKey] || loadFromStorage(cacheKey);
+  // Synchronous memory-cache check — no loading flash on revisit
+  const [status,  setStatus]  = useState(() => MEM_CACHE[cacheKey] ? 'done' : 'loading');
+  const [dataUrl, setDataUrl] = useState(() => MEM_CACHE[cacheKey] || null);
 
-  const [status, setStatus] = useState(initialUrl ? 'done' : 'loading');
-  const [dataUrl, setDataUrl] = useState(initialUrl || null);
+  const mountedRef = useRef(true);
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => { mountedRef.current = false; };
+  }, []);
 
   useEffect(() => {
-    if (MEM_CACHE[cacheKey]) return; // already in memory
-
-    const stored = loadFromStorage(cacheKey);
-    if (stored) {
-      MEM_CACHE[cacheKey] = stored;
-      setDataUrl(stored);
-      setStatus('done');
-      return;
-    }
+    if (MEM_CACHE[cacheKey]) return; // already warm
 
     let cancelled = false;
 
-    async function render() {
+    async function load() {
+      // 1. IndexedDB — persistent across sessions, no 5 MB quota issue
+      const stored = await idbGet(cacheKey);
+      if (stored) {
+        MEM_CACHE[cacheKey] = stored;
+        if (!cancelled && mountedRef.current) {
+          setDataUrl(stored);
+          setStatus('done');
+        }
+        return;
+      }
+
+      // 2. Render first page from PDF
       try {
-        const lib = await loadPdfJs();
-        const pdf = await lib.getDocument(pdfPath).promise;
+        const lib  = await loadPdfJs();
+        const pdf  = await lib.getDocument(pdfPath).promise;
         const page = await pdf.getPage(1);
 
-        const viewport = page.getViewport({ scale: 1 });
-        const scale = Math.max(width / viewport.width, height / viewport.height) * window.devicePixelRatio;
-        const scaledViewport = page.getViewport({ scale });
+        const viewport0 = page.getViewport({ scale: 1 });
+        const scale     = Math.max(width / viewport0.width, height / viewport0.height)
+                          * Math.min(window.devicePixelRatio, 2); // cap 2× for perf
+        const vp        = page.getViewport({ scale });
 
         const canvas = document.createElement('canvas');
-        canvas.width = scaledViewport.width;
-        canvas.height = scaledViewport.height;
-        const ctx = canvas.getContext('2d');
+        canvas.width  = vp.width;
+        canvas.height = vp.height;
 
-        await page.render({ canvasContext: ctx, viewport: scaledViewport }).promise;
+        await page.render({ canvasContext: canvas.getContext('2d'), viewport: vp }).promise;
 
-        if (!cancelled) {
-          const url = canvas.toDataURL('image/jpeg', 0.82);
-          MEM_CACHE[cacheKey] = url;
-          saveToStorage(cacheKey, url);
+        if (cancelled) return;
+
+        const url = canvas.toDataURL('image/jpeg', 0.82);
+        MEM_CACHE[cacheKey] = url;
+        idbSet(cacheKey, url); // fire-and-forget persist
+
+        if (mountedRef.current) {
           setDataUrl(url);
           setStatus('done');
         }
-      } catch (err) {
-        if (!cancelled) setStatus('error');
+      } catch {
+        if (!cancelled && mountedRef.current) setStatus('error');
       }
     }
 
-    render();
+    load();
     return () => { cancelled = true; };
   }, [cacheKey, pdfPath, bookId, width, height]);
 
@@ -131,24 +183,10 @@ export default function PdfCover({ pdfPath, bookId, width, height, fallback, sty
     );
   }
 
-  return (
-    <div style={containerStyle}>
-      {fallback}
-      {status === 'loading' && (
-        <div style={{
-          position: 'absolute', inset: 0,
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-          background: 'rgba(0,0,0,0.25)',
-        }}>
-          <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
-          <div style={{
-            width: 18, height: 18, borderRadius: '50%',
-            border: '2px solid rgba(255,255,255,0.2)',
-            borderTopColor: 'rgba(255,255,255,0.8)',
-            animation: 'spin .7s linear infinite',
-          }} />
-        </div>
-      )}
-    </div>
-  );
+  if (status === 'loading') {
+    return <CoverSkeleton width={width} height={height} borderRadius={style?.borderRadius ?? 8} />;
+  }
+
+  // error — show CSS fallback
+  return <div style={containerStyle}>{fallback}</div>;
 }
