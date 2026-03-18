@@ -2061,10 +2061,20 @@ export default function BookingScreen({onBack, activateForDevice, registerAdminD
     setView('my-bookings');
   },[showToast, deviceId, activateForDevice]);
 
+  /* Optimistisk uppdatering — uppdatera lokal state direkt utan extra fetch */
+  const updateBookingLocally = useCallback((id, changes) => {
+    setBookings(prev => prev.map(b => b.id === id ? { ...b, ...changes } : b));
+  }, []);
+  const removeBookingLocally = useCallback((id) => {
+    setBookings(prev => prev.filter(b => b.id !== id));
+  }, []);
+  const addBookingLocally = useCallback((booking) => {
+    setBookings(prev => [booking, ...prev]);
+  }, []);
+
   /* Besökare återkallar/avbokar
      - pending / edit_pending → direkt, ingen förklaring krävs
      - approved / edited      → direkt men kräver förklaring, admin notifieras via resolved_at */
-  /* Återhämtning via telefon + PIN-kod */
   const handleVisitorCancel=useCallback(async(booking, reason)=>{
     const noApproval = ['pending','edit_pending'].includes(booking.status);
     const comment = noApproval ? 'Återkallad av besökaren.' : `Avbokad av besökaren: ${reason}`;
@@ -2102,17 +2112,6 @@ export default function BookingScreen({onBack, activateForDevice, registerAdminD
     ids.forEach(id => updateBookingLocally(id, changes));
     showToast(`${ids.length} tillfällen ${noApproval?'återkallade':'avbokade'}.`);
   },[showToast, updateBookingLocally]);
-
-  /* Optimistisk uppdatering — uppdatera lokal state direkt utan extra fetch */
-  const updateBookingLocally = useCallback((id, changes) => {
-    setBookings(prev => prev.map(b => b.id === id ? { ...b, ...changes } : b));
-  }, []);
-  const removeBookingLocally = useCallback((id) => {
-    setBookings(prev => prev.filter(b => b.id !== id));
-  }, []);
-  const addBookingLocally = useCallback((booking) => {
-    setBookings(prev => [booking, ...prev]);
-  }, []);
 
   /* Besökare redigerar bokning:
      - pending → ta bort gamla raden, skapa ny pending (frigör gamla platsen korrekt)
