@@ -6,12 +6,26 @@ import AboutScreen from './AboutScreen';
 import EbooksScreen from './EbooksScreen';
 import BookingScreen from './BookingScreen';
 import AsmaulHusnaScreen from './AsmaulHusnaScreen';
+import DhikrScreen from './DhikrScreen';
 import AboutIcon from '../icons/about-svgrepo-com.svg';
 import CharityIcon from '../icons/charity-svgrepo-com.svg';
 import SwishLogo from '../icons/swish-logo.svg';
 import BankgirotLogo from '../icons/bankgirot-logo.svg';
 
 const MENU_ITEMS = [
+  {
+    id: 'dhikr',
+    label: 'Dhikr',
+    sublabel: 'Åminnelse & böner',
+    svgIcon: (accent) => (
+      <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke={accent} strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
+        <circle cx="12" cy="12" r="10"/>
+        <path d="M12 6v6l4 2"/>
+        <circle cx="12" cy="12" r="2" fill={accent} stroke="none"/>
+      </svg>
+    ),
+    accentColor: '#2D8B78',
+  },
   {
     id: 'asmaul-husna',
     label: 'Allahs 99 namn',
@@ -50,22 +64,6 @@ const MENU_ITEMS = [
     accentColor: '#3A86C8',
   },
   {
-    id: 'booking',
-    label: 'Boka lokal',
-    sublabel: 'Boka en tid hos oss',
-    svgIcon: (accent) => (
-      <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke={accent} strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
-        <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
-        <line x1="16" y1="2" x2="16" y2="6"/>
-        <line x1="8" y1="2" x2="8" y2="6"/>
-        <line x1="3" y1="10" x2="21" y2="10"/>
-        <line x1="9" y1="15" x2="15" y2="15"/>
-        <line x1="12" y1="12" x2="12" y2="18"/>
-      </svg>
-    ),
-    accentColor: '#2D8B78',
-  },
-  {
     id: 'support',
     label: 'Stöd oss',
     sublabel: 'Bidra till islam.nu',
@@ -99,15 +97,15 @@ function GridCard({ item, onPress, T, badge = 0, adminBadge = 0, pulse = false }
       style={{
         background: T.card,
         border: `1px solid ${pulse ? '#f59e0b' : T.border}`,
-        borderRadius: 18,
-        padding: '18px 14px 14px',
+        borderRadius: 14,
+        padding: '12px 6px 10px',
         cursor: 'pointer',
         textAlign: 'center',
         WebkitTapHighlightColor: 'transparent',
         display: 'flex',
         flexDirection: 'column',
         alignItems: 'center',
-        gap: 8,
+        gap: 5,
         transition: 'transform .12s, border-color .3s',
         WebkitUserSelect: 'none',
         position: 'relative',
@@ -142,10 +140,10 @@ function GridCard({ item, onPress, T, badge = 0, adminBadge = 0, pulse = false }
         }}>{badge > 9 ? '9+' : badge}</div>
       )}
       <div style={{
-        width: 56, height: 56, borderRadius: 16,
+        width: 40, height: 40, borderRadius: 12,
         background: item.id === 'support' ? 'transparent' : `${accent}18`,
         display: 'flex', alignItems: 'center', justifyContent: 'center',
-        marginBottom: 2,
+        marginBottom: 1,
       }}>
         {item.svgIcon ? (
           item.svgIcon(accent)
@@ -168,14 +166,9 @@ function GridCard({ item, onPress, T, badge = 0, adminBadge = 0, pulse = false }
           />
         )}
       </div>
-      <div style={{ fontSize: 13, fontWeight: 700, color: T.text, fontFamily: 'system-ui', lineHeight: 1.2 }}>
+      <div style={{ fontSize: 11, fontWeight: 700, color: T.text, fontFamily: 'system-ui', lineHeight: 1.2, textAlign: 'center' }}>
         {item.label}
       </div>
-      {item.sublabel && (
-        <div style={{ fontSize: 10.5, color: T.textMuted, fontFamily: 'system-ui', lineHeight: 1.3 }}>
-          {item.sublabel}
-        </div>
-      )}
     </button>
   );
 }
@@ -378,6 +371,7 @@ export default function MoreScreen({ onTabBarHide, onTabBarShow, initialView, ma
     navigateTo('booking-admin-login');
   };
 
+  if (view === 'dhikr')        return <DhikrScreen onBack={() => { onTabBarShow?.(); backToMenu(); }} />;
   if (view === 'asmaul-husna') return <AsmaulHusnaScreen onBack={() => { onTabBarShow?.(); backToMenu(); }} onMount={() => onTabBarHide?.()} />;
   if (view === 'settings') return <SettingsScreen onBack={backToMenu} />;
   if (view === 'ebooks')   return <EbooksScreen onReaderOpen={() => {}} onReaderClose={() => {}} resetToLibrary={false} onTabBarHide={onTabBarHide} onTabBarShow={onTabBarShow} onBack={backToMenu} />;
@@ -454,8 +448,8 @@ export default function MoreScreen({ onTabBarHide, onTabBarShow, initialView, ma
       <div style={{ padding: '16px 16px 32px' }}>
         <div style={{
           display: 'grid',
-          gridTemplateColumns: 'repeat(2, 1fr)',
-          gap: 10,
+          gridTemplateColumns: 'repeat(4, 1fr)',
+          gap: 8,
         }}>
           {MENU_ITEMS.map(item => (
             <GridCard

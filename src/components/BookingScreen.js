@@ -2028,22 +2028,22 @@ export default function BookingScreen({onBack, activateForDevice, registerAdminD
 
   const showToast=useCallback((msg)=>{setToast(msg);setTimeout(()=>setToast(''),3000);},[]);
 
-  const fetchBookings=useCallback(async()=>{\
-    const {data,error}=await supabase.from('bookings').select('*').order('created_at',{ascending:false});\
-    if(!error&&data) setBookings(data);\
-    setDbLoading(false);\
-  },[]);\
+  const fetchBookings=useCallback(async()=>{
+    const {data,error}=await supabase.from('bookings').select('*').order('created_at',{ascending:false});
+    if(!error&&data) setBookings(data);
+    setDbLoading(false);
+  },[]);
 
-  useEffect(()=>{fetchBookings();},[fetchBookings]);\
-  useEffect(()=>{\
-    // Debounca realtime-events — batch-inserts (t.ex. 260 återkommande) triggar annars fetchBookings 260 ggr\
-    let debounceTimer = null;\
-    const debouncedFetch = () => {\
-      clearTimeout(debounceTimer);\
-      debounceTimer = setTimeout(() => fetchBookings(), 600);\
-    };\
-    const channel=supabase.channel('bookings-realtime').on('postgres_changes',{event:'*',schema:'public',table:'bookings'},debouncedFetch).subscribe();\
-    return ()=>{ clearTimeout(debounceTimer); supabase.removeChannel(channel); };\
+  useEffect(()=>{fetchBookings();},[fetchBookings]);
+  useEffect(()=>{
+    // Debounca realtime-events — batch-inserts (t.ex. 260 återkommande) triggar annars fetchBookings 260 ggr
+    let debounceTimer = null;
+    const debouncedFetch = () => {
+      clearTimeout(debounceTimer);
+      debounceTimer = setTimeout(() => fetchBookings(), 600);
+    };
+    const channel=supabase.channel('bookings-realtime').on('postgres_changes',{event:'*',schema:'public',table:'bookings'},debouncedFetch).subscribe();
+    return ()=>{ clearTimeout(debounceTimer); supabase.removeChannel(channel); };
   },[fetchBookings]);
   useEffect(()=>{
     const handler=()=>{
@@ -2262,28 +2262,28 @@ export default function BookingScreen({onBack, activateForDevice, registerAdminD
   },[showToast]);
 
   /* Admin lägger till återkommande */
-  const handleAdminAddRecurring=useCallback(async(formData)=>{\
-    const groupId=uid();\
-    const rows=(formData.recur_dates||[formData.date]).map(iso=>({\
-      id:uid(),name:formData.name,phone:formData.phone||'',\
-      activity:formData.activity,date:iso,time_slot:formData.time_slot,\
-      duration_hours:formData.duration_hours,status:'approved',admin_comment:'',\
-      created_at:Date.now(),resolved_at:Date.now(),device_id:'admin',\
-      recurrence:formData.recurrence,recurrence_group_id:groupId,\
-    }));\
-    // Optimistisk uppdatering — lägg till direkt i lokal state så kalendern uppdateras omedelbart\
-    setBookings(prev => [...rows, ...prev]);\
-    const BATCH=20;\
-    for(let i=0;i<rows.length;i+=BATCH){\
-      const {error}=await supabase.from('bookings').insert(rows.slice(i,i+BATCH));\
-      if(error){\
-        // Återställ vid fel\
-        setBookings(prev => prev.filter(b => b.recurrence_group_id !== groupId));\
-        showToast('Något gick fel.');\
-        return;\
-      }\
-    }\
-    showToast(`${rows.length} återkommande bokningar tillagda ✓`);\
+  const handleAdminAddRecurring=useCallback(async(formData)=>{
+    const groupId=uid();
+    const rows=(formData.recur_dates||[formData.date]).map(iso=>({
+      id:uid(),name:formData.name,phone:formData.phone||'',
+      activity:formData.activity,date:iso,time_slot:formData.time_slot,
+      duration_hours:formData.duration_hours,status:'approved',admin_comment:'',
+      created_at:Date.now(),resolved_at:Date.now(),device_id:'admin',
+      recurrence:formData.recurrence,recurrence_group_id:groupId,
+    }));
+    // Optimistisk uppdatering — lägg till direkt i lokal state så kalendern uppdateras omedelbart
+    setBookings(prev => [...rows, ...prev]);
+    const BATCH=20;
+    for(let i=0;i<rows.length;i+=BATCH){
+      const {error}=await supabase.from('bookings').insert(rows.slice(i,i+BATCH));
+      if(error){
+        // Återställ vid fel
+        setBookings(prev => prev.filter(b => b.recurrence_group_id !== groupId));
+        showToast('Något gick fel.');
+        return;
+      }
+    }
+    showToast(`${rows.length} återkommande bokningar tillagda ✓`);
   },[showToast]);
 
   const handleAdminLogin=useCallback(()=>{
