@@ -171,7 +171,7 @@ export default function CompassSVG({ heading, qiblaDir, isAligned, alignDelta, t
         const needleH = CR * 1.2;          // tall enough to clearly see
         const needleW = needleH * (304 / 300) * 0.55;
         const nx = C - needleW / 2;
-        const ny = C - AR + (AR - CR) * 0.15 - needleH * 0.25;
+        const ny = C - AR + (AR - CR) * 0.15 - needleH * 0.40;
         const col1 = isAligned ? green : '#af1917';
         const col2 = isAligned ? green : '#e52a1e';
         return (
