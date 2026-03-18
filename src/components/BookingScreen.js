@@ -742,7 +742,7 @@ function BookingForm({ date, slotLabel: slot, durationHours, onSubmit, onBack, l
 
 // ── MyBookings ────────────────────────────────────────────────────────────────
 
-function MyBookings({ bookings, exceptions, loading, onBack, onCancel, onCancelFromDate, onCancelSeries, highlightBookingId, T }) {
+function MyBookings({ bookings, exceptions, loading, onBack, onLogout, onCancel, onCancelFromDate, onCancelSeries, highlightBookingId, T }) {
   const [selected, setSelected] = useState(null);
   const [deleteSheet, setDeleteSheet] = useState(null); // {booking, occurrence_date}
   const highlightRef = useRef(null);
@@ -870,7 +870,16 @@ function MyBookings({ bookings, exceptions, loading, onBack, onCancel, onCancelF
 
   return (
     <div style={{paddingTop:'max(20px, env(safe-area-inset-top, 0px))',paddingLeft:'16px',paddingRight:'16px',paddingBottom:'20px',fontFamily:'system-ui'}}>
-      <BackButton onBack={onBack} T={T}/>
+      <div style={{display:'flex',alignItems:'center',justifyContent:'space-between'}}>
+        <BackButton onBack={onBack} T={T}/>
+        {onLogout && (
+          <button onClick={onLogout}
+            style={{display:'flex',alignItems:'center',gap:6,background:'#ef444411',border:'1px solid #ef444433',borderRadius:20,padding:'6px 12px',cursor:'pointer',color:'#ef4444',fontSize:12,fontWeight:700,fontFamily:'system-ui',WebkitTapHighlightColor:'transparent'}}>
+            <svg width=\"14\" height=\"14\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" strokeWidth=\"2\" strokeLinecap=\"round\" strokeLinejoin=\"round\"><path d=\"M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4\"/><polyline points=\"16 17 21 12 16 7\"/><line x1=\"21\" y1=\"12\" x2=\"9\" y2=\"12\"/></svg>
+            Logga ut
+          </button>
+        )}
+      </div>
       <div style={{fontSize:22,fontWeight:800,color:T.text,marginTop:16,marginBottom:16}}>Mina bokningar</div>
       {loading && <Spinner T={T}/>}
       {!loading && sorted.length === 0 && (
@@ -2040,6 +2049,7 @@ export default function BookingScreen({
         <MyBookings
           bookings={myBookings} exceptions={exceptions}
           loading={false} onBack={()=>setView('calendar')}
+          onLogout={!adminMode ? handleUserLogout : undefined}
           onCancel={handleCancelOccurrence}
           onCancelFromDate={handleCancelFromDate}
           onCancelSeries={handleCancelSeries}
