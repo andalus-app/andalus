@@ -785,7 +785,7 @@ function ConfirmationScreen({booking,onBack,T}){
 }
 
 /* ── MyBookings ── */
-function MyBookings({bookings, onViewConfirmation, onEdit, onCancel, onCancelOne, onCancelFromDate, onBack, highlightBookingId, T}){
+function MyBookings({bookings, loading, onViewConfirmation, onEdit, onCancel, onCancelOne, onCancelFromDate, onBack, highlightBookingId, T}){
   const [selectedGroup, setSelectedGroup] = useState(null);
   const [occurrenceSheet, setOccurrenceSheet] = useState(null);
   const highlightRef = useRef(null);
@@ -953,7 +953,33 @@ function MyBookings({bookings, onViewConfirmation, onEdit, onCancel, onCancelOne
     {pulseStyle}
     <BackButton onBack={onBack} T={T}/>
     <div style={{fontSize:22,fontWeight:800,color:T.text,letterSpacing:'-.4px',marginTop:16,marginBottom:20}}>Mina bokningar</div>
-    {groups.length===0
+    {loading
+      ? <div style={{display:'flex',flexDirection:'column',gap:10}}>
+          <style>{`@keyframes shimmer{0%{background-position:-400px 0}100%{background-position:400px 0}}`}</style>
+          {[1,2,3].map(i => {
+            const shimmer = T.isDark
+              ? 'linear-gradient(90deg, #1a1a1a 25%, #2a2a2a 50%, #1a1a1a 75%)'
+              : 'linear-gradient(90deg, #f0f4f3 25%, #e2ecea 50%, #f0f4f3 75%)';
+            const bar = (w, h, mb=0) => ({
+              width: w, height: h, borderRadius: 6, marginBottom: mb,
+              background: shimmer,
+              backgroundSize: '800px 100%',
+              animation: 'shimmer 1.4s ease-in-out infinite',
+              animationDelay: `${i * 0.1}s`,
+            });
+            return (
+              <div key={i} style={{background:T.card,border:`1px solid ${T.border}`,borderRadius:14,padding:'14px 16px'}}>
+                <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:8}}>
+                  <div style={bar('55%', 14)}/>
+                  <div style={bar(56, 22)}/>
+                </div>
+                <div style={bar('80%', 11, 6)}/>
+                <div style={bar('45%', 11)}/>
+              </div>
+            );
+          })}
+        </div>
+      : groups.length===0
       ?<div style={{display:'flex',flexDirection:'column',alignItems:'center',gap:14,paddingTop:32}}>
         <div style={{fontSize:40,marginBottom:4}}>📋</div>
         <div style={{fontSize:16,fontWeight:700,color:T.text}}>Inga bokningar hittades</div>
@@ -2002,16 +2028,22 @@ export default function BookingScreen({onBack, activateForDevice, registerAdminD
 
   const showToast=useCallback((msg)=>{setToast(msg);setTimeout(()=>setToast(''),3000);},[]);
 
-  const fetchBookings=useCallback(async()=>{
-    const {data,error}=await supabase.from('bookings').select('*').order('created_at',{ascending:false});
-    if(!error&&data) setBookings(data);
-    setDbLoading(false);
-  },[]);
+  const fetchBookings=useCallback(async()=>{\
+    const {data,error}=await supabase.from('bookings').select('*').order('created_at',{ascending:false});\
+    if(!error&&data) setBookings(data);\
+    setDbLoading(false);\
+  },[]);\
 
-  useEffect(()=>{fetchBookings();},[fetchBookings]);
-  useEffect(()=>{
-    const channel=supabase.channel('bookings-realtime').on('postgres_changes',{event:'*',schema:'public',table:'bookings'},()=>fetchBookings()).subscribe();
-    return ()=>supabase.removeChannel(channel);
+  useEffect(()=>{fetchBookings();},[fetchBookings]);\
+  useEffect(()=>{\
+    // Debounca realtime-events — batch-inserts (t.ex. 260 återkommande) triggar annars fetchBookings 260 ggr\
+    let debounceTimer = null;\
+    const debouncedFetch = () => {\
+      clearTimeout(debounceTimer);\
+      debounceTimer = setTimeout(() => fetchBookings(), 600);\
+    };\
+    const channel=supabase.channel('bookings-realtime').on('postgres_changes',{event:'*',schema:'public',table:'bookings'},debouncedFetch).subscribe();\
+    return ()=>{ clearTimeout(debounceTimer); supabase.removeChannel(channel); };\
   },[fetchBookings]);
   useEffect(()=>{
     const handler=()=>{
@@ -2230,21 +2262,28 @@ export default function BookingScreen({onBack, activateForDevice, registerAdminD
   },[showToast]);
 
   /* Admin lägger till återkommande */
-  const handleAdminAddRecurring=useCallback(async(formData)=>{
-    const groupId=uid();
-    const rows=(formData.recur_dates||[formData.date]).map(iso=>({
-      id:uid(),name:formData.name,phone:formData.phone||'',
-      activity:formData.activity,date:iso,time_slot:formData.time_slot,
-      duration_hours:formData.duration_hours,status:'approved',admin_comment:'',
-      created_at:Date.now(),resolved_at:Date.now(),device_id:'admin',
-      recurrence:formData.recurrence,recurrence_group_id:groupId,
-    }));
-    const BATCH=20;
-    for(let i=0;i<rows.length;i+=BATCH){
-      const {error}=await supabase.from('bookings').insert(rows.slice(i,i+BATCH));
-      if(error){showToast('Något gick fel.');return;}
-    }
-    showToast(`${rows.length} återkommande bokningar tillagda ✓`);
+  const handleAdminAddRecurring=useCallback(async(formData)=>{\
+    const groupId=uid();\
+    const rows=(formData.recur_dates||[formData.date]).map(iso=>({\
+      id:uid(),name:formData.name,phone:formData.phone||'',\
+      activity:formData.activity,date:iso,time_slot:formData.time_slot,\
+      duration_hours:formData.duration_hours,status:'approved',admin_comment:'',\
+      created_at:Date.now(),resolved_at:Date.now(),device_id:'admin',\
+      recurrence:formData.recurrence,recurrence_group_id:groupId,\
+    }));\
+    // Optimistisk uppdatering — lägg till direkt i lokal state så kalendern uppdateras omedelbart\
+    setBookings(prev => [...rows, ...prev]);\
+    const BATCH=20;\
+    for(let i=0;i<rows.length;i+=BATCH){\
+      const {error}=await supabase.from('bookings').insert(rows.slice(i,i+BATCH));\
+      if(error){\
+        // Återställ vid fel\
+        setBookings(prev => prev.filter(b => b.recurrence_group_id !== groupId));\
+        showToast('Något gick fel.');\
+        return;\
+      }\
+    }\
+    showToast(`${rows.length} återkommande bokningar tillagda ✓`);\
   },[showToast]);
 
   const handleAdminLogin=useCallback(()=>{
@@ -2320,6 +2359,7 @@ export default function BookingScreen({onBack, activateForDevice, registerAdminD
       />}
       <MyBookings
         bookings={myBookings}
+        loading={dbLoading}
         onViewConfirmation={setViewConfirmation}
         onEdit={(b)=>{setEditingBooking(b);setView('edit-booking');}}
         onCancel={(b)=>setCancelDialog(b)}
