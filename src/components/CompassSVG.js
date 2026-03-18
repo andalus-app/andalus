@@ -29,7 +29,6 @@ export default function CompassSVG({ heading, qiblaDir, isAligned, alignDelta, t
   const py = (a, r) => C + Math.sin(toRad(a)) * r;
 
   const green = '#4CAF82';
-  const red   = '#FF3B3B';
 
   // Kaaba position on ring at qiblaDir — it rotates with the ring
   // so when ring is rotated by ringRot, Kaaba ends up at screen angle = qiblaDir + ringRot = qiblaDir - heading
@@ -167,29 +166,42 @@ export default function CompassSVG({ heading, qiblaDir, isAligned, alignDelta, t
         );
       })()}
 
-      {/* ── STATIC RED ARROW — always points up ── */}
-      {/* Shaft */}
-      <line
-        x1={C} y1={C - (CR - 8)}
-        x2={C} y2={C - AR}
-        stroke={isAligned ? green : red}
-        strokeWidth="4" strokeLinecap="round"
-        filter={isAligned ? 'url(#cglow)' : 'url(#rglow)'} />
-      {/* Arrowhead */}
-      <polygon
-        points={`${C},${C - AR - 10} ${C - 10},${C - AR + 12} ${C + 10},${C - AR + 12}`}
-        fill={isAligned ? green : red}
-        filter={isAligned ? 'url(#cglow)' : 'url(#rglow)'} />
-      {/* Tail */}
-      <line
-        x1={C} y1={C + (CR - 8)}
-        x2={C} y2={C + 20}
-        stroke={isAligned ? green : red}
-        strokeWidth="2.5" strokeLinecap="round" opacity="0.3" />
+      {/* ── STATIC NEEDLE — always points up, SVG from red-arrow.svg ── */}
+      {/* The source SVG viewBox is 304×300. We scale it to fit inside the compass
+          and center it at (C, C). The needle tip is at the top (12 o'clock). */}
+      {(() => {
+        const needleH = AR * 2 + 20;   // total rendered height of needle
+        const needleW = needleH * (304 / 300); // keep aspect ratio
+        const nx = C - needleW / 2;
+        const ny = C - AR - 10;        // top of needle = arrow tip radius
+        const col1 = isAligned ? green : '#af1917'; // dark half
+        const col2 = isAligned ? green : '#e52a1e'; // light half
+        return (
+          <g filter={isAligned ? 'url(#cglow)' : 'url(#rglow)'}>
+            <svg
+              x={nx} y={ny}
+              width={needleW} height={needleH}
+              viewBox="0 0 304 300"
+              overflow="visible"
+            >
+              {/* Dark half (right side of needle) */}
+              <polygon
+                points="151.6,226 287.4,290.4 151.6,9.6"
+                fill={col1}
+              />
+              {/* Light half (left side of needle) */}
+              <polygon
+                points="151.6,226 15.9,290.4 151.6,9.6"
+                fill={col2}
+              />
+            </svg>
+          </g>
+        );
+      })()}
 
       {/* Pivot */}
-      <circle cx={C} cy={C} r={7} fill={isAligned ? green : red} opacity="0.2" />
-      <circle cx={C} cy={C} r={4} fill={isAligned ? green : red} />
+      <circle cx={C} cy={C} r={7} fill={isAligned ? green : '#e52a1e'} opacity="0.2" />
+      <circle cx={C} cy={C} r={4} fill={isAligned ? green : '#e52a1e'} />
       <circle cx={C} cy={C} r={2} fill={T.bg} />
 
       {/* Green ring when aligned */}
