@@ -1626,16 +1626,14 @@ function AdminPanel({bookings,onAction,onEdit,onDelete,onDeleteMany,onAddRecurri
         <div style={{fontSize:22,fontWeight:800,color:T.text,letterSpacing:'-.4px'}}>Adminpanel</div>
         {pending>0&&<div style={{background:'#f59e0b',color:'#fff',fontSize:11,fontWeight:700,borderRadius:10,padding:'3px 8px'}}>{pending} ny</div>}
       </div>
-      <div style={{display:'flex',gap:8,alignItems:'center'}}>
-        <button onClick={()=>setShowAddRecur(true)} style={{display:'flex',alignItems:'center',gap:6,background:'#8b5cf622',border:'1px solid #8b5cf644',borderRadius:10,padding:'7px 12px',cursor:'pointer',WebkitTapHighlightColor:'transparent'}}>
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#8b5cf6" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg>
-          <span style={{fontSize:12,fontWeight:700,color:'#8b5cf6',fontFamily:'system-ui'}}>Återkommande</span>
+      <div style={{display:'flex',gap:6,alignItems:'center',flexShrink:0}}>
+        <button onClick={()=>setShowAddRecur(true)} title="Återkommande bokningar" style={{width:36,height:36,display:'flex',alignItems:'center',justifyContent:'center',background:'#8b5cf622',border:'1px solid #8b5cf644',borderRadius:10,cursor:'pointer',WebkitTapHighlightColor:'transparent'}}>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#8b5cf6" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg>
         </button>
-        {onManageUsers&&<button onClick={onManageUsers} style={{display:'flex',alignItems:'center',gap:6,background:`${T.accent}18`,border:`1px solid ${T.accent}44`,borderRadius:10,padding:'7px 12px',cursor:'pointer',WebkitTapHighlightColor:'transparent'}}>
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={T.accent} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
-          <span style={{fontSize:12,fontWeight:700,color:T.accent,fontFamily:'system-ui'}}>Konton</span>
+        {onManageUsers&&<button onClick={onManageUsers} title="Hantera konton" style={{width:36,height:36,display:'flex',alignItems:'center',justifyContent:'center',background:`${T.accent}18`,border:`1px solid ${T.accent}44`,borderRadius:10,cursor:'pointer',WebkitTapHighlightColor:'transparent'}}>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={T.accent} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
         </button>}
-        {onLogout&&<button onClick={onLogout} style={{width:36,height:36,display:'flex',alignItems:'center',justifyContent:'center',background:'#ef444418',border:'1px solid #ef444433',borderRadius:10,cursor:'pointer',WebkitTapHighlightColor:'transparent'}} title="Logga ut">
+        {onLogout&&<button onClick={onLogout} title="Logga ut" style={{width:36,height:36,display:'flex',alignItems:'center',justifyContent:'center',background:'#ef444418',border:'1px solid #ef444433',borderRadius:10,cursor:'pointer',WebkitTapHighlightColor:'transparent'}}>
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#ef4444" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
         </button>}
       </div>
