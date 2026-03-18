@@ -14,12 +14,16 @@ import { useTheme } from '../context/ThemeContext';
 import { useScrollHide } from '../hooks/useScrollHide';
 import { supabase } from '../services/supabaseClient';
 
-const ADMIN_PIN       = '4242';
 const STORAGE_ADMIN   = 'islamnu_admin_mode';
 const STORAGE_DEVICE  = 'islamnu_device_id';
 const STORAGE_PHONE   = 'islamnu_user_phone';
 const STORAGE_USER_ID = 'islamnu_user_id';
 const STORAGE_USER_NAME = 'islamnu_user_name';
+const STORAGE_USER_ROLE = 'islamnu_user_role';
+
+function generateInviteCode() {
+  return String(Math.floor(100000 + Math.random() * 900000));
+}
 
 const OPEN_HOUR  = 8;
 const CLOSE_HOUR = 24;
@@ -904,7 +908,7 @@ function MyBookings({ bookings, exceptions, loading, onBack, onCancel, onCancelF
 
 // ── AdminPanel ────────────────────────────────────────────────────────────────
 
-function AdminPanel({ bookings, exceptions, onBack, onApprove, onReject, onDelete, onDeleteSeries, onDeleteFromDate, onAdminAddRecurring, onRefreshNotifications, onMarkAdminSeen, T }) {
+function AdminPanel({ bookings, exceptions, onBack, onApprove, onReject, onDelete, onDeleteSeries, onDeleteFromDate, onAdminAddRecurring, onRefreshNotifications, onMarkAdminSeen, onManageUsers, T }) {
   const [filter, setFilter] = useState('all');
   const [selected, setSelected] = useState(null);
   const [actionLoading, setActionLoading] = useState(false);
@@ -1041,6 +1045,10 @@ function AdminPanel({ bookings, exceptions, onBack, onApprove, onReject, onDelet
       <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:16}}>
         <div style={{fontSize:22,fontWeight:800,color:T.text,letterSpacing:'-.4px'}}>Adminpanel</div>
         <div style={{display:'flex',gap:8}}>
+          <button onClick={()=>onManageUsers?.()} title="Hantera konton"
+            style={{width:40,height:40,borderRadius:12,border:`1px solid ${T.border}`,background:T.card,display:'flex',alignItems:'center',justifyContent:'center',cursor:'pointer',color:T.text,WebkitTapHighlightColor:'transparent'}}>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+          </button>
           <button onClick={()=>setAddForm({})} title="Lägg till bokning"
             style={{width:40,height:40,borderRadius:12,border:`1px solid ${T.border}`,background:T.card,display:'flex',alignItems:'center',justifyContent:'center',cursor:'pointer',color:T.text,WebkitTapHighlightColor:'transparent'}}>
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
@@ -1183,104 +1191,322 @@ function AdminAddForm({ bookings, exceptions, onSubmit, onClose, T }) {
 
 // ── Login screens ─────────────────────────────────────────────────────────────
 
-function LoginScreen({ onLogin, onBack, T }) {
-  const [step, setStep] = useState('phone');
+// Full UserLogin: telefon → engångskod (första gången) → välj PIN → inloggad
+function UserLogin({ onSuccess, onBack, T }) {
+  const [step, setStep] = useState('phone'); // phone|invite|setpin|pin
   const [phone, setPhone] = useState('');
   const [pin, setPin] = useState('');
+  const [inviteCode, setInviteCode] = useState('');
   const [newPin, setNewPin] = useState('');
   const [newPin2, setNewPin2] = useState('');
-  const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+  const [userData, setUserData] = useState(null);
+  const lookupRef = useRef(null);
 
-  const handlePhoneSubmit = async () => {
-    const norm = normalizePhone(phone);
-    if (norm.length < 7) { setError('Ange ett giltigt telefonnummer.'); return; }
-    setLoading(true);
-    const { data } = await supabase.from('app_users').select('id,name,role,pin_hash').eq('phone',norm).maybeSingle();
-    setLoading(false);
-    if (!data) { setError('Inget konto hittades. Kontakta admin för att skapa konto.'); return; }
-    localStorage.setItem(STORAGE_PHONE, norm);
-    localStorage.setItem(STORAGE_USER_ID, data.id);
-    localStorage.setItem(STORAGE_USER_NAME, data.name);
-    if (!data.pin_hash) { setStep('set-pin'); }
-    else { setStep('pin'); }
+  const handlePhoneChange = (val) => {
+    setPhone(val); setError('');
+    clearTimeout(lookupRef.current);
+    const norm = normalizePhone(val);
+    if (norm.length >= 10) {
+      lookupRef.current = setTimeout(async () => {
+        const { data } = await supabase.from('app_users').select('id,name,role,invite_used,pin_hash,deleted_at').eq('phone',norm).maybeSingle();
+        if (data && !data.deleted_at) {
+          setUserData({...data, norm});
+          setStep(data.invite_used ? 'pin' : 'invite');
+        }
+      }, 400);
+    }
   };
 
-  const handlePinSubmit = async () => {
+  const handlePhoneNext = async () => {
+    if (!phone.trim()) { setError('Ange ditt telefonnummer.'); return; }
+    setLoading(true); setError('');
     const norm = normalizePhone(phone);
-    const { data } = await supabase.from('app_users').select('id,name,role,pin_hash').eq('phone',norm).maybeSingle();
-    if (!data) { setError('Fel uppstod.'); return; }
-    setLoading(true);
-    const hash = await sha256(pin);
+    const { data } = await supabase.from('app_users').select('id,name,role,invite_used,pin_hash,deleted_at').eq('phone',norm).maybeSingle();
     setLoading(false);
-    if (hash !== data.pin_hash) { setError('Fel PIN. Försök igen.'); return; }
-    onLogin({ id:data.id, name:data.name, role:data.role });
+    if (!data || data.deleted_at) { setError('Inget konto hittades. Kontakta admin för att få ett konto.'); return; }
+    setUserData({...data, norm});
+    setStep(data.invite_used ? 'pin' : 'invite');
+  };
+
+  const handleInviteSubmit = async () => {
+    if (inviteCode.length !== 6) { setError('Ange 6-siffrig inbjudningskod.'); return; }
+    setLoading(true); setError('');
+    const { data } = await supabase.from('app_users').select('invite_code').eq('id',userData.id).maybeSingle();
+    if (data?.invite_code !== inviteCode) { setLoading(false); setError('Fel kod. Kontrollera koden med admin.'); return; }
+    setLoading(false);
+    setStep('setpin');
   };
 
   const handleSetPin = async () => {
     if (newPin.length < 4) { setError('PIN måste vara minst 4 siffror.'); return; }
     if (newPin !== newPin2) { setError('PIN-koderna matchar inte.'); return; }
-    const norm = normalizePhone(phone);
-    setLoading(true);
-    const hash = await sha256(newPin);
-    await supabase.from('app_users').update({ pin_hash:hash }).eq('phone',norm);
-    const { data } = await supabase.from('app_users').select('id,name,role').eq('phone',norm).maybeSingle();
+    setLoading(true); setError('');
+    const pinHash = await sha256(userData.norm + ':' + newPin);
+    await supabase.from('app_users').update({ pin_hash:pinHash, invite_used:true, invite_code:null, last_login:Date.now() }).eq('id',userData.id);
     setLoading(false);
-    if (data) onLogin({ id:data.id, name:data.name, role:data.role });
+    localStorage.setItem(STORAGE_USER_ID, userData.id);
+    localStorage.setItem(STORAGE_USER_NAME, userData.name);
+    localStorage.setItem(STORAGE_USER_ROLE, userData.role);
+    localStorage.setItem(STORAGE_PHONE, userData.norm);
+    if (userData.role === 'admin') localStorage.setItem(STORAGE_ADMIN, 'true');
+    onSuccess({ id:userData.id, name:userData.name, role:userData.role });
   };
+
+  const handlePinSubmit = async () => {
+    setLoading(true); setError('');
+    const pinHash = await sha256(userData.norm + ':' + pin);
+    if (pinHash !== userData.pin_hash) { setLoading(false); setError('Fel PIN-kod. Försök igen.'); setPin(''); return; }
+    await supabase.from('app_users').update({ last_login:Date.now() }).eq('id',userData.id);
+    setLoading(false);
+    localStorage.setItem(STORAGE_USER_ID, userData.id);
+    localStorage.setItem(STORAGE_USER_NAME, userData.name);
+    localStorage.setItem(STORAGE_USER_ROLE, userData.role);
+    localStorage.setItem(STORAGE_PHONE, userData.norm);
+    if (userData.role === 'admin') localStorage.setItem(STORAGE_ADMIN, 'true');
+    else localStorage.removeItem(STORAGE_ADMIN);
+    onSuccess({ id:userData.id, name:userData.name, role:userData.role });
+  };
+
+  const iconStyle = { width:56,height:56,borderRadius:'50%',background:`${T.accent}22`,display:'flex',alignItems:'center',justifyContent:'center',margin:'0 auto 14px' };
 
   return (
     <div style={{paddingTop:'max(20px, env(safe-area-inset-top, 0px))',paddingLeft:'16px',paddingRight:'16px',paddingBottom:'20px',fontFamily:'system-ui'}}>
       <BackButton onBack={onBack} T={T}/>
-      <div style={{fontSize:22,fontWeight:800,color:T.text,marginTop:20,marginBottom:6}}>Logga in</div>
-      <div style={{fontSize:14,color:T.textMuted,marginBottom:24}}>Logga in för att boka och hantera dina bokningar.</div>
-      {step==='phone'&&<>
-        <Input label="TELEFONNUMMER" value={phone} onChange={v=>{setPhone(v);setError('');}} type="tel" placeholder="07XX XXX XXX" required T={T}/>
-        {error&&<div style={{fontSize:13,color:'#ef4444',background:'#ef444418',padding:'10px 14px',borderRadius:8,marginTop:8}}>{error}</div>}
-        <button onClick={handlePhoneSubmit} disabled={loading} style={{marginTop:16,width:'100%',padding:'14px',borderRadius:12,border:'none',background:T.accent,color:'#fff',fontSize:16,fontWeight:700,cursor:'pointer',fontFamily:'system-ui'}}>
-          {loading?'Kontrollerar...':'Fortsätt →'}
-        </button>
-      </>}
-      {step==='pin'&&<>
-        <input type="password" inputMode="numeric" maxLength={6} value={pin} onChange={e=>{setPin(e.target.value.replace(/\D/g,'').slice(0,6));setError('');}}
-          onKeyDown={e=>e.key==='Enter'&&handlePinSubmit()} placeholder="PIN-kod" autoFocus
-          style={{background:T.cardElevated,border:`1px solid ${T.border}`,borderRadius:10,padding:'14px',fontSize:24,color:T.text,fontFamily:'system-ui',outline:'none',width:'100%',boxSizing:'border-box',textAlign:'center',letterSpacing:8}}/>
-        {error&&<div style={{fontSize:13,color:'#ef4444',background:'#ef444418',padding:'10px 14px',borderRadius:8,marginTop:8}}>{error}</div>}
-        <button onClick={handlePinSubmit} disabled={loading} style={{marginTop:16,width:'100%',padding:'14px',borderRadius:12,border:'none',background:T.accent,color:'#fff',fontSize:16,fontWeight:700,cursor:'pointer',fontFamily:'system-ui'}}>
-          {loading?'Loggar in...':'Logga in'}
-        </button>
-      </>}
-      {step==='set-pin'&&<>
-        <div style={{fontSize:14,color:T.textMuted,marginBottom:16}}>Välj en PIN-kod för att skydda ditt konto.</div>
-        <input type="password" inputMode="numeric" maxLength={6} value={newPin} onChange={e=>{setNewPin(e.target.value.replace(/\D/g,'').slice(0,6));setError('');}} placeholder="Välj PIN (4-6 siffror)"
-          style={{background:T.cardElevated,border:`1px solid ${T.border}`,borderRadius:10,padding:'14px',fontSize:24,color:T.text,fontFamily:'system-ui',outline:'none',width:'100%',boxSizing:'border-box',textAlign:'center',letterSpacing:8,marginBottom:10}}/>
-        <input type="password" inputMode="numeric" maxLength={6} value={newPin2} onChange={e=>{setNewPin2(e.target.value.replace(/\D/g,'').slice(0,6));setError('');}} placeholder="Upprepa PIN"
-          style={{background:T.cardElevated,border:`1px solid ${T.border}`,borderRadius:10,padding:'14px',fontSize:24,color:T.text,fontFamily:'system-ui',outline:'none',width:'100%',boxSizing:'border-box',textAlign:'center',letterSpacing:8}}/>
-        {error&&<div style={{fontSize:13,color:'#ef4444',background:'#ef444418',padding:'10px 14px',borderRadius:8,marginTop:8}}>{error}</div>}
-        <button onClick={handleSetPin} disabled={loading} style={{marginTop:16,width:'100%',padding:'14px',borderRadius:12,border:'none',background:T.accent,color:'#fff',fontSize:16,fontWeight:700,cursor:'pointer',fontFamily:'system-ui'}}>
-          {loading?'Sparar...':'Spara PIN & logga in'}
-        </button>
-      </>}
+      <div style={{marginTop:24,maxWidth:340,margin:'24px auto 0'}}>
+        {step==='phone'&&<>
+          <div style={{textAlign:'center',marginBottom:24}}>
+            <div style={iconStyle}><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke={T.accent} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></div>
+            <div style={{fontSize:20,fontWeight:800,color:T.text}}>Åtkomst endast för behöriga</div>
+            <div style={{fontSize:13,color:T.textMuted,marginTop:4}}>Ange ditt telefonnummer</div>
+          </div>
+          <input type="tel" value={phone} onChange={e=>handlePhoneChange(e.target.value)} onKeyDown={e=>e.key==='Enter'&&handlePhoneNext()} placeholder="07X-XXX XX XX" autoFocus
+            style={{background:T.cardElevated,border:`1px solid ${T.border}`,borderRadius:12,padding:'13px 16px',fontSize:18,color:T.text,outline:'none',width:'100%',boxSizing:'border-box'}}/>
+          {error&&<div style={{fontSize:13,color:'#ef4444',background:'#ef444418',padding:'10px 14px',borderRadius:8,marginTop:8}}>{error}</div>}
+          <button onClick={handlePhoneNext} disabled={loading}
+            style={{marginTop:16,width:'100%',padding:'14px',borderRadius:12,border:'none',background:T.accent,color:'#fff',fontSize:16,fontWeight:700,cursor:'pointer'}}>
+            {loading?'Kontrollerar...':'Fortsätt →'}
+          </button>
+        </>}
+
+        {step==='invite'&&<>
+          <div style={{textAlign:'center',marginBottom:24}}>
+            <div style={iconStyle}><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke={T.accent} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></div>
+            <div style={{fontSize:20,fontWeight:800,color:T.text}}>Välkommen, {userData?.name}</div>
+            <div style={{fontSize:13,color:T.textMuted,marginTop:4}}>Ange din 6-siffriga inbjudningskod från admin</div>
+          </div>
+          <input type="tel" inputMode="numeric" maxLength={6} value={inviteCode} onChange={e=>{setInviteCode(e.target.value.replace(/\D/g,'').slice(0,6));setError('');}} placeholder="- - - - - -"
+            style={{background:T.cardElevated,border:`1px solid ${T.border}`,borderRadius:12,padding:'14px',fontSize:28,color:T.text,outline:'none',width:'100%',boxSizing:'border-box',textAlign:'center',letterSpacing:12}}/>
+          {error&&<div style={{fontSize:13,color:'#ef4444',background:'#ef444418',padding:'10px 14px',borderRadius:8,marginTop:8}}>{error}</div>}
+          <button onClick={handleInviteSubmit} disabled={loading}
+            style={{marginTop:16,width:'100%',padding:'14px',borderRadius:12,border:'none',background:T.accent,color:'#fff',fontSize:16,fontWeight:700,cursor:'pointer'}}>
+            {loading?'Kontrollerar...':'Verifiera kod →'}
+          </button>
+          <button onClick={()=>{setStep('phone');setError('');}} style={{marginTop:10,background:'none',border:'none',color:T.textMuted,cursor:'pointer',fontSize:13,width:'100%'}}>← Byt telefonnummer</button>
+        </>}
+
+        {step==='setpin'&&<>
+          <div style={{textAlign:'center',marginBottom:24}}>
+            <div style={iconStyle}><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke={T.accent} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></div>
+            <div style={{fontSize:20,fontWeight:800,color:T.text}}>Välj PIN-kod</div>
+            <div style={{fontSize:13,color:T.textMuted,marginTop:4}}>Används vid framtida inloggning</div>
+          </div>
+          <input type="password" inputMode="numeric" maxLength={6} value={newPin} onChange={e=>{setNewPin(e.target.value.replace(/\D/g,'').slice(0,6));setError('');}} placeholder="Välj PIN (4-6 siffror)"
+            style={{background:T.cardElevated,border:`1px solid ${T.border}`,borderRadius:12,padding:'14px',fontSize:24,color:T.text,outline:'none',width:'100%',boxSizing:'border-box',textAlign:'center',letterSpacing:8,marginBottom:10}}/>
+          <input type="password" inputMode="numeric" maxLength={6} value={newPin2} onChange={e=>{setNewPin2(e.target.value.replace(/\D/g,'').slice(0,6));setError('');}} placeholder="Upprepa PIN"
+            style={{background:T.cardElevated,border:`1px solid ${T.border}`,borderRadius:12,padding:'14px',fontSize:24,color:T.text,outline:'none',width:'100%',boxSizing:'border-box',textAlign:'center',letterSpacing:8}}/>
+          {error&&<div style={{fontSize:13,color:'#ef4444',background:'#ef444418',padding:'10px 14px',borderRadius:8,marginTop:8}}>{error}</div>}
+          <button onClick={handleSetPin} disabled={loading}
+            style={{marginTop:16,width:'100%',padding:'14px',borderRadius:12,border:'none',background:T.accent,color:'#fff',fontSize:16,fontWeight:700,cursor:'pointer'}}>
+            {loading?'Sparar...':'Spara PIN & logga in'}
+          </button>
+        </>}
+
+        {step==='pin'&&<>
+          <div style={{textAlign:'center',marginBottom:24}}>
+            <div style={iconStyle}><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke={T.accent} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></div>
+            <div style={{fontSize:20,fontWeight:800,color:T.text}}>Välkommen, {userData?.name}</div>
+            <div style={{fontSize:13,color:T.textMuted,marginTop:4}}>Ange din PIN-kod</div>
+          </div>
+          <input type="password" inputMode="numeric" maxLength={6} value={pin} onChange={e=>{setPin(e.target.value.replace(/\D/g,'').slice(0,6));setError('');}} onKeyDown={e=>e.key==='Enter'&&handlePinSubmit()} placeholder="PIN-kod" autoFocus
+            style={{background:T.cardElevated,border:`1px solid ${T.border}`,borderRadius:12,padding:'14px',fontSize:28,color:T.text,outline:'none',width:'100%',boxSizing:'border-box',textAlign:'center',letterSpacing:12}}/>
+          {error&&<div style={{fontSize:13,color:'#ef4444',background:'#ef444418',padding:'10px 14px',borderRadius:8,marginTop:8}}>{error}</div>}
+          <button onClick={handlePinSubmit} disabled={loading}
+            style={{marginTop:16,width:'100%',padding:'14px',borderRadius:12,border:'none',background:T.accent,color:'#fff',fontSize:16,fontWeight:700,cursor:'pointer'}}>
+            {loading?'Loggar in...':'Logga in'}
+          </button>
+          <button onClick={()=>{setStep('phone');setPhone('');setError('');setUserData(null);}} style={{marginTop:10,background:'none',border:'none',color:T.textMuted,cursor:'pointer',fontSize:13,width:'100%'}}>← Byt konto</button>
+        </>}
+      </div>
     </div>
   );
 }
 
-function AdminLoginScreen({ onLogin, onBack, T }) {
-  const [pin, setPin] = useState('');
+// ── UserManagement — admin skapar/hanterar konton ─────────────────────────────
+
+function UserManagement({ onBack, T }) {
+  const [users, setUsers] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [showCreate, setShowCreate] = useState(false);
+  const [form, setForm] = useState({ name:'', phone:'', role:'user' });
+  const [creating, setCreating] = useState(false);
+  const [newInvite, setNewInvite] = useState(null);
+  const [resetTarget, setResetTarget] = useState(null);
+  const [deleteTarget, setDeleteTarget] = useState(null);
+  const [deleting, setDeleting] = useState(false);
   const [error, setError] = useState('');
-  const handleSubmit = () => {
-    if (pin === ADMIN_PIN) { onLogin(); }
-    else { setError('Fel PIN-kod.'); setPin(''); }
+  const currentUserId = localStorage.getItem(STORAGE_USER_ID);
+
+  const load = async () => {
+    setLoading(true);
+    const { data } = await supabase.from('app_users').select('id,name,phone,role,invite_used,created_at,last_login,deleted_at,deleted_by_name').order('created_at',{ascending:false});
+    if (data) setUsers(data);
+    setLoading(false);
   };
+  useEffect(()=>{ load(); },[]);// eslint-disable-line
+
+  const handleCreate = async () => {
+    if (!form.name.trim()||!form.phone.trim()) { setError('Namn och telefon krävs.'); return; }
+    setCreating(true); setError('');
+    const norm = normalizePhone(form.phone);
+    const existing = await supabase.from('app_users').select('id').eq('phone',norm).maybeSingle();
+    if (existing.data) { setCreating(false); setError('Det finns redan ett konto med detta telefonnummer.'); return; }
+    const code = generateInviteCode();
+    const { error:err } = await supabase.from('app_users').insert([{
+      id:uid(), name:form.name.trim(), phone:norm, role:form.role,
+      invite_code:code, invite_used:false,
+      created_by:currentUserId, created_at:Date.now(), last_login:null, pin_hash:null,
+    }]);
+    setCreating(false);
+    if (err) { setError('Kunde inte skapa konto: '+err.message); return; }
+    setNewInvite({ name:form.name.trim(), code, phone:norm });
+    setForm({ name:'', phone:'', role:'user' });
+    setShowCreate(false);
+    load();
+  };
+
+  const handleResetPin = async (user) => {
+    const code = generateInviteCode();
+    await supabase.from('app_users').update({ invite_code:code, invite_used:false, pin_hash:null }).eq('id',user.id);
+    setResetTarget({...user, code});
+    load();
+  };
+
+  const handleDelete = async () => {
+    if (!deleteTarget) return;
+    setDeleting(true);
+    const adminName = localStorage.getItem(STORAGE_USER_NAME)||'Okänd admin';
+    const adminId   = localStorage.getItem(STORAGE_USER_ID)||'?';
+    await supabase.from('app_users').update({ deleted_at:Date.now(), deleted_by_id:adminId, deleted_by_name:adminName, pin_hash:null, invite_code:null }).eq('id',deleteTarget.id);
+    setDeleting(false); setDeleteTarget(null); load();
+  };
+
+  const roleLabel = r => r==='admin'?'Admin':'Användare';
+  const roleBg    = r => r==='admin'?'#f59e0b22':'#22c55e22';
+  const roleColor = r => r==='admin'?'#f59e0b':'#22c55e';
+
   return (
-    <div style={{paddingTop:'max(20px, env(safe-area-inset-top, 0px))',paddingLeft:'16px',paddingRight:'16px',paddingBottom:'20px',fontFamily:'system-ui'}}>
+    <div style={{paddingTop:'max(20px, env(safe-area-inset-top, 0px))',paddingLeft:'16px',paddingRight:'16px',paddingBottom:'20px',fontFamily:'system-ui',minHeight:'100%',background:T.bg}}>
       <BackButton onBack={onBack} T={T}/>
-      <div style={{fontSize:22,fontWeight:800,color:T.text,marginTop:20,marginBottom:24}}>Admin-inloggning</div>
-      <input type="password" inputMode="numeric" maxLength={6} value={pin} onChange={e=>{setPin(e.target.value.replace(/\D/g,'').slice(0,6));setError('');}}
-        onKeyDown={e=>e.key==='Enter'&&handleSubmit()} placeholder="PIN-kod" autoFocus
-        style={{background:T.cardElevated,border:`1px solid ${T.border}`,borderRadius:10,padding:'14px',fontSize:24,color:T.text,fontFamily:'system-ui',outline:'none',width:'100%',boxSizing:'border-box',textAlign:'center',letterSpacing:8}}/>
-      {error&&<div style={{fontSize:13,color:'#ef4444',background:'#ef444418',padding:'10px 14px',borderRadius:8,marginTop:8}}>{error}</div>}
-      <button onClick={handleSubmit} style={{marginTop:16,width:'100%',padding:'14px',borderRadius:12,border:'none',background:T.accent,color:'#fff',fontSize:16,fontWeight:700,cursor:'pointer',fontFamily:'system-ui'}}>Logga in</button>
+      <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginTop:16,marginBottom:20}}>
+        <div style={{fontSize:22,fontWeight:800,color:T.text}}>Hantera konton</div>
+        <button onClick={()=>setShowCreate(v=>!v)} style={{background:T.accent,color:'#fff',border:'none',borderRadius:12,padding:'8px 16px',fontSize:13,fontWeight:700,cursor:'pointer',WebkitTapHighlightColor:'transparent',display:'flex',alignItems:'center',gap:6}}>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          Nytt konto
+        </button>
+      </div>
+
+      {(newInvite||resetTarget)&&<div style={{background:`${T.accent}18`,border:`1px solid ${T.accent}44`,borderRadius:16,padding:16,marginBottom:16}}>
+        <div style={{fontSize:13,fontWeight:700,color:T.accent,marginBottom:8}}>
+          {newInvite?`✓ Konto skapat för ${newInvite.name}`:`✓ Ny kod för ${resetTarget.name}`}
+        </div>
+        <div style={{fontSize:12,color:T.textMuted,marginBottom:10}}>Dela denna engångskod med användaren. Den används bara en gång.</div>
+        <div style={{display:'flex',alignItems:'center',gap:10,background:T.bg,borderRadius:10,padding:'10px 14px'}}>
+          <span style={{fontSize:28,fontWeight:800,color:T.accent,letterSpacing:8,fontVariantNumeric:'tabular-nums'}}>{newInvite?.code||resetTarget?.code}</span>
+          <button onClick={()=>navigator.clipboard?.writeText(newInvite?.code||resetTarget?.code)} style={{background:'none',border:`1px solid ${T.border}`,borderRadius:8,padding:'5px 10px',fontSize:12,color:T.textMuted,cursor:'pointer'}}>Kopiera</button>
+        </div>
+        <div style={{fontSize:11,color:T.textMuted,marginTop:8}}>Tel: {newInvite?.phone||resetTarget?.phone}</div>
+        <button onClick={()=>{setNewInvite(null);setResetTarget(null);}} style={{marginTop:10,background:'none',border:'none',color:T.textMuted,cursor:'pointer',fontSize:12}}>Stäng ×</button>
+      </div>}
+
+      {showCreate&&<div style={{background:T.card,border:`1px solid ${T.border}`,borderRadius:16,padding:16,marginBottom:16}}>
+        <div style={{fontSize:15,fontWeight:700,color:T.text,marginBottom:14}}>Skapa nytt konto</div>
+        <div style={{display:'flex',flexDirection:'column',gap:10}}>
+          <Input label="NAMN" value={form.name} onChange={v=>setForm(p=>({...p,name:v}))} placeholder="Personens namn" required T={T}/>
+          <Input label="TELEFON" value={form.phone} onChange={v=>setForm(p=>({...p,phone:v}))} placeholder="07X-XXX XX XX" required T={T} type="tel"/>
+          <div>
+            <label style={{fontSize:12,fontWeight:600,color:T.textMuted,letterSpacing:'.3px'}}>ROLL</label>
+            <div style={{display:'flex',gap:8,marginTop:6}}>
+              {['user','admin'].map(r=>(
+                <button key={r} onClick={()=>setForm(p=>({...p,role:r}))} style={{flex:1,padding:'10px',borderRadius:10,border:`1px solid ${form.role===r?T.accent:T.border}`,background:form.role===r?`${T.accent}18`:'none',color:form.role===r?T.accent:T.textMuted,fontWeight:600,fontSize:13,cursor:'pointer',WebkitTapHighlightColor:'transparent'}}>
+                  {r==='admin'?'Admin':'Användare'}
+                </button>
+              ))}
+            </div>
+          </div>
+          {error&&<div style={{fontSize:13,color:'#ef4444',background:'#ef444415',borderRadius:8,padding:'8px 12px'}}>{error}</div>}
+          <div style={{display:'flex',gap:8}}>
+            <button onClick={()=>{setShowCreate(false);setError('');}} style={{flex:1,padding:'11px',borderRadius:10,border:`1px solid ${T.border}`,background:'none',color:T.textMuted,fontWeight:600,cursor:'pointer'}}>Avbryt</button>
+            <button onClick={handleCreate} disabled={creating} style={{flex:1,padding:'11px',borderRadius:10,border:'none',background:T.accent,color:'#fff',fontWeight:700,cursor:'pointer',WebkitTapHighlightColor:'transparent'}}>{creating?'Skapar...':'Skapa konto'}</button>
+          </div>
+        </div>
+      </div>}
+
+      {deleteTarget&&<div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.6)',zIndex:100,display:'flex',alignItems:'flex-end',justifyContent:'center',padding:'0 16px 32px'}}>
+        <div style={{background:T.card,borderRadius:20,padding:24,width:'100%',maxWidth:400}}>
+          <div style={{fontSize:17,fontWeight:800,color:T.text,marginBottom:8}}>Radera konto?</div>
+          <div style={{fontSize:13,color:T.textMuted,marginBottom:6,lineHeight:1.5}}><strong style={{color:T.text}}>{deleteTarget.name}</strong> ({deleteTarget.phone})</div>
+          <div style={{fontSize:12,color:T.textMuted,marginBottom:20,lineHeight:1.5,background:'#ef444411',borderRadius:8,padding:'8px 12px',border:'1px solid #ef444433'}}>
+            Kontot inaktiveras. Deras bokningar påverkas inte. Raderingen loggas med ditt namn.
+          </div>
+          <div style={{display:'flex',gap:10}}>
+            <button onClick={()=>setDeleteTarget(null)} style={{flex:1,padding:'12px',borderRadius:12,border:`1px solid ${T.border}`,background:'none',color:T.text,fontWeight:600,cursor:'pointer',fontSize:14}}>Avbryt</button>
+            <button onClick={handleDelete} disabled={deleting} style={{flex:1,padding:'12px',borderRadius:12,border:'none',background:'#ef4444',color:'#fff',fontWeight:700,cursor:'pointer',fontSize:14,WebkitTapHighlightColor:'transparent'}}>
+              {deleting?'Raderar...':'Radera konto'}
+            </button>
+          </div>
+        </div>
+      </div>}
+
+      {loading ? <Spinner T={T}/> : <>
+        <div style={{display:'flex',flexDirection:'column',gap:8}}>
+          {users.filter(u=>!u.deleted_at).length===0&&<div style={{textAlign:'center',color:T.textMuted,padding:'40px 0'}}>Inga aktiva konton</div>}
+          {users.filter(u=>!u.deleted_at).map(u=>(
+            <div key={u.id} style={{background:T.card,border:`1px solid ${T.border}`,borderRadius:14,padding:'14px 16px'}}>
+              <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:6}}>
+                <div style={{display:'flex',alignItems:'center',gap:8,flexWrap:'wrap'}}>
+                  <div style={{fontSize:15,fontWeight:700,color:T.text}}>{u.name}</div>
+                  <span style={{background:roleBg(u.role),color:roleColor(u.role),borderRadius:8,fontSize:11,fontWeight:700,padding:'2px 8px'}}>{roleLabel(u.role)}</span>
+                  {!u.invite_used&&<span style={{background:'#f59e0b22',color:'#f59e0b',borderRadius:8,fontSize:10,fontWeight:700,padding:'2px 7px'}}>Ej aktiverat</span>}
+                </div>
+                {u.id!==currentUserId&&<button onClick={()=>setDeleteTarget(u)} style={{background:'#ef444418',border:'1px solid #ef444433',borderRadius:8,cursor:'pointer',color:'#ef4444',fontSize:12,fontWeight:600,padding:'4px 10px',WebkitTapHighlightColor:'transparent'}}>Radera</button>}
+              </div>
+              <div style={{fontSize:12,color:T.textMuted,marginBottom:8}}>{u.phone}</div>
+              <div style={{display:'flex',gap:6}}>
+                <button onClick={()=>handleResetPin(u)} style={{padding:'5px 12px',borderRadius:8,border:`1px solid ${T.border}`,background:T.cardElevated,color:T.textMuted,fontSize:12,fontWeight:600,cursor:'pointer',WebkitTapHighlightColor:'transparent'}}>
+                  Ny inbjudningskod
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+        {users.filter(u=>u.deleted_at).length>0&&<>
+          <div style={{fontSize:12,fontWeight:700,color:T.textMuted,letterSpacing:'.5px',marginTop:24,marginBottom:10}}>RADERADE KONTON</div>
+          <div style={{display:'flex',flexDirection:'column',gap:8}}>
+            {users.filter(u=>u.deleted_at).map(u=>(
+              <div key={u.id} style={{background:T.card,border:'1px solid #ef444433',borderRadius:14,padding:'14px 16px',opacity:0.7}}>
+                <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:4}}>
+                  <div style={{fontSize:14,fontWeight:700,color:T.textMuted,textDecoration:'line-through'}}>{u.name}</div>
+                  <span style={{background:'#ef444422',color:'#ef4444',borderRadius:8,fontSize:10,fontWeight:700,padding:'2px 8px'}}>Raderat</span>
+                </div>
+                <div style={{fontSize:12,color:T.textMuted,marginBottom:4}}>{u.phone}</div>
+                <div style={{fontSize:11,color:T.textMuted}}>Raderades av <strong style={{color:T.text}}>{u.deleted_by_name||'Okänd'}</strong>{u.deleted_at&&<> · {new Date(u.deleted_at).toLocaleDateString('sv-SE')}</>}</div>
+              </div>
+            ))}
+          </div>
+        </>}
+      </>}
     </div>
   );
 }
@@ -1302,8 +1528,10 @@ export default function BookingScreen({
   const [submitLoading, setSubmitLoading] = useState(false);
   const [toast, setToast] = useState('');
   const [view, setView] = useState(() => {
-    if (startAtAdmin || localStorage.getItem(STORAGE_ADMIN)==='true') return 'admin';
-    if (startAtAdminLogin) return 'admin-login';
+    const userId = localStorage.getItem(STORAGE_USER_ID);
+    const role   = localStorage.getItem(STORAGE_USER_ROLE);
+    if (!userId) return 'login'; // always show login first if not authenticated
+    if (startAtAdmin || role === 'admin') return 'admin';
     return 'calendar';
   });
   const [pendingSlot, setPendingSlot] = useState(null);
@@ -1501,28 +1729,56 @@ export default function BookingScreen({
     showToast('Återkommande bokning tillagd ✓');
   }, [showToast]);
 
-  const handleAdminLogin = useCallback(() => {
-    localStorage.setItem(STORAGE_ADMIN, 'true');
-    setAdminMode(true);
-    setView('admin');
-    showToast('Välkommen, admin');
-    registerAdminDevice?.();
+  // Called when UserLogin succeeds — handle both admin and regular user
+  const handleLoginSuccess = useCallback((user) => {
+    setLoggedInUser(user);
+    localStorage.setItem(STORAGE_USER_ID, user.id);
+    localStorage.setItem(STORAGE_USER_NAME, user.name);
+    localStorage.setItem(STORAGE_USER_ROLE, user.role);
+    if (user.role === 'admin') {
+      localStorage.setItem(STORAGE_ADMIN, 'true');
+      setAdminMode(true);
+      registerAdminDevice?.();
+      setView('admin');
+      showToast(`Välkommen, ${user.name}`);
+    } else {
+      localStorage.removeItem(STORAGE_ADMIN);
+      setAdminMode(false);
+      setView('calendar');
+      showToast(`Välkommen, ${user.name}`);
+    }
   }, [showToast, registerAdminDevice]);
 
+  const handleAdminLogin = handleLoginSuccess; // kept for compatibility
+
   const handleAdminLogout = useCallback(() => {
-    localStorage.setItem(STORAGE_ADMIN, 'false');
+    localStorage.removeItem(STORAGE_ADMIN);
+    localStorage.removeItem(STORAGE_USER_ID);
+    localStorage.removeItem(STORAGE_USER_NAME);
+    localStorage.removeItem(STORAGE_USER_ROLE);
     setAdminMode(false);
-    setView('calendar');
+    setLoggedInUser(null);
+    setView('login');
     showToast('Utloggad');
     dismissAdminDevice?.();
   }, [showToast, dismissAdminDevice]);
 
+  const handleUserLogout = useCallback(() => {
+    localStorage.removeItem(STORAGE_USER_ID);
+    localStorage.removeItem(STORAGE_USER_NAME);
+    localStorage.removeItem(STORAGE_USER_ROLE);
+    localStorage.removeItem(STORAGE_ADMIN);
+    setLoggedInUser(null);
+    setAdminMode(false);
+    setView('login');
+    showToast('Utloggad');
+  }, [showToast]);
+
   const handleSelectSlot = useCallback((date, slotLbl, startH, durationHours, existingBooking) => {
     if (adminMode && existingBooking) { setView('admin'); return; }
-    if (!loggedInUser) { setView('login'); return; }
     setPendingSlot({ date, slotLabel:slotLbl, startH, durationHours });
     setView('form');
-  }, [adminMode, loggedInUser]);
+  }, [adminMode]);
 
   // ── Render ─────────────────────────────────────────────────────────────────
 
@@ -1549,22 +1805,15 @@ export default function BookingScreen({
           <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:20}}>
             <div style={{fontSize:22,fontWeight:800,color:T.text,letterSpacing:'-.4px'}}>Boka lokal</div>
             <div style={{display:'flex',gap:8}}>
-              {!adminMode && (
-                <button onClick={()=>setView(loggedInUser?'my-bookings':'login')}
-                  style={{padding:'7px 14px',borderRadius:20,border:`1px solid ${T.border}`,background:T.card,color:T.text,fontSize:12,fontWeight:600,cursor:'pointer',fontFamily:'system-ui',WebkitTapHighlightColor:'transparent',display:'flex',alignItems:'center',gap:6}}>
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
-                  {loggedInUser ? loggedInUser.name : 'Logga in'}
-                </button>
-              )}
-              {adminMode ? (
+              <button onClick={()=>setView('my-bookings')}
+                style={{padding:'7px 14px',borderRadius:20,border:`1px solid ${T.border}`,background:T.card,color:T.text,fontSize:12,fontWeight:600,cursor:'pointer',fontFamily:'system-ui',WebkitTapHighlightColor:'transparent',display:'flex',alignItems:'center',gap:6}}>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+                {loggedInUser?.name || 'Mitt konto'}
+              </button>
+              {adminMode && (
                 <button onClick={()=>setView('admin')}
-                  style={{padding:'7px 14px',borderRadius:20,border:`1px solid #f59e0b44`,background:'#f59e0b18',color:'#f59e0b',fontSize:12,fontWeight:700,cursor:'pointer',fontFamily:'system-ui',WebkitTapHighlightColor:'transparent'}}>
+                  style={{padding:'7px 14px',borderRadius:20,border:'1px solid #f59e0b44',background:'#f59e0b18',color:'#f59e0b',fontSize:12,fontWeight:700,cursor:'pointer',fontFamily:'system-ui',WebkitTapHighlightColor:'transparent'}}>
                   Adminpanel →
-                </button>
-              ) : (
-                <button onClick={()=>setView('admin-login')}
-                  style={{padding:'7px 14px',borderRadius:20,border:`1px solid ${T.border}`,background:T.card,color:T.textMuted,fontSize:12,fontWeight:600,cursor:'pointer',fontFamily:'system-ui',WebkitTapHighlightColor:'transparent'}}>
-                  Admin
                 </button>
               )}
             </div>
@@ -1595,14 +1844,15 @@ export default function BookingScreen({
       )}
 
       {view === 'login' && (
-        <LoginScreen
-          onLogin={(user)=>{ setLoggedInUser(user); localStorage.setItem(STORAGE_USER_ID,user.id); localStorage.setItem(STORAGE_USER_NAME,user.name); setView('my-bookings'); }}
-          onBack={()=>setView('calendar')} T={T}
+        <UserLogin
+          onSuccess={handleLoginSuccess}
+          onBack={loggedInUser ? ()=>setView('calendar') : undefined}
+          T={T}
         />
       )}
 
-      {view === 'admin-login' && (
-        <AdminLoginScreen onLogin={handleAdminLogin} onBack={()=>setView('calendar')} T={T}/>
+      {view === 'users' && (
+        <UserManagement onBack={()=>setView('admin')} T={T}/>
       )}
 
       {view === 'admin' && (
@@ -1615,6 +1865,7 @@ export default function BookingScreen({
           onAdminAddRecurring={handleAdminAddRecurring}
           onRefreshNotifications={onRefreshNotifications}
           onMarkAdminSeen={onMarkAdminSeen}
+          onManageUsers={()=>setView('users')}
           T={T}
         />
       )}
