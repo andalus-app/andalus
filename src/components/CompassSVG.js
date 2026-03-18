@@ -166,13 +166,12 @@ export default function CompassSVG({ heading, qiblaDir, isAligned, alignDelta, t
         );
       })()}
 
-      {/* ── STATIC NEEDLE — always points up, near N ── */}
+      {/* ── STATIC NEEDLE — clearly visible, positioned near N ── */}
       {(() => {
-        // 40% smaller than previous size, positioned near the N tick
-        const needleH = (AR - CR) * 0.6;
-        const needleW = needleH * (304 / 300) * 0.6;
+        const needleH = CR * 1.2;          // tall enough to clearly see
+        const needleW = needleH * (304 / 300) * 0.55;
         const nx = C - needleW / 2;
-        const ny = C - AR + 4;   // just inside the tick ring, near N
+        const ny = C - AR - 2;             // tip at top of tick ring near N
         const col1 = isAligned ? green : '#af1917';
         const col2 = isAligned ? green : '#e52a1e';
         return (
