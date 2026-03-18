@@ -7,6 +7,11 @@ import EbooksScreen from './EbooksScreen';
 import BookingScreen from './BookingScreen';
 import AsmaulHusnaScreen from './AsmaulHusnaScreen';
 import DhikrScreen from './DhikrScreen';
+import AboutIcon from '../icons/about-svgrepo-com.svg';
+import CharityIcon from '../icons/charity-svgrepo-com.svg';
+import SwishLogo from '../icons/swish-logo.svg';
+import BankgirotLogo from '../icons/bankgirot-logo.svg';
+import DhikrMenuIcon from '../icons/dhikr-menu.svg';
 
 /* ── Kalender+klocka-ikon för Boka lokal ── */
 function CalendarClockIcon({ size = 26, color = 'currentColor', style }) {
@@ -18,11 +23,6 @@ function CalendarClockIcon({ size = 26, color = 'currentColor', style }) {
     </svg>
   );
 }
-import AboutIcon from '../icons/about-svgrepo-com.svg';
-import CharityIcon from '../icons/charity-svgrepo-com.svg';
-import SwishLogo from '../icons/swish-logo.svg';
-import BankgirotLogo from '../icons/bankgirot-logo.svg';
-import DhikrMenuIcon from '../icons/dhikr-menu.svg';
 
 const MENU_ITEMS = [
   {
