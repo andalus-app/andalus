@@ -1896,7 +1896,7 @@ function UserManagement({onBack,T}){
 
   const load=async()=>{
     setLoading(true);
-    const {data}=await supabase.from('app_users').select('id,name,phone,role,invite_used,created_at,last_login').order('created_at',{ascending:false});
+    const {data}=await supabase.from('app_users').select('id,name,phone,role,invite_used,created_at,last_login,deleted_at,deleted_by_name').order('created_at',{ascending:false});
     if(data) setUsers(data);
     setLoading(false);
   };
@@ -1929,9 +1929,25 @@ function UserManagement({onBack,T}){
     load();
   };
 
-  const handleDelete=async(userId)=>{
-    if(!window.confirm('Ta bort kontot? Bokningarna behålls men kopplas loss från kontot.')) return;
-    await supabase.from('app_users').delete().eq('id',userId);
+  const [deleteTarget,setDeleteTarget]=useState(null); // user som ska raderas
+  const [deleting,setDeleting]=useState(false);
+
+  const handleDelete=async()=>{
+    if(!deleteTarget) return;
+    setDeleting(true);
+    const adminName=localStorage.getItem('islamnu_user_name')||'Okänd admin';
+    const adminId=localStorage.getItem('islamnu_user_id')||'?';
+    // Soft-delete: markera kontot som raderat istället för att ta bort raden
+    // Sparar vem som raderade + tidpunkt för revision
+    await supabase.from('app_users').update({
+      deleted_at: Date.now(),
+      deleted_by_id: adminId,
+      deleted_by_name: adminName,
+      pin_hash: null,
+      invite_code: null,
+    }).eq('id',deleteTarget.id);
+    setDeleting(false);
+    setDeleteTarget(null);
     load();
   };
 
@@ -1987,19 +2003,41 @@ function UserManagement({onBack,T}){
       </div>
     </div>}
 
-    {/* Användarlista */}
+    {/* Raderingsbekräftelse */}
+    {deleteTarget&&<div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.6)',zIndex:100,display:'flex',alignItems:'flex-end',justifyContent:'center',padding:'0 16px 32px'}}>
+      <div style={{background:T.card,borderRadius:20,padding:24,width:'100%',maxWidth:400}}>
+        <div style={{fontSize:17,fontWeight:800,color:T.text,marginBottom:8}}>Radera konto?</div>
+        <div style={{fontSize:13,color:T.textMuted,marginBottom:6,lineHeight:1.5}}>
+          <strong style={{color:T.text}}>{deleteTarget.name}</strong> ({deleteTarget.phone})
+        </div>
+        <div style={{fontSize:12,color:T.textMuted,marginBottom:20,lineHeight:1.5,background:'#ef444411',borderRadius:8,padding:'8px 12px',border:'1px solid #ef444433'}}>
+          Kontot inaktiveras och kan inte längre logga in. Deras bokningar påverkas inte. Raderingen loggas med ditt namn.
+        </div>
+        <div style={{display:'flex',gap:10}}>
+          <button onClick={()=>setDeleteTarget(null)} style={{flex:1,padding:'12px',borderRadius:12,border:`1px solid ${T.border}`,background:'none',color:T.text,fontWeight:600,cursor:'pointer',fontSize:14}}>Avbryt</button>
+          <button onClick={handleDelete} disabled={deleting} style={{flex:1,padding:'12px',borderRadius:12,border:'none',background:'#ef4444',color:'#fff',fontWeight:700,cursor:'pointer',fontSize:14,WebkitTapHighlightColor:'transparent'}}>
+            {deleting?'Raderar...':'Radera konto'}
+          </button>
+        </div>
+      </div>
+    </div>}
+
+    {/* Aktiva användare */}
     {loading?<Spinner T={T}/>:
-      users.length===0?<div style={{textAlign:'center',color:T.textMuted,padding:'40px 0'}}>Inga konton</div>:
+      <>
       <div style={{display:'flex',flexDirection:'column',gap:8}}>
-        {users.map(u=>(
+        {users.filter(u=>!u.deleted_at).length===0&&<div style={{textAlign:'center',color:T.textMuted,padding:'40px 0'}}>Inga aktiva konton</div>}
+        {users.filter(u=>!u.deleted_at).map(u=>(
           <div key={u.id} style={{background:T.card,border:`1px solid ${T.border}`,borderRadius:14,padding:'14px 16px'}}>
             <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:6}}>
-              <div style={{display:'flex',alignItems:'center',gap:8}}>
+              <div style={{display:'flex',alignItems:'center',gap:8,flexWrap:'wrap'}}>
                 <div style={{fontSize:15,fontWeight:700,color:T.text}}>{u.name}</div>
                 <span style={{background:roleBg(u.role),color:roleColor(u.role),borderRadius:8,fontSize:11,fontWeight:700,padding:'2px 8px'}}>{roleLabel(u.role)}</span>
                 {!u.invite_used&&<span style={{background:'#f59e0b22',color:'#f59e0b',borderRadius:8,fontSize:10,fontWeight:700,padding:'2px 7px'}}>Ej aktiverat</span>}
               </div>
-              {u.id!==currentUserId&&<button onClick={()=>handleDelete(u.id)} style={{background:'none',border:'none',cursor:'pointer',color:T.textMuted,fontSize:18,lineHeight:1,padding:'0 4px',WebkitTapHighlightColor:'transparent'}}>×</button>}
+              {u.id!==currentUserId&&<button onClick={()=>setDeleteTarget(u)} style={{background:'#ef444418',border:'1px solid #ef444433',borderRadius:8,cursor:'pointer',color:'#ef4444',fontSize:12,fontWeight:600,padding:'4px 10px',WebkitTapHighlightColor:'transparent'}}>
+                Radera
+              </button>}
             </div>
             <div style={{fontSize:12,color:T.textMuted,marginBottom:8}}>{u.phone}</div>
             <div style={{display:'flex',gap:6}}>
@@ -2010,6 +2048,27 @@ function UserManagement({onBack,T}){
           </div>
         ))}
       </div>
+
+      {/* Raderade konton */}
+      {users.filter(u=>u.deleted_at).length>0&&<>
+        <div style={{fontSize:12,fontWeight:700,color:T.textMuted,letterSpacing:'.5px',marginTop:24,marginBottom:10}}>RADERADE KONTON</div>
+        <div style={{display:'flex',flexDirection:'column',gap:8}}>
+          {users.filter(u=>u.deleted_at).map(u=>(
+            <div key={u.id} style={{background:T.card,border:'1px solid #ef444433',borderRadius:14,padding:'14px 16px',opacity:0.7}}>
+              <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:4}}>
+                <div style={{fontSize:14,fontWeight:700,color:T.textMuted,textDecoration:'line-through'}}>{u.name}</div>
+                <span style={{background:'#ef444422',color:'#ef4444',borderRadius:8,fontSize:10,fontWeight:700,padding:'2px 8px'}}>Raderat</span>
+              </div>
+              <div style={{fontSize:12,color:T.textMuted,marginBottom:4}}>{u.phone}</div>
+              <div style={{fontSize:11,color:T.textMuted}}>
+                Raderades av <strong style={{color:T.text}}>{u.deleted_by_name||'Okänd'}</strong>
+                {u.deleted_at&&<> · {new Date(u.deleted_at).toLocaleDateString('sv-SE')}</>}
+              </div>
+            </div>
+          ))}
+        </div>
+      </>}
+      </>
     }
   </div>;
 }
