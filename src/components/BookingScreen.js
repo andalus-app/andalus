@@ -2060,42 +2060,56 @@ export default function BookingScreen({onBack, activateForDevice, registerAdminD
   const handleVisitorCancel=useCallback(async(booking, reason)=>{
     const noApproval = ['pending','edit_pending'].includes(booking.status);
     const comment = noApproval ? 'Återkallad av besökaren.' : `Avbokad av besökaren: ${reason}`;
-    const {error}=await supabase.from('bookings').update({
-      status:'cancelled',
-      admin_comment:comment,
-      resolved_at:Date.now(),
-    }).eq('id',booking.id);
+    const changes = { status:'cancelled', admin_comment:comment, resolved_at:Date.now() };
+    const {error}=await supabase.from('bookings').update(changes).eq('id',booking.id);
     if(error){showToast('Något gick fel.');return;}
+    updateBookingLocally(booking.id, changes);
     showToast(noApproval?'Bokning återkallad.':'Bokning avbokad.');
     setCancelDialog(null);
-  },[showToast]);
+  },[showToast, updateBookingLocally]);
 
   /* Besökare avbokar ett enstaka tillfälle i en serie (direkt, ingen dialog) */
   const handleVisitorCancelOne=useCallback(async(booking)=>{
     const noApproval = ['pending','edit_pending'].includes(booking.status);
     const comment = noApproval ? 'Återkallad av besökaren.' : 'Avbokat tillfälle av besökaren.';
-    const {error}=await supabase.from('bookings').update({status:'cancelled',admin_comment:comment,resolved_at:Date.now()}).eq('id',booking.id);
+    const changes = {status:'cancelled',admin_comment:comment,resolved_at:Date.now()};
+    const {error}=await supabase.from('bookings').update(changes).eq('id',booking.id);
     if(error){showToast('Något gick fel.');return;}
+    updateBookingLocally(booking.id, changes);
     showToast(noApproval?'Tillfälle återkallat.':'Tillfälle avbokat.');
-  },[showToast]);
+  },[showToast, updateBookingLocally]);
 
   /* Besökare avbokar ett tillfälle + alla kommande i serien */
   const handleVisitorCancelFromDate=useCallback(async(booking, futureBookings)=>{
     const noApproval = ['pending','edit_pending'].includes(booking.status);
     const comment = noApproval ? 'Återkallad av besökaren.' : 'Avbokat av besökaren (detta och kommande).';
     const ids = futureBookings.map(b=>b.id);
+    const changes = {status:'cancelled',admin_comment:comment,resolved_at:Date.now()};
     const BATCH=20;
     for(let i=0;i<ids.length;i+=BATCH){
-      const {error}=await supabase.from('bookings').update({status:'cancelled',admin_comment:comment,resolved_at:Date.now()}).in('id',ids.slice(i,i+BATCH));
+      const {error}=await supabase.from('bookings').update(changes).in('id',ids.slice(i,i+BATCH));
       if(error){showToast('Något gick fel.');return;}
     }
+    // Optimistisk uppdatering för alla berörda
+    ids.forEach(id => updateBookingLocally(id, changes));
     showToast(`${ids.length} tillfällen ${noApproval?'återkallade':'avbokade'}.`);
-  },[showToast]);
+  },[showToast, updateBookingLocally]);
+
+  /* Optimistisk uppdatering — uppdatera lokal state direkt utan extra fetch */
+  const updateBookingLocally = useCallback((id, changes) => {
+    setBookings(prev => prev.map(b => b.id === id ? { ...b, ...changes } : b));
+  }, []);
+  const removeBookingLocally = useCallback((id) => {
+    setBookings(prev => prev.filter(b => b.id !== id));
+  }, []);
+  const addBookingLocally = useCallback((booking) => {
+    setBookings(prev => [booking, ...prev]);
+  }, []);
 
   /* Besökare redigerar bokning:
      - pending → ta bort gamla raden, skapa ny pending (frigör gamla platsen korrekt)
      - approved/edited → skickas som edit_pending för admin att granska */
-  const handleVisitorEdit=useCallback(async(data)=>{
+  const handleVisitorEdit=useCallback(async(data)=>{\
     setSubmitLoading(true);
     const original = bookings.find(b=>b.id===data.id);
     if(!original){ showToast('Något gick fel.'); setSubmitLoading(false); return; }
@@ -2119,34 +2133,43 @@ export default function BookingScreen({onBack, activateForDevice, registerAdminD
       const {error: insErr} = await supabase.from('bookings').insert([newBooking]);
       setSubmitLoading(false);
       if(insErr){ showToast('Något gick fel.'); return; }
+      // Optimistisk uppdatering
+      removeBookingLocally(data.id);
+      addBookingLocally(newBooking);
       showToast('Bokning uppdaterad — skickas som ny förfrågan!');
     } else if(!needsApproval){
       // Godkänd + minskning/oförändrad tid → direkt godkänd utan admin
-      const {error} = await supabase.from('bookings').update({
+      const changes = {
         date: data.date, time_slot: data.time_slot,
         duration_hours: data.duration_hours, activity: data.activity,
         status: 'approved',
         admin_comment: 'Ändrad av användare (kortare tid, direkt godkänd).',
         resolved_at: Date.now(),
-      }).eq('id', data.id);
+      };
+      const {error} = await supabase.from('bookings').update(changes).eq('id', data.id);
       setSubmitLoading(false);
       if(error){ showToast('Något gick fel.'); return; }
+      // Optimistisk uppdatering
+      updateBookingLocally(data.id, changes);
       showToast('Bokning uppdaterad direkt ✓');
     } else {
       // Godkänd + ökning/byte → edit_pending
-      const {error} = await supabase.from('bookings').update({
+      const changes = {
         date: data.date, time_slot: data.time_slot,
         duration_hours: data.duration_hours, activity: data.activity,
         status: 'edit_pending',
         admin_comment: 'Ändringsförfrågan — granskas av admin.',
         resolved_at: null,
-      }).eq('id', data.id);
+      };
+      const {error} = await supabase.from('bookings').update(changes).eq('id', data.id);
       setSubmitLoading(false);
       if(error){ showToast('Något gick fel.'); return; }
+      // Optimistisk uppdatering
+      updateBookingLocally(data.id, changes);
       showToast('Ändringsförfrågan skickad — väntar på admin.');
     }
     setView('my-bookings'); setEditingBooking(null);
-  },[showToast, bookings, deviceId, loggedInUser]);
+  },[showToast, bookings, deviceId, loggedInUser, removeBookingLocally, addBookingLocally, updateBookingLocally]);
 
   /* Admin godkänn/avböj */
   const handleAdminAction=useCallback(async(bookingId,action,comment)=>{
