@@ -1273,7 +1273,7 @@ function UserLogin({ onSuccess, onBack, T }) {
 
   return (
     <div style={{paddingTop:'max(20px, env(safe-area-inset-top, 0px))',paddingLeft:'16px',paddingRight:'16px',paddingBottom:'20px',fontFamily:'system-ui'}}>
-      <BackButton onBack={onBack} T={T}/>
+      {onBack && <BackButton onBack={onBack} T={T}/>}
       <div style={{marginTop:24,maxWidth:340,margin:'24px auto 0'}}>
         {step==='phone'&&<>
           <div style={{textAlign:'center',marginBottom:24}}>
@@ -1407,7 +1407,7 @@ function UserManagement({ onBack, T }) {
   const roleColor = r => r==='admin'?'#f59e0b':'#22c55e';
 
   return (
-    <div style={{paddingTop:'max(20px, env(safe-area-inset-top, 0px))',paddingLeft:'16px',paddingRight:'16px',paddingBottom:'20px',fontFamily:'system-ui',minHeight:'100%',background:T.bg}}>
+    <div style={{paddingTop:'max(20px, env(safe-area-inset-top, 0px))',paddingLeft:'16px',paddingRight:'16px',paddingBottom:'40px',fontFamily:'system-ui',background:T.bg}}>
       <BackButton onBack={onBack} T={T}/>
       <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginTop:16,marginBottom:20}}>
         <div style={{fontSize:22,fontWeight:800,color:T.text}}>Hantera konton</div>
@@ -1569,7 +1569,7 @@ function ConflictDialog({ conflict, onBookAvailable, onCancel, T }) {
 // ── Main BookingScreen ────────────────────────────────────────────────────────
 
 export default function BookingScreen({
-  onTabBarHide, onTabBarShow,
+  onTabBarHide, onTabBarHideNoLock, onTabBarShow,
   activateForDevice, registerAdminDevice, dismissAdminDevice,
   onRefreshNotifications,
   startAtAdminLogin, startAtAdmin,
@@ -1651,8 +1651,11 @@ export default function BookingScreen({
 
   // Tab bar hide/show based on view
   useEffect(() => {
-    if (view === 'my-bookings' || view === 'form' || view === 'users') {
+    if (view === 'my-bookings' || view === 'form') {
       onTabBarHide?.();
+    } else if (view === 'users') {
+      // Hide tab bar but don't lock scroll — users list needs to be scrollable
+      onTabBarHideNoLock?.();
     } else {
       // Admin panel and calendar both show the tab bar
       onTabBarShow?.();
@@ -1967,7 +1970,7 @@ export default function BookingScreen({
   );
 
   return (
-    <div style={{background:T.bg,minHeight:'100%',fontFamily:'system-ui'}}>
+    <div style={{background:T.bg,minHeight:'100%',fontFamily:'system-ui',position:'relative'}}>
       <style>{`
         @keyframes fadeInUp{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
         @keyframes slideUp{from{transform:translateY(100%)}to{transform:translateY(0)}}
