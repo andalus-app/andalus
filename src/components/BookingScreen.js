@@ -1916,7 +1916,7 @@ function AdminLogin({onSuccess,onBack,T}){
         <div style={{width:56,height:56,borderRadius:'50%',background:`${T.accent}22`,display:'flex',alignItems:'center',justifyContent:'center',margin:'0 auto 14px'}}>
           <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke={T.accent} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
         </div>
-        <div style={{fontSize:20,fontWeight:800,color:T.text}}>Adminåtkomst</div>
+        <div style={{fontSize:20,fontWeight:800,color:T.text}}>Åtkomst endast för behöriga</div>
         <div style={{fontSize:13,color:T.textMuted,marginTop:4}}>Ange din PIN-kod</div>
       </div>
       <div style={{display:'flex',flexDirection:'column',gap:12}}>

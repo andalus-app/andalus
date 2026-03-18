@@ -599,6 +599,56 @@ export default function NewHomeScreen({ stream, onGoToAdminLogin, onGoToMyBookin
           </div>
         )}
 
+        {/* Bokningssvar från admin — visas i feedet */}
+        {bellNotifs.map((n, i) => {
+          const color = bookingNotifColor(n.status);
+          const statusLabel = {
+            approved:  'Bokning godkänd',
+            rejected:  'Bokning avböjd',
+            cancelled: 'Bokning inställd',
+            edited:    'Bokning ändrad av admin',
+          }[n.status] || 'Bokningsuppdatering';
+          return (
+            <SwipeableItem key={`feed-booking-${n.id}`} onDismiss={() => markVisitorSeen()}>
+              <div
+                onClick={() => { onGoToMyBookings?.(n.id); }}
+                style={{
+                  background: T.card,
+                  border: `1px solid ${color}44`,
+                  borderLeft: `4px solid ${color}`,
+                  borderRadius: 14, padding: '13px 14px',
+                  display: 'flex', alignItems: 'flex-start', gap: 12,
+                  cursor: 'pointer',
+                  animation: `bannerIn .3s ease both`, animationDelay: `${i * 60}ms`,
+                }}
+              >
+                <div style={{ width: 28, height: 28, borderRadius: 8, flexShrink: 0, background: `${color}20`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                    {n.status === 'approved'
+                      ? <polyline points="20 6 9 17 4 12"/>
+                      : n.status === 'rejected' || n.status === 'cancelled'
+                        ? <><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></>
+                        : <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>}
+                  </svg>
+                </div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 12, fontWeight: 700, color, marginBottom: 2, fontFamily: "'Inter',system-ui,sans-serif" }}>{statusLabel}</div>
+                  <div style={{ fontSize: 13, color: T.text, lineHeight: 1.45, fontFamily: "'Inter',system-ui,sans-serif" }}>
+                    {n.date ? n.date.split('-').reverse().join('/') : ''}{n.time_slot ? ` · ${n.time_slot}` : ''}
+                  </div>
+                  {n.admin_comment && (
+                    <div style={{ fontSize: 11, color: T.textMuted, marginTop: 3, fontStyle: 'italic', fontFamily: "'Inter',system-ui,sans-serif" }}>"{n.admin_comment}"</div>
+                  )}
+                  <div style={{ fontSize: 11, color, fontWeight: 600, marginTop: 4, fontFamily: "'Inter',system-ui,sans-serif" }}>Visa bokning →</div>
+                </div>
+                <button
+                  onClick={e => { e.stopPropagation(); markVisitorSeen(); }}
+                  style={{ background: 'none', border: 'none', cursor: 'pointer', color: T.textMuted, fontSize: 20, lineHeight: 1, padding: '0 2px', flexShrink: 0, marginTop: -2, WebkitTapHighlightColor: 'transparent' }}>×</button>
+              </div>
+            </SwipeableItem>
+          );
+        })}
+
         {/* Inline banner feed */}
         {banners.map((b, i) => (
           <SwipeableItem key={b.id} onDismiss={() => dismiss(b.id)}>
