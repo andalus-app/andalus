@@ -166,13 +166,13 @@ export default function CompassSVG({ heading, qiblaDir, isAligned, alignDelta, t
         );
       })()}
 
-      {/* ── STATIC NEEDLE — always points up, SVG from red-arrow.svg ── */}
+      {/* ── STATIC NEEDLE — always points up, near N ── */}
       {(() => {
-        // Needle spans from AR (tick inner edge) down past center for a visible tail
-        const needleH = AR + (CR * 0.5);
+        // 40% smaller than previous size, positioned near the N tick
+        const needleH = (AR - CR) * 0.6;
         const needleW = needleH * (304 / 300) * 0.6;
         const nx = C - needleW / 2;
-        const ny = C - AR;
+        const ny = C - AR + 4;   // just inside the tick ring, near N
         const col1 = isAligned ? green : '#af1917';
         const col2 = isAligned ? green : '#e52a1e';
         return (
