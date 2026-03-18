@@ -1109,13 +1109,16 @@ function AdminEditForm({booking, bookings, onSubmit, onBack, loading, T}){
   const isToday=(d)=>{if(!d) return false;const x=new Date(d);x.setHours(0,0,0,0);return x.getTime()===today.getTime();};
   const handleSubmit=()=>{
     if(!adminComment.trim()){setError('Du måste ange en förklaring till ändringen.');return;}
-    onSubmit({id:booking.id,date:toISO(selectedDate),time_slot:slotLabel(selectedStartH,durationHours),duration_hours:durationHours,activity,admin_comment:adminComment});
+    onSubmit({id:booking.id,date:toISO(selectedDate),time_slot:slotLabel(selectedStartH,durationHours),duration_hours:durationHours,activity,admin_comment:adminComment,originalStatus:booking.status});
   };
+  const isRejected = booking.status === 'rejected';
   return <div style={{paddingTop:'max(20px, env(safe-area-inset-top, 0px))',paddingLeft:'16px',paddingRight:'16px',paddingBottom:'20px',fontFamily:'system-ui'}}>
     <BackButton onBack={onBack} T={T}/>
-    <div style={{fontSize:20,fontWeight:800,color:T.text,marginTop:16,marginBottom:4}}>Ändra bokning</div>
-    <div style={{background:'#3b82f618',border:'1px solid #3b82f633',borderRadius:10,padding:'10px 12px',marginBottom:20,fontSize:12,color:'#3b82f6',fontFamily:'system-ui'}}>
-      Du måste ange en förklaring — besökaren får automatiskt en notis om ändringen.
+    <div style={{fontSize:20,fontWeight:800,color:T.text,marginTop:16,marginBottom:4}}>{isRejected ? 'Återgodkänn bokning' : 'Ändra bokning'}</div>
+    <div style={{background:isRejected?'#22c55e18':'#3b82f618',border:`1px solid ${isRejected?'#22c55e33':'#3b82f633'}`,borderRadius:10,padding:'10px 12px',marginBottom:20,fontSize:12,color:isRejected?'#22c55e':'#3b82f6',fontFamily:'system-ui'}}>
+      {isRejected
+        ? 'Bokningen är avböjd. Välj tid och spara för att godkänna den på nytt.'
+        : 'Du måste ange en förklaring — besökaren får automatiskt en notis om ändringen.'}
     </div>
     {step==='date'&&<>
       <div style={{fontSize:12,fontWeight:700,color:T.textMuted,marginBottom:10,letterSpacing:'.3px'}}>1. VÄLJ NYTT DATUM & LÄNGD</div>
@@ -1160,7 +1163,7 @@ function AdminEditForm({booking, bookings, onSubmit, onBack, loading, T}){
         <Textarea label="FÖRKLARING TILL BESÖKAREN *" value={adminComment} onChange={setAdminComment} placeholder="Förklara varför bokningen ändrades..." required T={T}/>
         {error&&<div style={{fontSize:13,color:T.error,background:`${T.error}18`,padding:'10px 14px',borderRadius:8}}>{error}</div>}
         <button onClick={handleSubmit} disabled={loading} style={{background:loading?T.textMuted:'#3b82f6',color:'#fff',border:'none',borderRadius:12,padding:'14px',fontSize:16,fontWeight:700,cursor:loading?'default':'pointer',WebkitTapHighlightColor:'transparent',display:'flex',alignItems:'center',justifyContent:'center',gap:8}}>
-          {loading?'Sparar...':<>Spara ändringar & notifiera besökare <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg></>}
+          {loading?'Sparar...':<>{isRejected ? 'Godkänn & notifiera besökare' : 'Spara ändringar & notifiera besökare'} <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg></>}
         </button>
       </div>
       <button onClick={()=>setStep('time')} style={{marginTop:12,background:'none',border:'none',color:T.accent,cursor:'pointer',fontSize:13,fontWeight:600,fontFamily:'system-ui',padding:0}}>← Byt tid</button>
@@ -1444,11 +1447,11 @@ function AdminPanel({bookings,onAction,onEdit,onDelete,onDeleteMany,onAddRecurri
       </div>
     </div>}
 
-    {/* Ändra / Ta bort hela gruppen */}
+    {/* Ändra / Ta bort hela gruppen — visas även för rejected så admin kan återgodkänna */}
     {groupStatus(selected)!=='cancelled'&&<div style={{display:'flex',gap:10,marginTop:4}}>
       <button onClick={()=>setShowEditForm(true)} style={{flex:1,padding:'13px',borderRadius:12,border:'1px solid #3b82f644',background:'#3b82f611',color:'#3b82f6',fontSize:14,fontWeight:700,cursor:'pointer',fontFamily:'system-ui',WebkitTapHighlightColor:'transparent',display:'flex',alignItems:'center',justifyContent:'center',gap:6}}>
         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
-        Ändra bokning
+        {groupStatus(selected)==='rejected' ? 'Återgodkänn bokning' : 'Ändra bokning'}
       </button>
       <button onClick={()=>{setDeleteMode('all');onTabBarHide?.();}} disabled={actionLoading} style={{flex:1,padding:'13px',borderRadius:12,border:'1px solid #ef444433',background:'#ef444411',color:'#ef4444',fontSize:14,fontWeight:700,cursor:actionLoading?'default':'pointer',fontFamily:'system-ui',WebkitTapHighlightColor:'transparent',display:'flex',alignItems:'center',justifyContent:'center',gap:6}}>
         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
@@ -2192,13 +2195,15 @@ export default function BookingScreen({onBack, activateForDevice, registerAdminD
   /* Admin redigerar bokning */
   const handleAdminEdit=useCallback(async(data)=>{
     setActionLoading(true);
-    const {error}=await supabase.from('bookings').update({date:data.date,time_slot:data.time_slot,duration_hours:data.duration_hours,activity:data.activity,status:'edited',admin_comment:data.admin_comment,resolved_at:Date.now()}).eq('id',data.id);
+    const newStatus = data.originalStatus === 'rejected' ? 'approved' : 'edited';
+    const {error}=await supabase.from('bookings').update({date:data.date,time_slot:data.time_slot,duration_hours:data.duration_hours,activity:data.activity,status:newStatus,admin_comment:data.admin_comment,resolved_at:Date.now()}).eq('id',data.id);
     setActionLoading(false);
     if(error){showToast('Något gick fel.');return;}
     onMarkAdminSeen?.();
     onRefreshNotifications?.();
-    showToast('Bokning ändrad & besökare notifierad ✓');
-  },[showToast,onMarkAdminSeen,onRefreshNotifications]);
+    updateBookingLocally(data.id, {date:data.date,time_slot:data.time_slot,duration_hours:data.duration_hours,activity:data.activity,status:newStatus,admin_comment:data.admin_comment,resolved_at:Date.now()});
+    showToast(newStatus === 'approved' ? 'Bokning återgodkänd & besökare notifierad ✓' : 'Bokning ändrad & besökare notifierad ✓');
+  },[showToast,onMarkAdminSeen,onRefreshNotifications,updateBookingLocally]);
 
   /* Admin tar bort bokning */
   const handleAdminDelete=useCallback(async(bookingId,explanation)=>{
