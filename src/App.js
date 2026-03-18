@@ -33,6 +33,7 @@ function CalendarClockIcon({ size = 22, color = 'currentColor', style }) {
 }
 
 
+function svgColorFilter(isDark) {
   return isDark
     ? 'invert(48%) sepia(60%) saturate(400%) hue-rotate(120deg) brightness(90%)'
     : 'invert(30%) sepia(60%) saturate(500%) hue-rotate(130deg) brightness(80%)';
