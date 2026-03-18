@@ -29,9 +29,9 @@ function svgColorFilter(isDark) {
 
 const TABS = [
   { id: 'home',     type: 'icon',   iconName: 'home',   label: 'Hem'        },
-  { id: 'qibla',    type: 'custom', icon: 'kaba',       label: 'Qibla'      },
-  { id: 'prayer',   type: 'custom', icon: 'prayer',     label: 'Bönetider'  },
   { id: 'booking',  type: 'custom', icon: 'booking',    label: 'Boka lokal' },
+  { id: 'prayer',   type: 'custom', icon: 'prayer',     label: 'Bönetider'  },
+  { id: 'qibla',    type: 'custom', icon: 'kaba',       label: 'Qibla'      },
   { id: 'ebooks',   type: 'custom', icon: 'ebooks',     label: 'E-böcker'   },
   { id: 'more',     type: 'custom', icon: 'more',       label: 'Visa mer'   },
 ];
