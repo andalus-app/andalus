@@ -799,6 +799,14 @@ function MyBookings({bookings, onViewConfirmation, onEdit, onCancel, onCancelOne
     }
   }, []); // eslint-disable-line
 
+  // Synka selectedGroup med live bookings — precis som AdminPanel gör
+  useEffect(() => {
+    if (!selectedGroup) return;
+    const live = bookings.filter(b => (b.recurrence_group_id || b.id) === selectedGroup.group_id);
+    if (live.length === 0) { setSelectedGroup(null); return; }
+    setSelectedGroup(prev => prev ? { ...prev, bookings: live } : null);
+  }, [bookings]); // eslint-disable-line
+
   const sorted=bookings.slice().sort((a,b)=>b.created_at-a.created_at);
   const groups=useMemo(()=>{
     const map={};
@@ -2109,7 +2117,7 @@ export default function BookingScreen({onBack, activateForDevice, registerAdminD
   /* Besökare redigerar bokning:
      - pending → ta bort gamla raden, skapa ny pending (frigör gamla platsen korrekt)
      - approved/edited → skickas som edit_pending för admin att granska */
-  const handleVisitorEdit=useCallback(async(data)=>{\
+  const handleVisitorEdit=useCallback(async(data)=>{
     setSubmitLoading(true);
     const original = bookings.find(b=>b.id===data.id);
     if(!original){ showToast('Något gick fel.'); setSubmitLoading(false); return; }
