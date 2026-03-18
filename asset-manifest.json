@@ -1,7 +1,7 @@
 {
   "files": {
     "main.css": "/andalus/static/css/main.00346464.css",
-    "main.js": "/andalus/static/js/main.d5dec4d5.js",
+    "main.js": "/andalus/static/js/main.744cfa11.js",
     "static/media/prayer-times.svg": "/andalus/static/media/prayer-times.148f31c09bcb28b9f3b34e17aa3a7142.svg",
     "static/media/charity-svgrepo-com.svg": "/andalus/static/media/charity-svgrepo-com.589729fed54a7ec980eff273d7e5153b.svg",
     "static/media/swish-logo.svg": "/andalus/static/media/swish-logo.beb9bff5dda4b18f7d2548de42c783ea.svg",
@@ -11,6 +11,7 @@
     "static/media/bankgirot-logo.svg": "/andalus/static/media/bankgirot-logo.0f4be9da2c0a6014b33da6f69afe6c7a.svg",
     "static/media/resa.svg": "/andalus/static/media/resa.c6e2fbf0ac4f69b9cfaff66081cf7c83.svg",
     "static/media/sjukdom-begravning.svg": "/andalus/static/media/sjukdom-begravning.b441cdbe8ab13d44981bf80fda4cbee8.svg",
+    "static/media/dhikr-menu.svg": "/andalus/static/media/dhikr-menu.bb834a39eb0ef396ec85a48fdce3a935.svg",
     "static/media/dhikr-tab.svg": "/andalus/static/media/dhikr-tab.bb834a39eb0ef396ec85a48fdce3a935.svg",
     "static/media/familj-och-ovrigt.svg": "/andalus/static/media/familj-och-ovrigt.1fd7727df7bf4e628c34b864399c2a98.svg",
     "index.html": "/andalus/index.html",
@@ -23,10 +24,10 @@
     "static/media/bonen.svg": "/andalus/static/media/bonen.0e618d84a2e5e150cc13d1cbf70728b7.svg",
     "static/media/svarigheter-och-skydd.svg": "/andalus/static/media/svarigheter-och-skydd.66efee627f95dbfffd65764bdf478cd4.svg",
     "main.00346464.css.map": "/andalus/static/css/main.00346464.css.map",
-    "main.d5dec4d5.js.map": "/andalus/static/js/main.d5dec4d5.js.map"
+    "main.744cfa11.js.map": "/andalus/static/js/main.744cfa11.js.map"
   },
   "entrypoints": [
     "static/css/main.00346464.css",
-    "static/js/main.d5dec4d5.js"
+    "static/js/main.744cfa11.js"
   ]
 }
