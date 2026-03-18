@@ -2029,7 +2029,7 @@ export default function BookingScreen({onBack, activateForDevice, registerAdminD
   const showToast=useCallback((msg)=>{setToast(msg);setTimeout(()=>setToast(''),3000);},[]);
 
   const fetchBookings=useCallback(async()=>{
-    const {data,error}=await supabase.from('bookings').select('*').order('created_at',{ascending:false});
+    const {data,error}=await supabase.from('bookings').select('*').order('created_at',{ascending:false}).limit(20000);
     if(!error&&data) setBookings(data);
     setDbLoading(false);
   },[]);
