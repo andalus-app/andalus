@@ -4,7 +4,7 @@ while true
 do
   echo ""
   echo "Moving to project folder..."
-  cd /c/salat || exit
+  cd /Users/fatihkoker/andalus || exit
 
   echo ""
   git status

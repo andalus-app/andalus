@@ -32,7 +32,6 @@ const NO_END = 'no_end';
 const ALL_HOURS = Array.from({ length: (CLOSE_HOUR - OPEN_HOUR) * 2 }, (_, i) => OPEN_HOUR + i * 0.5);
 const DAYS_SV   = ['Mån','Tis','Ons','Tor','Fre','Lör','Sön'];
 const MONTHS_SV = ['Januari','Februari','Mars','April','Maj','Juni','Juli','Augusti','September','Oktober','November','December'];
-const DURATION_OPTIONS = [0.5,1,1.5,2,2.5,3,3.5,4,4.5,5,5.5,6,6.5,7,7.5,8,8.5,9,9.5,10,10.5,11,11.5,12,12.5,13,13.5,14,14.5,15,15.5,16];
 const RECUR_OPTIONS = [
   { value: 'none',    label: 'Ingen upprepning' },
   { value: 'weekly',  label: 'Veckovis' },
@@ -421,8 +420,78 @@ function ScrollPicker({ options, value, onChange, label, formatFn, T }) {
   );
 }
 
-function DurationPicker({ value, onChange, T }) {
-  return <ScrollPicker options={DURATION_OPTIONS} value={value} onChange={onChange} label="BOKNINGSLÄNGD" formatFn={fmtDuration} T={T}/>;
+const MIN_DURATION = 0.5; // 30 min minimum
+
+// Start options: every 30 min, must leave room for at least MIN_DURATION
+const START_OPTIONS = ALL_HOURS.filter(h => h + MIN_DURATION <= CLOSE_HOUR);
+
+function getEndOptions(startH) {
+  const opts = [];
+  for (let h = startH + MIN_DURATION; h <= CLOSE_HOUR; h += 0.5) opts.push(h);
+  return opts;
+}
+
+function TimeRangePicker({ startH, endH, onChange, T }) {
+  const endOptions = React.useMemo(() => getEndOptions(startH), [startH]);
+
+  // When start changes, clamp end to be valid (>= start + 30 min)
+  // Use a stable "safe" endH that is always in the current endOptions
+  const safeEndH = endH > startH + MIN_DURATION - 0.01 && endH <= CLOSE_HOUR && endOptions.includes(endH)
+    ? endH
+    : startH + MIN_DURATION;
+
+  const handleStartChange = (newStart) => {
+    // Keep same duration if possible, otherwise snap to minimum
+    const currentDur = safeEndH - startH;
+    const desiredEnd = newStart + currentDur;
+    const newEndOptions = getEndOptions(newStart);
+    const newEnd = newEndOptions.includes(desiredEnd)
+      ? desiredEnd
+      : newStart + MIN_DURATION;
+    onChange(newStart, newEnd);
+  };
+
+  const durationHours = safeEndH - startH;
+
+  return (
+    <div style={{display:'flex',flexDirection:'column',gap:10}}>
+      <div style={{display:'flex',gap:10}}>
+        <div style={{flex:1}}>
+          <ScrollPicker
+            options={START_OPTIONS}
+            value={startH}
+            onChange={handleStartChange}
+            label="STARTTID"
+            formatFn={fmtHour}
+            T={T}
+          />
+        </div>
+        <div style={{
+          display:'flex',alignItems:'center',justifyContent:'center',
+          paddingTop:28,color:T.textMuted,fontSize:18,fontWeight:300,flexShrink:0
+        }}>→</div>
+        <div style={{flex:1}}>
+          {/* key={startH} remounts end-picker when start changes, ensuring it scrolls to new minimum */}
+          <ScrollPicker
+            key={startH}
+            options={endOptions}
+            value={safeEndH}
+            onChange={v => onChange(startH, v)}
+            label="SLUTTID"
+            formatFn={fmtHour}
+            T={T}
+          />
+        </div>
+      </div>
+      <div style={{
+        textAlign:'center', fontSize:12, color:T.accent,
+        fontFamily:'system-ui', fontWeight:700,
+        background:`${T.accent}11`, borderRadius:8, padding:'5px 10px',
+      }}>
+        {fmtDuration(durationHours)}
+      </div>
+    </div>
+  );
 }
 
 // ── RecurrencePicker — välj upprepning + valfritt slutdatum ───────────────────
@@ -501,105 +570,100 @@ function RecurrencePicker({ recurrence, onChange, endDate, onEndDateChange, T })
 }
 
 // ── TimeSlotPanel ─────────────────────────────────────────────────────────────
+// Shows existing bookings for context + a CTA to book the chosen startH→endH range.
 
-function TimeSlotPanel({ bookings, exceptions, date, isAdmin, durationHours, onSelectSlot, onClose, T }) {
+function TimeSlotPanel({ bookings, exceptions, date, isAdmin, startH, endH, onSelectSlot, onClose, T }) {
   const iso = toISO(date);
-  const occs = useMemo(() => getOccurrencesForDate(bookings, exceptions, iso), [bookings, exceptions, iso]);
-  const hasBookings = occs.length > 0;
-  const [showOnlyAvailable, setShowOnlyAvailable] = useState(hasBookings);
+  const durationHours = endH - startH;
+  const slotLbl = `${fmtHour(startH)}–${fmtHour(endH)}`;
 
-  const compactSlots = useMemo(() => {
+  const occs = useMemo(() => getOccurrencesForDate(bookings, exceptions, iso), [bookings, exceptions, iso]);
+
+  // Check if the chosen range overlaps any existing booking
+  const bookedBlocks = useMemo(() => getBookedBlocks(bookings, exceptions, iso), [bookings, exceptions, iso]);
+  const isConflict = useMemo(() => {
+    for (let i = 0; i < durationHours * 2; i++) {
+      if (bookedBlocks.has(startH * 2 + i)) return true;
+    }
+    return false;
+  }, [bookedBlocks, startH, durationHours]);
+
+  const isPast = isHourPast(iso, startH);
+
+  // Build compact view of existing bookings for context
+  const existingBlocks = useMemo(() => {
     const active = occs.map(o => {
       const parts = o.time_slot.split('–');
       const parseH = s => { const [hh,mm] = s.split(':').map(Number); const h = hh+(mm===30?0.5:0); return h===0?24:h; };
-      const startH = parseH(parts[0]);
-      const endH = startH + o.duration_hours;
-      return { startH, endH, status: o.status, booking: o };
+      const sH = parseH(parts[0]);
+      const eH = sH + o.duration_hours;
+      return { startH:sH, endH:eH, status: o.status, booking: o };
     }).sort((a,b) => a.startH - b.startH);
-
-    const merged = [];
-    for (const b of active) {
-      const last = merged[merged.length-1];
-      if (last && b.startH <= last.endH) {
-        last.endH = Math.max(last.endH, b.endH);
-        if (['pending','edit_pending'].includes(b.status) && last.status === 'booked') last.status = 'pending';
-      } else merged.push({...b});
-    }
-
-    const result = [];
-    let cursor = OPEN_HOUR;
-    for (const block of merged) {
-      if (block.startH > cursor) {
-        for (let h = cursor; h+durationHours <= block.startH; h+=0.5) {
-          if (!isHourPast(iso, h)) result.push({ type:'available', startH:h, label:slotLabel(h,durationHours) });
-        }
-      }
-      result.push({ type:'booked', startH:block.startH, endH:block.endH, label:`${fmtHour(block.startH)}–${fmtHour(block.endH)}`, status:block.status, booking:block.booking });
-      cursor = block.endH;
-    }
-    for (let h = cursor; h+durationHours <= CLOSE_HOUR; h+=0.5) {
-      if (!isHourPast(iso, h)) result.push({ type:'available', startH:h, label:slotLabel(h,durationHours) });
-    }
-    return result;
-  }, [occs, iso, durationHours]);
-
-  const visible = showOnlyAvailable ? compactSlots.filter(s=>s.type==='available') : compactSlots;
+    return active;
+  }, [occs]);
 
   return (
     <div style={{marginTop:16,background:T.card,border:`1px solid ${T.border}`,borderRadius:16,overflow:'hidden'}}>
       <div style={{padding:'14px 16px 10px',borderBottom:`1px solid ${T.border}`,display:'flex',alignItems:'center',justifyContent:'space-between'}}>
         <div>
-          <div style={{fontSize:13,fontWeight:700,color:T.text,fontFamily:'system-ui'}}>Tillgängliga tider · {fmtDuration(durationHours)}</div>
-          <div style={{fontSize:11,color:T.textMuted,fontFamily:'system-ui',marginTop:2}}>{isoToDisplay(iso)}</div>
+          <div style={{fontSize:13,fontWeight:700,color:T.text,fontFamily:'system-ui'}}>{isoToDisplay(iso)}</div>
+          <div style={{fontSize:11,color:T.textMuted,fontFamily:'system-ui',marginTop:2}}>Vald tid: {slotLbl} · {fmtDuration(durationHours)}</div>
         </div>
-        <div style={{display:'flex',alignItems:'center',gap:6}}>
-          <button onClick={()=>setShowOnlyAvailable(v=>!v)}
-            style={{padding:'4px 10px',borderRadius:20,border:`1px solid ${showOnlyAvailable?T.accent:T.border}`,background:showOnlyAvailable?`${T.accent}22`:'none',color:showOnlyAvailable?T.accent:T.textMuted,fontSize:11,fontWeight:600,cursor:'pointer',fontFamily:'system-ui',WebkitTapHighlightColor:'transparent'}}>
-            {showOnlyAvailable ? 'Visa alla' : 'Bara lediga'}
-          </button>
-          <button onClick={onClose} style={{background:'none',border:'none',cursor:'pointer',color:T.textMuted,padding:4}}>
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-          </button>
-        </div>
+        <button onClick={onClose} style={{background:'none',border:'none',cursor:'pointer',color:T.textMuted,padding:4}}>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </button>
       </div>
-      {visible.length === 0 && (
-        <div style={{padding:'20px 16px',textAlign:'center',color:T.textMuted,fontSize:13,fontFamily:'system-ui'}}>
-          Inga lediga tider för {fmtDuration(durationHours)} detta datum.
+
+      {/* CTA — book or conflict warning */}
+      <div style={{padding:'12px 12px 4px'}}>
+        {isPast ? (
+          <div style={{padding:'10px 12px',borderRadius:10,background:'#88888811',border:'1px solid #88888833',fontSize:13,color:'#888',fontFamily:'system-ui',textAlign:'center'}}>
+            Denna tid har redan passerat
+          </div>
+        ) : isConflict ? (
+          <div style={{padding:'10px 12px',borderRadius:10,background:'#ef444411',border:'1px solid #ef444433',fontSize:13,color:'#ef4444',fontFamily:'system-ui',fontWeight:600}}>
+            ⚠️ {slotLbl} är redan bokad — välj en annan tid ovan
+          </div>
+        ) : (
+          <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'9px 12px',background:T.cardElevated,borderRadius:10,border:'1px solid #22c55e44'}}>
+            <div style={{display:'flex',alignItems:'center',gap:8}}>
+              <div style={{width:8,height:8,borderRadius:'50%',background:'#22c55e',flexShrink:0}}/>
+              <span style={{fontSize:14,fontWeight:600,color:T.text,fontFamily:'system-ui'}}>{slotLbl}</span>
+              <span style={{fontSize:11,color:T.textMuted,fontFamily:'system-ui'}}>{fmtDuration(durationHours)}</span>
+            </div>
+            <button onClick={()=>onSelectSlot(date, slotLbl, startH, durationHours)}
+              style={{background:T.accent,color:'#fff',border:'none',borderRadius:8,padding:'6px 16px',fontSize:13,fontWeight:700,cursor:'pointer',fontFamily:'system-ui',WebkitTapHighlightColor:'transparent'}}>
+              Boka
+            </button>
+          </div>
+        )}
+      </div>
+
+      {/* Existing bookings context */}
+      {existingBlocks.length > 0 && (
+        <div style={{padding:'8px 12px 10px'}}>
+          <div style={{fontSize:10,fontWeight:700,color:T.textMuted,letterSpacing:'.5px',marginBottom:6,fontFamily:'system-ui'}}>ÖVRIGA BOKNINGAR DENNA DAG</div>
+          <div style={{display:'flex',flexDirection:'column',gap:5}}>
+            {existingBlocks.map((block,i) => {
+              const color = block.status==='pending'||block.status==='edit_pending' ? '#f59e0b' : '#ef4444';
+              return (
+                <div key={i} style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'8px 10px',background:`${color}0d`,borderRadius:8,border:`1px solid ${color}33`}}>
+                  <div style={{display:'flex',alignItems:'center',gap:8}}>
+                    <div style={{width:7,height:7,borderRadius:'50%',background:color,flexShrink:0}}/>
+                    <span style={{fontSize:13,fontWeight:600,color:T.text,fontFamily:'system-ui'}}>{fmtHour(block.startH)}–{fmtHour(block.endH)}</span>
+                    {isAdmin&&block.booking&&<span style={{fontSize:11,color:T.textMuted,fontFamily:'system-ui'}}>· {block.booking.name}</span>}
+                  </div>
+                  <div style={{display:'flex',alignItems:'center',gap:6}}>
+                    <Badge status={block.status}/>
+                    {isAdmin&&block.booking&&<button onClick={()=>onSelectSlot(date,`${fmtHour(block.startH)}–${fmtHour(block.endH)}`,block.startH,block.endH-block.startH,block.booking)}
+                      style={{background:`${T.accent}22`,color:T.accent,border:'none',borderRadius:8,padding:'4px 8px',fontSize:11,fontWeight:700,cursor:'pointer',fontFamily:'system-ui'}}>Detaljer</button>}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
         </div>
       )}
-      <div style={{padding:'8px 10px 10px',display:'flex',flexDirection:'column',gap:5}}>
-        {visible.map((slot) => {
-          if (slot.type === 'available') {
-            return (
-              <div key={`a-${slot.startH}`} style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'9px 12px',background:T.cardElevated,borderRadius:10,border:'1px solid #22c55e44'}}>
-                <div style={{display:'flex',alignItems:'center',gap:8}}>
-                  <div style={{width:8,height:8,borderRadius:'50%',background:'#22c55e',flexShrink:0}}/>
-                  <span style={{fontSize:14,fontWeight:600,color:T.text,fontFamily:'system-ui'}}>{slot.label}</span>
-                </div>
-                <button onClick={()=>onSelectSlot(date, slot.label, slot.startH, durationHours)}
-                  style={{background:T.accent,color:'#fff',border:'none',borderRadius:8,padding:'5px 12px',fontSize:12,fontWeight:700,cursor:'pointer',fontFamily:'system-ui',WebkitTapHighlightColor:'transparent'}}>
-                  Välj
-                </button>
-              </div>
-            );
-          }
-          const color = slot.status==='pending'||slot.status==='edit_pending' ? '#f59e0b' : '#ef4444';
-          return (
-            <div key={`b-${slot.startH}`} style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'9px 12px',background:`${color}0d`,borderRadius:10,border:`1px solid ${color}33`,opacity:isAdmin?1:0.7}}>
-              <div style={{display:'flex',alignItems:'center',gap:8}}>
-                <div style={{width:8,height:8,borderRadius:'50%',background:color,flexShrink:0}}/>
-                <span style={{fontSize:14,fontWeight:600,color:T.text,fontFamily:'system-ui'}}>{slot.label}</span>
-                {isAdmin&&slot.booking&&<span style={{fontSize:11,color:T.textMuted,fontFamily:'system-ui'}}>· {slot.booking.name}</span>}
-              </div>
-              <div style={{display:'flex',alignItems:'center',gap:6}}>
-                <Badge status={slot.status}/>
-                {isAdmin&&slot.booking&&<button onClick={()=>onSelectSlot(date,slot.label,slot.startH,durationHours,slot.booking)}
-                  style={{background:`${T.accent}22`,color:T.accent,border:'none',borderRadius:8,padding:'5px 10px',fontSize:11,fontWeight:700,cursor:'pointer',fontFamily:'system-ui'}}>Detaljer</button>}
-              </div>
-            </div>
-          );
-        })}
-      </div>
     </div>
   );
 }
@@ -612,7 +676,9 @@ function CalendarView({ bookings, exceptions, onSelectSlot, isAdmin, T }) {
   const [anchor, setAnchor] = useState(today);
   const [selectedDate, setSelectedDate] = useState(today);
   const [showSlots, setShowSlots] = useState(true);
-  const [durationHours, setDurationHours] = useState(1);
+  const [startH, setStartH] = useState(OPEN_HOUR);
+  const [endH,   setEndH]   = useState(OPEN_HOUR + 1);
+  const durationHours = endH - startH;
 
   const weekDays = useMemo(() => getWeekDays(anchor), [anchor]);
   const monthGrid = useMemo(() => getMonthGrid(anchor.getFullYear(), anchor.getMonth()), [anchor]);
@@ -645,7 +711,7 @@ function CalendarView({ bookings, exceptions, onSelectSlot, isAdmin, T }) {
 
   return (
     <div>
-      <div style={{marginBottom:14}}><DurationPicker value={durationHours} onChange={setDurationHours} T={T}/></div>
+      <div style={{marginBottom:14}}><TimeRangePicker startH={startH} endH={endH} onChange={(s,e)=>{setStartH(s);setEndH(e);}} T={T}/></div>
       <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:14}}>
         <div style={{display:'flex',gap:6}}>
           {['week','month'].map(m => (
@@ -679,7 +745,7 @@ function CalendarView({ bookings, exceptions, onSelectSlot, isAdmin, T }) {
       </div>
       {showSlots && selectedDate && (
         <TimeSlotPanel bookings={bookings} exceptions={exceptions} date={selectedDate} isAdmin={isAdmin}
-          durationHours={durationHours} onSelectSlot={onSelectSlot} onClose={()=>setShowSlots(false)} T={T}/>
+          startH={startH} endH={endH} onSelectSlot={onSelectSlot} onClose={()=>setShowSlots(false)} T={T}/>
       )}
     </div>
   );
@@ -875,7 +941,7 @@ function MyBookings({ bookings, exceptions, loading, onBack, onLogout, onCancel,
         {onLogout && (
           <button onClick={onLogout}
             style={{display:'flex',alignItems:'center',gap:6,background:'#ef444411',border:'1px solid #ef444433',borderRadius:20,padding:'6px 12px',cursor:'pointer',color:'#ef4444',fontSize:12,fontWeight:700,fontFamily:'system-ui',WebkitTapHighlightColor:'transparent'}}>
-            <svg width=\"14\" height=\"14\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" strokeWidth=\"2\" strokeLinecap=\"round\" strokeLinejoin=\"round\"><path d=\"M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4\"/><polyline points=\"16 17 21 12 16 7\"/><line x1=\"21\" y1=\"12\" x2=\"9\" y2=\"12\"/></svg>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
             Logga ut
           </button>
         )}
@@ -1120,7 +1186,9 @@ function AdminAddForm({ bookings, exceptions, onSubmit, onClose, T }) {
   const [step, setStep] = useState('date');
   const [anchor, setAnchor] = useState(today);
   const [selectedDate, setSelectedDate] = useState(today);
-  const [durationHours, setDurationHours] = useState(1);
+  const [adminStartH, setAdminStartH] = useState(OPEN_HOUR);
+  const [adminEndH,   setAdminEndH]   = useState(OPEN_HOUR + 1);
+  const durationHours = adminEndH - adminStartH;
   const [selectedStartH, setSelectedStartH] = useState(null);
   const [recurrence, setRecurrence] = useState('weekly');
   const [endDate, setEndDate] = useState(null);
@@ -1131,7 +1199,7 @@ function AdminAddForm({ bookings, exceptions, onSubmit, onClose, T }) {
   const handleSubmit = async () => {
     if (!form.name.trim()||!form.activity.trim()) return;
     setLoading(true);
-    await onSubmit({ ...form, date:toISO(selectedDate), time_slot:slotLabel(selectedStartH,durationHours), duration_hours:durationHours, recurrence, end_date:endDate });
+    await onSubmit({ ...form, date:toISO(selectedDate), time_slot:`${fmtHour(adminStartH)}–${fmtHour(adminEndH)}`, duration_hours:durationHours, recurrence, end_date:endDate });
     setLoading(false);
   };
 
@@ -1164,7 +1232,6 @@ function AdminAddForm({ bookings, exceptions, onSubmit, onClose, T }) {
         <div style={{fontSize:18,fontWeight:800,color:T.text,marginBottom:16,fontFamily:'system-ui'}}>Lägg till återkommande bokning</div>
 
         {step==='date' && <>
-          <div style={{marginBottom:14}}><DurationPicker value={durationHours} onChange={setDurationHours} T={T}/></div>
           <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:10}}>
             <button onClick={()=>{const d=new Date(anchor);d.setMonth(d.getMonth()-1);setAnchor(d);}} style={{width:32,height:32,borderRadius:8,border:`1px solid ${T.border}`,background:T.card,display:'flex',alignItems:'center',justifyContent:'center',cursor:'pointer',color:T.text}}>
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
@@ -1188,21 +1255,33 @@ function AdminAddForm({ bookings, exceptions, onSubmit, onClose, T }) {
 
         {step==='time' && selectedDate && <>
           <div style={{fontSize:12,fontWeight:700,color:T.textMuted,marginBottom:12,letterSpacing:'.3px'}}>{isoToDisplay(toISO(selectedDate))} — VÄLJ TID</div>
-          <div style={{display:'flex',flexDirection:'column',gap:6,maxHeight:260,overflowY:'auto'}}>
-            {ALL_HOURS.filter(h=>h+durationHours<=CLOSE_HOUR).map(h=>{
-              const avail=getAvailableStarts(bookings,exceptions,toISO(selectedDate),durationHours).includes(h);
-              return <button key={h} onClick={()=>{setSelectedStartH(h);setStep('details');}} style={{padding:'11px 16px',borderRadius:10,border:`1px solid ${T.accent}44`,background:T.cardElevated,color:T.text,fontSize:14,fontWeight:600,cursor:'pointer',textAlign:'left',fontFamily:'system-ui',WebkitTapHighlightColor:'transparent',display:'flex',justifyContent:'space-between',alignItems:'center'}}>
-                {slotLabel(h,durationHours)}
-                {!avail&&<span style={{fontSize:10,color:'#ef4444',fontWeight:700}}>Upptagen</span>}
-              </button>;
-            })}
+          <TimeRangePicker startH={adminStartH} endH={adminEndH}
+            onChange={(s,e)=>{setAdminStartH(s);setAdminEndH(e);setSelectedStartH(s);}}
+            T={T}/>
+          {(() => {
+            const booked = getBookedBlocks(bookings, exceptions, toISO(selectedDate));
+            const startBlocks = adminStartH*2;
+            const dur = adminEndH - adminStartH;
+            let conflict = false;
+            for (let i = 0; i < dur*2; i++) { if (booked.has(startBlocks+i)) { conflict = true; break; } }
+            return conflict ? (
+              <div style={{marginTop:10,padding:'8px 12px',borderRadius:8,background:'#ef444411',border:'1px solid #ef444433',fontSize:12,color:'#ef4444',fontFamily:'system-ui',fontWeight:600}}>
+                ⚠️ Vald tid krockar med en befintlig bokning
+              </div>
+            ) : null;
+          })()}
+          <div style={{display:'flex',gap:8,marginTop:14}}>
+            <button onClick={()=>setStep('date')} style={{flex:1,padding:'11px',borderRadius:10,border:`1px solid ${T.border}`,background:'none',color:T.textMuted,fontSize:13,fontWeight:600,cursor:'pointer',fontFamily:'system-ui'}}>← Byt datum</button>
+            <button onClick={()=>{setSelectedStartH(adminStartH);setStep('details');}}
+              style={{flex:2,padding:'11px',borderRadius:10,border:'none',background:T.accent,color:'#fff',fontSize:13,fontWeight:700,cursor:'pointer',fontFamily:'system-ui',WebkitTapHighlightColor:'transparent'}}>
+              Välj denna tid →
+            </button>
           </div>
-          <button onClick={()=>setStep('date')} style={{marginTop:12,background:'none',border:'none',color:T.accent,cursor:'pointer',fontSize:13,fontWeight:600,fontFamily:'system-ui',padding:0}}>← Byt datum</button>
         </>}
 
         {step==='details' && <>
           <div style={{background:`${T.accent}18`,borderRadius:10,padding:'8px 12px',marginBottom:16}}>
-            <span style={{fontSize:13,color:T.accent,fontWeight:600}}>{isoToDisplay(toISO(selectedDate))} · {slotLabel(selectedStartH,durationHours)}</span>
+            <span style={{fontSize:13,color:T.accent,fontWeight:600}}>{isoToDisplay(toISO(selectedDate))} · {fmtHour(adminStartH)}–{fmtHour(adminEndH)} · {fmtDuration(durationHours)}</span>
           </div>
           <div style={{display:'flex',flexDirection:'column',gap:12}}>
             <Input label="NAMN" value={form.name} onChange={v=>setForm(p=>({...p,name:v}))} placeholder="Namn på bokaren" required T={T}/>
