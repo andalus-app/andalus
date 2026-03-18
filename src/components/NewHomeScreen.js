@@ -530,10 +530,15 @@ export default function NewHomeScreen({ stream, onGoToAdminLogin, onGoToMyBookin
                       <SwipeableItem key={`booking-${item.id}`} onDismiss={() => markVisitorSeen()}>
                       <div
                         onClick={() => { setShowBellPanel(false); markVisitorSeen(); onGoToMyBookings?.(item.id); }}
-                        style={{ padding: '11px 14px', borderBottom: `1px solid ${T.border}`, background: T.isDark ? `${color}09` : `${color}07`, display: 'flex', alignItems: 'flex-start', gap: 10, cursor: 'pointer' }}>
+                        style={{ padding: '11px 14px', borderBottom: `1px solid ${T.border}`, borderLeft: `3px solid ${color}`, background: T.isDark ? `${color}09` : `${color}07`, display: 'flex', alignItems: 'flex-start', gap: 10, cursor: 'pointer' }}>
                         <div style={{ width: 28, height: 28, borderRadius: 8, flexShrink: 0, background: `${color}20`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                            {item.status==='approved'?<polyline points="20 6 9 17 4 12"/>:item.status==='rejected'||item.status==='cancelled'?<><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></>:<path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>}
+                          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
+                            <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
+                            <line x1="16" y1="2" x2="16" y2="6"/>
+                            <line x1="8" y1="2" x2="8" y2="6"/>
+                            <line x1="3" y1="10" x2="21" y2="10"/>
+                            <line x1="9" y1="15" x2="15" y2="15"/>
+                            <line x1="12" y1="12" x2="12" y2="18"/>
                           </svg>
                         </div>
                         <div style={{ flex: 1, minWidth: 0 }}>
@@ -547,11 +552,11 @@ export default function NewHomeScreen({ stream, onGoToAdminLogin, onGoToMyBookin
                     );
                   }
 
-                  /* ── Banner ── */
+                  /* ── Banner (Google Sheets) ── */
                   const isRead = read.includes(item.id);
                   return (
                     <SwipeableItem key={`banner-${item.id}`} onDismiss={() => dismiss(item.id)}>
-                      <div style={{ padding: '11px 14px', borderBottom: `1px solid ${T.border}`, background: isRead ? 'transparent' : T.isDark ? 'rgba(45,139,120,0.06)' : 'rgba(36,100,93,0.05)', display: 'flex', alignItems: 'flex-start', gap: 10 }}>
+                      <div style={{ padding: '11px 14px', borderBottom: `1px solid ${T.border}`, borderLeft: `3px solid #0d9488`, background: isRead ? 'transparent' : T.isDark ? 'rgba(13,148,136,0.07)' : 'rgba(13,148,136,0.05)', display: 'flex', alignItems: 'flex-start', gap: 10 }}>
                         <div style={{ width: 7, height: 7, borderRadius: 4, flexShrink: 0, marginTop: 5, background: isRead ? 'transparent' : '#0d9488' }} />
                         <div style={{ flex: 1 }}>
                           <div style={{ fontSize: 13, color: T.textSecondary, lineHeight: 1.5 }}>{item.message}</div>
@@ -613,22 +618,27 @@ export default function NewHomeScreen({ stream, onGoToAdminLogin, onGoToMyBookin
               <div
                 onClick={() => { onGoToMyBookings?.(n.id); }}
                 style={{
-                  background: T.card,
-                  border: `1px solid ${color}44`,
+                  background: T.isDark ? `rgba(30,30,30,0.6)` : `rgba(255,255,255,0.55)`,
+                  backdropFilter: 'blur(20px)',
+                  WebkitBackdropFilter: 'blur(20px)',
+                  border: `1px solid ${color}55`,
                   borderLeft: `4px solid ${color}`,
                   borderRadius: 14, padding: '13px 14px',
                   display: 'flex', alignItems: 'flex-start', gap: 12,
                   cursor: 'pointer',
+                  boxShadow: T.isDark ? `0 4px 16px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.06)` : `0 4px 16px rgba(0,0,0,0.06), inset 0 1px 0 rgba(255,255,255,0.8)`,
                   animation: `bannerIn .3s ease both`, animationDelay: `${i * 60}ms`,
                 }}
               >
-                <div style={{ width: 28, height: 28, borderRadius: 8, flexShrink: 0, background: `${color}20`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                    {n.status === 'approved'
-                      ? <polyline points="20 6 9 17 4 12"/>
-                      : n.status === 'rejected' || n.status === 'cancelled'
-                        ? <><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></>
-                        : <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>}
+                {/* Kalender-ikon från Boka lokal */}
+                <div style={{ width: 32, height: 32, borderRadius: 9, flexShrink: 0, background: `${color}22`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
+                    <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
+                    <line x1="16" y1="2" x2="16" y2="6"/>
+                    <line x1="8" y1="2" x2="8" y2="6"/>
+                    <line x1="3" y1="10" x2="21" y2="10"/>
+                    <line x1="9" y1="15" x2="15" y2="15"/>
+                    <line x1="12" y1="12" x2="12" y2="18"/>
                   </svg>
                 </div>
                 <div style={{ flex: 1, minWidth: 0 }}>
@@ -649,12 +659,17 @@ export default function NewHomeScreen({ stream, onGoToAdminLogin, onGoToMyBookin
           );
         })}
 
-        {/* Inline banner feed */}
+        {/* Inline banner feed — Google Sheets meddelanden */}
         {banners.map((b, i) => (
           <SwipeableItem key={b.id} onDismiss={() => dismiss(b.id)}>
             <div style={{
-              background: T.card, border: `1px solid #0d948844`, borderLeft: `4px solid #0d9488`,
+              background: T.isDark ? `rgba(30,30,30,0.6)` : `rgba(255,255,255,0.55)`,
+              backdropFilter: 'blur(20px)',
+              WebkitBackdropFilter: 'blur(20px)',
+              border: `1px solid #0d948855`,
+              borderLeft: `4px solid #0d9488`,
               borderRadius: 14, padding: '13px 14px', display: 'flex', alignItems: 'flex-start', gap: 12,
+              boxShadow: T.isDark ? `0 4px 16px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.06)` : `0 4px 16px rgba(0,0,0,0.06), inset 0 1px 0 rgba(255,255,255,0.8)`,
               animation: `bannerIn .3s ease both`, animationDelay: `${i * 60}ms`,
             }}>
               <AndalusLogo size={26} color={T.isDark ? T.accent : T.accent} />
