@@ -552,7 +552,7 @@ export default function NewHomeScreen({ stream, onGoToAdminLogin, onGoToMyBookin
                   return (
                     <SwipeableItem key={`banner-${item.id}`} onDismiss={() => dismiss(item.id)}>
                       <div style={{ padding: '11px 14px', borderBottom: `1px solid ${T.border}`, background: isRead ? 'transparent' : T.isDark ? 'rgba(45,139,120,0.06)' : 'rgba(36,100,93,0.05)', display: 'flex', alignItems: 'flex-start', gap: 10 }}>
-                        <div style={{ width: 7, height: 7, borderRadius: 4, flexShrink: 0, marginTop: 5, background: isRead ? 'transparent' : T.accent }} />
+                        <div style={{ width: 7, height: 7, borderRadius: 4, flexShrink: 0, marginTop: 5, background: isRead ? 'transparent' : '#6366f1' }} />
                         <div style={{ flex: 1 }}>
                           <div style={{ fontSize: 13, color: T.textSecondary, lineHeight: 1.5 }}>{item.message}</div>
                           {item.linkText && item.linkUrl && (
@@ -653,15 +653,15 @@ export default function NewHomeScreen({ stream, onGoToAdminLogin, onGoToMyBookin
         {banners.map((b, i) => (
           <SwipeableItem key={b.id} onDismiss={() => dismiss(b.id)}>
             <div style={{
-              background: T.card, border: `1px solid ${T.accent}44`, borderLeft: `4px solid ${T.accent}`,
+              background: T.card, border: `1px solid #6366f144`, borderLeft: `4px solid #6366f1`,
               borderRadius: 14, padding: '13px 14px', display: 'flex', alignItems: 'flex-start', gap: 12,
               animation: `bannerIn .3s ease both`, animationDelay: `${i * 60}ms`,
             }}>
-              <AndalusLogo size={26} color={T.isDark ? T.accent : T.accent} />
+              <AndalusLogo size={26} color="#6366f1" />
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ fontSize: 13, lineHeight: 1.55, fontWeight: 400, color: T.textSecondary, fontFamily: "'Inter',system-ui,sans-serif" }}>{b.message}</div>
                 {b.linkText && b.linkUrl && (
-                  <a href={b.linkUrl} target="_blank" rel="noopener noreferrer" style={{ display: 'inline-block', marginTop: 6, fontSize: 12, fontWeight: 700, color: T.accent, textDecoration: 'underline', textUnderlineOffset: 3, fontFamily: "'Inter',system-ui,sans-serif" }}>{b.linkText} →</a>
+                  <a href={b.linkUrl} target="_blank" rel="noopener noreferrer" style={{ display: 'inline-block', marginTop: 6, fontSize: 12, fontWeight: 700, color: '#6366f1', textDecoration: 'underline', textUnderlineOffset: 3, fontFamily: "'Inter',system-ui,sans-serif" }}>{b.linkText} →</a>
                 )}
               </div>
               <button onClick={e => { e.stopPropagation(); dismiss(b.id); }}
