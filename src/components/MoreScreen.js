@@ -415,7 +415,7 @@ export default function MoreScreen({ onTabBarHide, onTabBarShow, initialView, ma
         }
       `}</style>
       <div style={{
-        padding: '20px 16px 12px', paddingTop: 'max(20px, env(safe-area-inset-top))',
+        paddingTop: 'max(20px, env(safe-area-inset-top))', paddingLeft: '16px', paddingRight: '16px', paddingBottom: '12px',
         position: 'sticky', top: 0, zIndex: 20, background: T.bg,
         borderBottom: `1px solid ${T.border}`,
         maxHeight: headerVisible ? 300 : 0,

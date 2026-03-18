@@ -353,7 +353,7 @@ function PdfReader({ book, onClose, onSetPage, onAddBookmark, onRemoveBookmark, 
       {/* TOP BAR */}
       <div style={{
         position:'absolute', top:0, left:0, right:0, zIndex:20,
-        padding:'12px 14px', paddingTop:'max(14px,env(safe-area-inset-top))',
+        paddingTop:'max(14px,env(safe-area-inset-top))',paddingLeft:'14px',paddingRight:'14px',paddingBottom:'12px',
         background:'linear-gradient(to bottom,rgba(0,0,0,.92),transparent)',
         display:'flex', alignItems:'center', gap:10,
         transition:'opacity .3s, transform .3s',
@@ -637,7 +637,7 @@ function BookDetail({ book, allBooks, onBack, onRead, onToggleFav, onSelectRelat
   return (
     <div ref={detailRef} style={{ background:T.bg, height:'100%', overflowY:'auto', WebkitOverflowScrolling:'touch', fontFamily:"'Georgia',serif" }}>
       <div style={{ background:`linear-gradient(180deg, ${book.coverColor}dd 0%, ${book.coverColor}44 60%, ${T.bg} 100%)`, paddingBottom:28 }}>
-        <div style={{ display:'flex', justifyContent:'space-between', padding:'14px 14px 0', paddingTop:'max(14px,env(safe-area-inset-top))' }}>
+        <div style={{ display:'flex', justifyContent:'space-between', paddingTop:'max(14px,env(safe-area-inset-top))',paddingLeft:'14px',paddingRight:'14px',paddingBottom:'0' }}>
           <button onClick={onBack} style={{ background:'rgba(0,0,0,.3)', border:'none', borderRadius:10, padding:'8px 12px', cursor:'pointer', color:'#fff', display:'flex', alignItems:'center', gap:6, WebkitTapHighlightColor:'transparent' }}>
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M19 12H5M12 5l-7 7 7 7"/></svg>
             <span style={{ fontSize:13, fontFamily:'system-ui', fontWeight:600 }}>Tillbaka</span>
@@ -807,7 +807,7 @@ function Library({ books, onSelect, onBack, T }) {
         input::placeholder{color:${T.textMuted};opacity:.7}
       `}</style>
 
-      <div style={{ padding:'16px 16px 0', paddingTop:'max(16px, env(safe-area-inset-top))', position:'sticky', top:0, zIndex:20, background:T.bg, borderBottom:`1px solid ${T.border}`,
+      <div style={{ paddingTop:'max(16px, env(safe-area-inset-top))',paddingLeft:'16px',paddingRight:'16px',paddingBottom:'0', position:'sticky', top:0, zIndex:20, background:T.bg, borderBottom:`1px solid ${T.border}`,
         maxHeight: headerVisible ? 300 : 0,
         overflow: 'hidden',
         transition: 'max-height 0.28s cubic-bezier(0.4, 0, 0.2, 1)',

@@ -649,7 +649,7 @@ function BookingForm({date,slotLabel:slot,durationHours,onSubmit,onBack,loading,
     if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email)){setError('Ange en giltig e-postadress.');return;}
     onSubmit({...form,date:toISO(date),time_slot:slot,duration_hours:durationHours,recurrence,recur_dates:recurrence!=='none'?recurDates:null});
   };
-  return <div style={{padding:'20px 16px',paddingTop:'max(20px, env(safe-area-inset-top, 0px))',fontFamily:'system-ui'}}>
+  return <div style={{paddingTop:'max(20px, env(safe-area-inset-top, 0px))',paddingLeft:'16px',paddingRight:'16px',paddingBottom:'20px',fontFamily:'system-ui'}}>
     <BackButton onBack={onBack} T={T}/>
     <div style={{marginTop:16,marginBottom:20}}>
       <div style={{fontSize:22,fontWeight:800,color:T.text,letterSpacing:'-.4px',marginBottom:8}}>Bokningsförfrågan</div>
@@ -714,7 +714,7 @@ function EditBookingForm({booking, bookings, onSubmit, onBack, loading, T}){
     onSubmit({id:booking.id, date:toISO(selectedDate), time_slot:slotLabel(selectedStartH,durationHours), duration_hours:durationHours, activity, originalStatus:booking.status});
   };
 
-  return <div style={{padding:'20px 16px',paddingTop:'max(20px, env(safe-area-inset-top, 0px))',fontFamily:'system-ui'}}>
+  return <div style={{paddingTop:'max(20px, env(safe-area-inset-top, 0px))',paddingLeft:'16px',paddingRight:'16px',paddingBottom:'20px',fontFamily:'system-ui'}}>
     <BackButton onBack={onBack} T={T}/>
     <div style={{fontSize:20,fontWeight:800,color:T.text,marginTop:16,marginBottom:4}}>Ändra bokning</div>
     <div style={{fontSize:13,color:booking.status==='pending'?T.textMuted:'#f97316',marginBottom:20,background:booking.status==='pending'?'none':'#f9731611',borderRadius:8,padding:booking.status==='pending'?'0':'8px 12px'}}>
@@ -838,7 +838,7 @@ function PinRevealScreen({pin, onContinue, T}){
 }
 
 function ConfirmationScreen({booking,onBack,T}){
-  return <div style={{padding:'20px 16px',paddingTop:'max(20px, env(safe-area-inset-top, 0px))',fontFamily:'system-ui'}}>
+  return <div style={{paddingTop:'max(20px, env(safe-area-inset-top, 0px))',paddingLeft:'16px',paddingRight:'16px',paddingBottom:'20px',fontFamily:'system-ui'}}>
     <BackButton onBack={onBack} T={T}/>
     <div style={{marginTop:24,display:'flex',flexDirection:'column',alignItems:'center',gap:16}}>
       <div style={{width:72,height:72,borderRadius:'50%',background:'#22c55e22',display:'flex',alignItems:'center',justifyContent:'center'}}>
@@ -959,7 +959,7 @@ function MyBookings({bookings, onViewConfirmation, onEdit, onCancel, onCancelOne
     const canEdit  =!isRecur&&(isPending||isApproved);
     const canDelete=isPending||isEditPending||isApproved;
 
-    return <div style={{padding:'20px 16px',paddingTop:'max(20px, env(safe-area-inset-top, 0px))',fontFamily:'system-ui'}}>
+    return <div style={{paddingTop:'max(20px, env(safe-area-inset-top, 0px))',paddingLeft:'16px',paddingRight:'16px',paddingBottom:'20px',fontFamily:'system-ui'}}>
       <OccurrenceSheet/>
       <BackButton onBack={()=>{setSelectedGroup(null);setOccurrenceSheet(null);}} T={T}/>
       <div style={{fontSize:20,fontWeight:800,color:T.text,marginTop:16,marginBottom:16}}>Bokningsdetaljer</div>
@@ -1065,7 +1065,7 @@ function MyBookings({bookings, onViewConfirmation, onEdit, onCancel, onCancelOne
   const lockoutMinutes = lockoutUntil ? Math.ceil((lockoutUntil-Date.now())/60000) : 0;
 
   // ── Listvy — 1 rad per grupp ──
-  return <div style={{padding:'20px 16px',paddingTop:'max(20px, env(safe-area-inset-top, 0px))',fontFamily:'system-ui'}}>
+  return <div style={{paddingTop:'max(20px, env(safe-area-inset-top, 0px))',paddingLeft:'16px',paddingRight:'16px',paddingBottom:'20px',fontFamily:'system-ui'}}>
     {pulseStyle}
     <BackButton onBack={onBack} T={T}/>
     <div style={{fontSize:22,fontWeight:800,color:T.text,letterSpacing:'-.4px',marginTop:16,marginBottom:20}}>Mina bokningar</div>
@@ -1182,7 +1182,7 @@ function AdminAddRecurring({onSubmit,onBack,bookings,T}){
     if(!form.name.trim()||!form.activity.trim()){setError('Fyll i namn och aktivitet.');return;}
     onSubmit({...form,date:toISO(selectedDate),time_slot:slotLabel(selectedStartH,durationHours),duration_hours:durationHours,recurrence,recur_dates:recurDates,status:'approved'});
   };
-  return <div style={{padding:'20px 16px',paddingTop:'max(20px, env(safe-area-inset-top, 0px))',fontFamily:'system-ui'}}>
+  return <div style={{paddingTop:'max(20px, env(safe-area-inset-top, 0px))',paddingLeft:'16px',paddingRight:'16px',paddingBottom:'20px',fontFamily:'system-ui'}}>
     <BackButton onBack={onBack} T={T}/>
     <div style={{fontSize:20,fontWeight:800,color:T.text,marginTop:16,marginBottom:4}}>Lägg till återkommande bokning</div>
     <div style={{fontSize:13,color:T.textMuted,marginBottom:20}}>Skapas som direkt godkänd bokning.</div>
@@ -1272,7 +1272,7 @@ function AdminEditForm({booking, bookings, onSubmit, onBack, loading, T}){
     if(!adminComment.trim()){setError('Du måste ange en förklaring till ändringen.');return;}
     onSubmit({id:booking.id,date:toISO(selectedDate),time_slot:slotLabel(selectedStartH,durationHours),duration_hours:durationHours,activity,admin_comment:adminComment});
   };
-  return <div style={{padding:'20px 16px',paddingTop:'max(20px, env(safe-area-inset-top, 0px))',fontFamily:'system-ui'}}>
+  return <div style={{paddingTop:'max(20px, env(safe-area-inset-top, 0px))',paddingLeft:'16px',paddingRight:'16px',paddingBottom:'20px',fontFamily:'system-ui'}}>
     <BackButton onBack={onBack} T={T}/>
     <div style={{fontSize:20,fontWeight:800,color:T.text,marginTop:16,marginBottom:4}}>Ändra bokning</div>
     <div style={{background:'#3b82f618',border:'1px solid #3b82f633',borderRadius:10,padding:'10px 12px',marginBottom:20,fontSize:12,color:'#3b82f6',fontFamily:'system-ui'}}>
@@ -1500,7 +1500,7 @@ function AdminPanel({bookings,onAction,onEdit,onDelete,onDeleteMany,onAddRecurri
     return {b,futureCount};
   })() : null;
 
-  if(selected) return <div style={{padding:'20px 16px',paddingTop:'max(20px, env(safe-area-inset-top, 0px))',fontFamily:'system-ui'}}>
+  if(selected) return <div style={{paddingTop:'max(20px, env(safe-area-inset-top, 0px))',paddingLeft:'16px',paddingRight:'16px',paddingBottom:'20px',fontFamily:'system-ui'}}>
     {/* Fix 3: inline sheets — inga inner components som återskapar DOM och tappar fokus */}
     {deleteSheetContent&&<div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.5)',zIndex:1000,display:'flex',alignItems:'flex-end',justifyContent:'center'}} onClick={closeDelete}>
       <div onClick={e=>e.stopPropagation()} style={{background:T.card,borderRadius:'20px 20px 0 0',padding:'24px 20px 36px',width:'100%',maxWidth:500,boxSizing:'border-box',animation:'slideUp .25s cubic-bezier(0.32,0.72,0,1)'}}>
@@ -1619,7 +1619,7 @@ function AdminPanel({bookings,onAction,onEdit,onDelete,onDeleteMany,onAddRecurri
   </div>;
 
   const pending=bookings.filter(b=>b.status==='pending'||b.status==='edit_pending').length;
-  return <div style={{padding:'20px 16px',paddingTop:'max(20px, env(safe-area-inset-top, 0px))',fontFamily:'system-ui'}}>
+  return <div style={{paddingTop:'max(20px, env(safe-area-inset-top, 0px))',paddingLeft:'16px',paddingRight:'16px',paddingBottom:'20px',fontFamily:'system-ui'}}>
     <BackButton onBack={onBack} T={T}/>
     <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginTop:16,marginBottom:16}}>
       <div style={{display:'flex',alignItems:'center',gap:10}}>
@@ -1786,7 +1786,7 @@ function UserLogin({onSuccess, onBack, T}){
 
   const iconStyle={width:56,height:56,borderRadius:'50%',background:`${T.accent}22`,display:'flex',alignItems:'center',justifyContent:'center',margin:'0 auto 14px'};
 
-  return <div style={{padding:'20px 16px',paddingTop:'max(20px, env(safe-area-inset-top, 0px))',fontFamily:'system-ui'}}>
+  return <div style={{paddingTop:'max(20px, env(safe-area-inset-top, 0px))',paddingLeft:'16px',paddingRight:'16px',paddingBottom:'20px',fontFamily:'system-ui'}}>
     <BackButton onBack={onBack} T={T}/>
     <div style={{marginTop:24,maxWidth:340,margin:'24px auto 0'}}>
 
@@ -1918,7 +1918,7 @@ function UserManagement({onBack,T}){
   const roleBg=r=>r==='admin'?'#f59e0b22':'#22c55e22';
   const roleColor=r=>r==='admin'?'#f59e0b':'#22c55e';
 
-  return <div style={{padding:'20px 16px',paddingTop:'max(20px, env(safe-area-inset-top, 0px))',fontFamily:'system-ui',minHeight:'100%',background:T.bg}}>
+  return <div style={{paddingTop:'max(20px, env(safe-area-inset-top, 0px))',paddingLeft:'16px',paddingRight:'16px',paddingBottom:'20px',fontFamily:'system-ui',minHeight:'100%',background:T.bg}}>
     <BackButton onBack={onBack} T={T}/>
     <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginTop:16,marginBottom:20}}>
       <div style={{fontSize:22,fontWeight:800,color:T.text}}>Hantera konton</div>
@@ -1997,7 +1997,7 @@ function AdminLogin({onSuccess,onBack,T}){
   const [pin,setPin]=useState('');
   const [error,setError]=useState('');
   const handleSubmit=()=>{if(pin===ADMIN_PIN){onSuccess();}else{setError('Fel PIN-kod. Försök igen.');setPin('');}};
-  return <div style={{padding:'20px 16px',paddingTop:'max(20px, env(safe-area-inset-top, 0px))',fontFamily:'system-ui'}}>
+  return <div style={{paddingTop:'max(20px, env(safe-area-inset-top, 0px))',paddingLeft:'16px',paddingRight:'16px',paddingBottom:'20px',fontFamily:'system-ui'}}>
     <BackButton onBack={onBack} T={T}/>
     <div style={{marginTop:32,maxWidth:320,margin:'32px auto 0'}}>
       <div style={{textAlign:'center',marginBottom:28}}>
@@ -2500,7 +2500,7 @@ export default function BookingScreen({onBack, activateForDevice, registerAdminD
 
   return <div ref={scrollRef} style={{background:T.bg,minHeight:'100%',fontFamily:'system-ui, sans-serif'}}>
     <style>{`@keyframes fadeInUp{from{opacity:0;transform:translateX(-50%) translateY(8px)}to{opacity:1;transform:translateX(-50%) translateY(0)}} @keyframes spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}} @keyframes slideUp{from{transform:translateY(100%)}to{transform:translateY(0)}}`}</style>
-    <div style={{padding:'16px 16px 12px',paddingTop:'max(16px, env(safe-area-inset-top))',position:'sticky',top:0,zIndex:20,background:T.bg,borderBottom:`1px solid ${T.border}`}}>
+    <div style={{paddingTop:'max(16px, env(safe-area-inset-top))',paddingLeft:'16px',paddingRight:'16px',paddingBottom:'12px',position:'sticky',top:0,zIndex:20,background:T.bg,borderBottom:`1px solid ${T.border}`}}>
       <div style={{display:'flex',alignItems:'center',justifyContent:'space-between'}}>
         <div style={{display:'flex',alignItems:'center',gap:4}}>
           <button onClick={onBack} style={{background:'none',border:'none',cursor:'pointer',color:T.accent,fontSize:22,fontWeight:300,lineHeight:1,padding:'4px 8px 4px 0',WebkitTapHighlightColor:'transparent'}}>‹</button>
