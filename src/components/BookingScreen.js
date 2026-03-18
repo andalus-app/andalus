@@ -633,7 +633,7 @@ function CalendarView({bookings,onSelectSlot,isAdmin,T}){
 
 /* ── BookingForm (ny bokning) ── */
 function BookingForm({date,slotLabel:slot,durationHours,onSubmit,onBack,loading,bookings,T}){
-  const [form,setForm]=useState({name:'',phone:'',email:'',activity:''});
+  const [form,setForm]=useState({name:'',phone:'',activity:''});
   const [recurrence,setRecurrence]=useState('none');
   const [recurCount,setRecurCount]=useState(2);
   const [error,setError]=useState('');
@@ -645,8 +645,7 @@ function BookingForm({date,slotLabel:slot,durationHours,onSubmit,onBack,loading,
     return recurDates.filter((iso,idx)=>idx!==0&&!getAvailableStarts(bookings,iso,durationHours).includes(startH));
   },[recurDates,slot,durationHours,bookings,recurrence]);
   const handleSubmit=()=>{
-    if(!form.name.trim()||!form.phone.trim()||!form.email.trim()||!form.activity.trim()){setError('Vänligen fyll i alla obligatoriska fält.');return;}
-    if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email)){setError('Ange en giltig e-postadress.');return;}
+    if(!form.name.trim()||!form.phone.trim()||!form.activity.trim()){setError('Vänligen fyll i alla obligatoriska fält.');return;}
     onSubmit({...form,date:toISO(date),time_slot:slot,duration_hours:durationHours,recurrence,recur_dates:recurrence!=='none'?recurDates:null});
   };
   return <div style={{paddingTop:'max(20px, env(safe-area-inset-top, 0px))',paddingLeft:'16px',paddingRight:'16px',paddingBottom:'20px',fontFamily:'system-ui'}}>
@@ -661,7 +660,6 @@ function BookingForm({date,slotLabel:slot,durationHours,onSubmit,onBack,loading,
     <div style={{display:'flex',flexDirection:'column',gap:14}}>
       <Input label="NAMN" value={form.name} onChange={set('name')} placeholder="Ditt fullständiga namn" required T={T}/>
       <Input label="TELEFON" value={form.phone} onChange={set('phone')} placeholder="07X-XXX XX XX" required T={T} type="tel"/>
-      <Input label="E-POST" value={form.email} onChange={set('email')} placeholder="din@epost.se" required T={T} type="email"/>
       <Textarea label="AKTIVITET" value={form.activity} onChange={set('activity')} placeholder="Beskriv aktiviteten kort..." required T={T}/>
       <div style={{background:T.card,border:`1px solid ${T.border}`,borderRadius:14,padding:'14px'}}>
         <RecurrencePicker recurrence={recurrence} onChange={r=>{setRecurrence(r);setRecurCount(2);}} recurCount={recurCount} onRecurCountChange={setRecurCount} T={T}/>
@@ -1164,7 +1162,7 @@ function MyBookings({bookings, onViewConfirmation, onEdit, onCancel, onCancelOne
 /* ── AdminAddRecurring ── */
 function AdminAddRecurring({onSubmit,onBack,bookings,T}){
   const today=new Date(); today.setHours(0,0,0,0);
-  const [form,setForm]=useState({name:'',phone:'',email:'',activity:''});
+  const [form,setForm]=useState({name:'',phone:'',activity:''});
   const [durationHours,setDurationHours]=useState(2);
   const [selectedDate,setSelectedDate]=useState(null);
   const [selectedStartH,setSelectedStartH]=useState(null);
@@ -1244,7 +1242,6 @@ function AdminAddRecurring({onSubmit,onBack,bookings,T}){
       <div style={{display:'flex',flexDirection:'column',gap:14}}>
         <Input label="NAMN" value={form.name} onChange={set('name')} placeholder="Bokningsnamn / organisation" required T={T}/>
         <Input label="TELEFON" value={form.phone} onChange={set('phone')} placeholder="07X-XXX XX XX" T={T} type="tel"/>
-        <Input label="E-POST" value={form.email} onChange={set('email')} placeholder="din@epost.se" T={T} type="email"/>
         <Textarea label="AKTIVITET" value={form.activity} onChange={set('activity')} placeholder="Beskriv aktiviteten..." required T={T}/>
         {error&&<div style={{fontSize:13,color:T.error,background:`${T.error}18`,padding:'10px 14px',borderRadius:8}}>{error}</div>}
         <button onClick={handleSubmit} style={{background:'#8b5cf6',color:'#fff',border:'none',borderRadius:12,padding:'13px',fontSize:15,fontWeight:700,cursor:'pointer',WebkitTapHighlightColor:'transparent'}}>Lägg till {recurDates.length} bokningar direkt ✓</button>
@@ -1546,7 +1543,7 @@ function AdminPanel({bookings,onAction,onEdit,onDelete,onDeleteMany,onAddRecurri
         <Badge status={groupStatus(selected)}/>
         {selected.isRecur&&<RecurBadge/>}
       </div>
-      {[['Namn',selected.bookings[0].name],['Telefon',selected.bookings[0].phone],['E-post',selected.bookings[0].email],['Aktivitet',selected.bookings[0].activity],['Tid',selected.bookings[0].time_slot],['Längd',`${selected.bookings[0].duration_hours||1} timmar`]].map(([l,v])=>(
+      {[['Namn',selected.bookings[0].name],['Telefon',selected.bookings[0].phone],['Aktivitet',selected.bookings[0].activity],['Tid',selected.bookings[0].time_slot],['Längd',`${selected.bookings[0].duration_hours||1} timmar`]].map(([l,v])=>(
         <div key={l} style={{marginBottom:10,paddingBottom:10,borderBottom:`1px solid ${T.border}`}}>
           <div style={{fontSize:10,fontWeight:700,color:T.textMuted,letterSpacing:'.5px',marginBottom:2}}>{l.toUpperCase()}</div>
           <div style={{fontSize:14,color:T.text}}>{v}</div>
@@ -2143,7 +2140,6 @@ export default function BookingScreen({onBack, activateForDevice, registerAdminD
       const {data:existing} = await supabase
         .from('bookings')
         .select('user_pin_hash')
-        .eq('email', formData.email.toLowerCase().trim())
         .not('user_pin_hash','is',null)
         .limit(1);
 
@@ -2161,7 +2157,7 @@ export default function BookingScreen({onBack, activateForDevice, registerAdminD
     }
 
     const rows=(formData.recur_dates||[formData.date]).map(iso=>({
-      id:uid(),name:formData.name,phone:formData.phone,email:formData.email,
+      id:uid(),name:formData.name,phone:formData.phone,email:'',
       activity:formData.activity,date:iso,time_slot:formData.time_slot,
       duration_hours:formData.duration_hours,status:'pending',admin_comment:'',
       created_at:Date.now(),resolved_at:null,device_id:deviceId,
@@ -2182,7 +2178,6 @@ export default function BookingScreen({onBack, activateForDevice, registerAdminD
     setSubmitLoading(false);
     activateForDevice?.();
     // Cacha kontaktuppgifter
-    localStorage.setItem(STORAGE_EMAIL, formData.email.toLowerCase().trim());
     localStorage.setItem(STORAGE_PHONE, normalizePhone(formData.phone));
     showToast(rows.length>1?`${rows.length} bokningsförfrågningar skickade!`:'Bokningsförfrågan skickad!');
     // Visa PIN om det är ny person (pin finns i localStorage)
@@ -2195,7 +2190,6 @@ export default function BookingScreen({onBack, activateForDevice, registerAdminD
   /* Besökare återkallar/avbokar
      - pending / edit_pending → direkt, ingen förklaring krävs
      - approved / edited      → direkt men kräver förklaring, admin notifieras via resolved_at */
-  /* Återhämtning: kräver BÅDE e-post och telefon — tvåfaktor för säkerhet */
   /* Återhämtning via telefon + PIN-kod */
   const handleRecoverByPin=useCallback(async(phone,pin)=>{
     const normalizedPhone = normalizePhone(phone);
@@ -2293,7 +2287,7 @@ export default function BookingScreen({onBack, activateForDevice, registerAdminD
       const {error: delErr} = await supabase.from('bookings').delete().eq('id', data.id);
       if(delErr){ showToast('Något gick fel.'); setSubmitLoading(false); return; }
       const newBooking = {
-        id: uid(), name: original.name, phone: original.phone, email: original.email,
+        id: uid(), name: original.name, phone: original.phone, email: '',
         activity: data.activity, date: data.date, time_slot: data.time_slot,
         duration_hours: data.duration_hours, status: 'pending', admin_comment: '',
         created_at: Date.now(), resolved_at: null, device_id: deviceId,
@@ -2383,7 +2377,7 @@ export default function BookingScreen({onBack, activateForDevice, registerAdminD
   const handleAdminAddRecurring=useCallback(async(formData)=>{
     const groupId=uid();
     const rows=(formData.recur_dates||[formData.date]).map(iso=>({
-      id:uid(),name:formData.name,phone:formData.phone||'',email:formData.email||'',
+      id:uid(),name:formData.name,phone:formData.phone||'',email:'',
       activity:formData.activity,date:iso,time_slot:formData.time_slot,
       duration_hours:formData.duration_hours,status:'approved',admin_comment:'',
       created_at:Date.now(),resolved_at:Date.now(),device_id:'admin',
