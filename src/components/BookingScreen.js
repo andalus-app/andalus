@@ -632,7 +632,9 @@ function CalendarView({bookings,onSelectSlot,isAdmin,T}){
 
 /* ── BookingForm (ny bokning) ── */
 function BookingForm({date,slotLabel:slot,durationHours,onSubmit,onBack,loading,bookings,T}){
-  const [form,setForm]=useState({name:'',phone:'',activity:''});
+  const userName  = localStorage.getItem('islamnu_user_name') || '';
+  const userPhone = localStorage.getItem('islamnu_user_phone') || '';
+  const [form,setForm]=useState({name:userName,phone:userPhone,activity:''});
   const [recurrence,setRecurrence]=useState('none');
   const [recurCount,setRecurCount]=useState(2);
   const [error,setError]=useState('');
@@ -644,7 +646,7 @@ function BookingForm({date,slotLabel:slot,durationHours,onSubmit,onBack,loading,
     return recurDates.filter((iso,idx)=>idx!==0&&!getAvailableStarts(bookings,iso,durationHours).includes(startH));
   },[recurDates,slot,durationHours,bookings,recurrence]);
   const handleSubmit=()=>{
-    if(!form.name.trim()||!form.phone.trim()||!form.activity.trim()){setError('Vänligen fyll i alla obligatoriska fält.');return;}
+    if(!form.activity.trim()){setError('Beskriv aktiviteten.');return;}
     onSubmit({...form,date:toISO(date),time_slot:slot,duration_hours:durationHours,recurrence,recur_dates:recurrence!=='none'?recurDates:null});
   };
   return <div style={{paddingTop:'max(20px, env(safe-area-inset-top, 0px))',paddingLeft:'16px',paddingRight:'16px',paddingBottom:'20px',fontFamily:'system-ui'}}>
@@ -656,9 +658,15 @@ function BookingForm({date,slotLabel:slot,durationHours,onSubmit,onBack,loading,
         <span style={{fontSize:13,color:T.accent,fontWeight:600}}>{isoToDisplay(toISO(date))} · {slot} · {durationHours}h</span>
       </div>
     </div>
+    {/* Inloggad som — readonly info */}
+    <div style={{display:'flex',alignItems:'center',gap:10,background:T.card,border:`1px solid ${T.border}`,borderRadius:12,padding:'12px 14px',marginBottom:14}}>
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={T.accent} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+      <div>
+        <div style={{fontSize:14,fontWeight:700,color:T.text}}>{userName}</div>
+        <div style={{fontSize:12,color:T.textMuted}}>{userPhone}</div>
+      </div>
+    </div>
     <div style={{display:'flex',flexDirection:'column',gap:14}}>
-      <Input label="NAMN" value={form.name} onChange={set('name')} placeholder="Ditt fullständiga namn" required T={T}/>
-      <Input label="TELEFON" value={form.phone} onChange={set('phone')} placeholder="07X-XXX XX XX" required T={T} type="tel"/>
       <Textarea label="AKTIVITET" value={form.activity} onChange={set('activity')} placeholder="Beskriv aktiviteten kort..." required T={T}/>
       <div style={{background:T.card,border:`1px solid ${T.border}`,borderRadius:14,padding:'14px'}}>
         <RecurrencePicker recurrence={recurrence} onChange={r=>{setRecurrence(r);setRecurCount(2);}} recurCount={recurCount} onRecurCountChange={setRecurCount} T={T}/>
