@@ -73,7 +73,7 @@ export function useBookingNotifications() {
           .from('bookings')
           .select('id, status, resolved_at, date, time_slot, admin_comment')
           .in('status', ['approved', 'rejected', 'cancelled', 'edited'])
-          .gt('resolved_at', seenAt > 0 ? seenAt : -1);
+          .gt('resolved_at', seenAt);
         // Prioritera user_id om inloggad
         if (userId) query = query.eq('user_id', userId);
         else query = query.eq('device_id', deviceId);
