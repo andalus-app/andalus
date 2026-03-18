@@ -11,19 +11,15 @@ import AboutIcon from '../icons/about-svgrepo-com.svg';
 import CharityIcon from '../icons/charity-svgrepo-com.svg';
 import SwishLogo from '../icons/swish-logo.svg';
 import BankgirotLogo from '../icons/bankgirot-logo.svg';
+import DhikrMenuIcon from '../icons/dhikr-menu.svg';
 
 const MENU_ITEMS = [
   {
     id: 'dhikr',
     label: 'Dhikr',
     sublabel: 'Åminnelse & böner',
-    svgIcon: (accent) => (
-      <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke={accent} strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
-        <circle cx="12" cy="12" r="10"/>
-        <path d="M12 6v6l4 2"/>
-        <circle cx="12" cy="12" r="2" fill={accent} stroke="none"/>
-      </svg>
-    ),
+    svgIcon: null,
+    imgSrc: DhikrMenuIcon,
     accentColor: '#2D8B78',
   },
   {

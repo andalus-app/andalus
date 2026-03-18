@@ -139,11 +139,15 @@ function Shell() {
     return () => clearTimeout(t);
   }, []); // eslint-disable-line
 
-  // Nudge-animation — kör en gång för att visa att tab-baren scrollar
+  // Nudge-animation — en gång per session, max var 7:e dag
   // Aktiveras bara om det finns fler än 5 ikoner
   useEffect(() => {
     if (TABS.length <= SCROLL_NUDGE_THRESHOLD) return;
-    try { if (localStorage.getItem(nudgeDoneKey)) return; } catch {}
+    const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000;
+    try {
+      const last = parseInt(localStorage.getItem(nudgeDoneKey) || '0', 10);
+      if (Date.now() - last < SEVEN_DAYS_MS) return;
+    } catch {}
     const t = setTimeout(() => {
       setNudging(true);
       const el = tabScrollRef.current;
@@ -152,7 +156,7 @@ function Shell() {
         setTimeout(() => el.scrollTo({ left: 0, behavior: 'smooth' }), 650);
       }
       setTimeout(() => setNudging(false), 1300);
-      try { localStorage.setItem(nudgeDoneKey, '1'); } catch {}
+      try { localStorage.setItem(nudgeDoneKey, Date.now().toString()); } catch {}
     }, 1800);
     return () => clearTimeout(t);
   }, []); // eslint-disable-line
