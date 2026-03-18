@@ -307,6 +307,7 @@ function SwipeableItem({ onDismiss, children }) {
 /* ── Main screen ── */
 export default function NewHomeScreen({ stream, onGoToAdminLogin, onGoToMyBookings }) {
   const { theme: T, mode, setMode } = useTheme();
+  const isPWA = useIsPWA();
   const prevModeRef = React.useRef(mode);
   const [justToggled, setJustToggled] = React.useState(false);
   React.useEffect(() => {
@@ -370,23 +371,23 @@ export default function NewHomeScreen({ stream, onGoToAdminLogin, onGoToMyBookin
         @keyframes liveCardRing{ 0%{box-shadow:0 0 0 2px rgba(255,0,0,0.2),0 4px 24px rgba(255,0,0,0.15)} 50%{box-shadow:0 0 0 4px rgba(255,0,0,0.08),0 4px 24px rgba(255,0,0,0.1)} 100%{box-shadow:0 0 0 2px rgba(255,0,0,0.2),0 4px 24px rgba(255,0,0,0.15)} }
       `}</style>
 
-      {/* ── TOP BAR ── */}
+      {/* ── TOP BAR — synkad med HomeScreen (Bönetider) ── */}
       <div style={{
         position: 'relative',
         display: 'flex', alignItems: 'center', justifyContent: 'center',
-        paddingTop: 'max(12px, env(safe-area-inset-top, 0px))',
+        paddingTop: isPWA ? 'max(12px, calc(env(safe-area-inset-top, 0px) + 4px))' : '12px',
         paddingBottom: 0,
-        minHeight: 'calc(104px + max(0px, env(safe-area-inset-top, 0px) - 12px))',
+        minHeight: 104,
       }}>
-        {/* Logo */}
-        <div style={{ position: 'absolute', top: 'max(12px, env(safe-area-inset-top, 0px))', left: 22, pointerEvents: 'none', userSelect: 'none' }}>
+        {/* Logo — top:0 relativt containern, precis som HomeScreen */}
+        <div style={{ position: 'absolute', top: 0, left: 22, pointerEvents: 'none', userSelect: 'none' }}>
           <AndalusLogo size={80} color={T.isDark ? T.accent : T.accent} />
         </div>
 
-        <div style={{ fontSize: 18, fontWeight: 600, color: T.text, letterSpacing: '-.3px', marginTop: 'max(0px, calc(env(safe-area-inset-top, 0px) - 12px))' }}>Hem</div>
+        <div style={{ fontSize: 18, fontWeight: 600, color: T.text, letterSpacing: '-.3px' }}>Hem</div>
 
         {/* Right side */}
-        <div style={{ position: 'absolute', top: 'max(4px, calc(env(safe-area-inset-top, 0px) - 8px))', right: 18, display: 'flex', alignItems: 'center', gap: 0 }}>
+        <div style={{ position: 'absolute', top: 0, right: 18, display: 'flex', alignItems: 'center', gap: 0 }}>
 
           {/* Theme toggle — sun sets / moon rises with glow */}
           <style>{`
