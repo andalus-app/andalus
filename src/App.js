@@ -21,7 +21,18 @@ import { useScrollHide } from './hooks/useScrollHide';
 
 import DhikrMenuIcon     from './icons/dhikr-tab.svg';
 
-function svgColorFilter(isDark) {
+/* ── Kalender+klocka-ikon för Boka lokal — används i tab-bar, grid och notiser ── */
+function CalendarClockIcon({ size = 22, color = 'currentColor', style }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 688.3 740.6" fill={color} xmlns="http://www.w3.org/2000/svg" style={style}>
+      <path d="M92.7,498.7h66.5v55h-66.5v-55ZM383.9,296.9h-66.5v55h66.5v-55ZM496.3,296.9h-66.5v55h66.5v-55ZM205,452.8h66.5v-55h-66.5v55ZM92.7,452.8h66.5v-55h-66.5v55ZM205,351.9h66.5v-55h-66.5v55ZM383.9,397.8h-66.5v55h66.5v-55ZM205,553.7h66.5v-55h-66.5v55Z"/>
+      <path d="M568.3,425.8V163.3c0-38.3-31.2-69.5-69.5-69.5h-38.2v-23.7c0-22.8-18.5-41.3-41.3-41.3s-41.3,18.5-41.3,41.3v23.7h-166.9v-23.7c0-22.8-18.5-41.3-41.3-41.3s-41.3,18.5-41.3,41.3v23.7h-38.2c-38.3,0-69.5,31.2-69.5,69.5v393.1c0,38.3,31.2,69.5,69.5,69.5h276.2c21.9,60,79.5,102.9,147,102.9s156.4-70.2,156.4-156.4-42.3-124.3-101.6-146.5ZM404,70.1c0-8.4,6.8-15.2,15.2-15.2s15.2,6.8,15.2,15.2v79.1c0,8.4-6.8,15.2-15.2,15.2s-15.2-6.8-15.2-15.2v-79.1ZM154.6,70.1c0-8.4,6.8-15.2,15.2-15.2s15.2,6.8,15.2,15.2v79.1c0,8.4-6.8,15.2-15.2,15.2s-15.2-6.8-15.2-15.2v-79.1ZM90.2,119.8h38.2v29.3c0,22.8,18.5,41.3,41.3,41.3s41.3-18.5,41.3-41.3v-29.3h166.9v29.3c0,22.8,18.5,41.3,41.3,41.3s41.3-18.5,41.3-41.3v-29.3h38.2c24,0,43.5,19.5,43.5,43.5v61.6H46.8v-61.6c0-24,19.5-43.5,43.5-43.5ZM90.2,599.8c-24,0-43.5-19.5-43.5-43.5V251h495.4v167.6c-9.3-1.7-18.9-2.7-28.7-2.7-86.3,0-156.4,70.2-156.4,156.4s.8,18.6,2.4,27.5H90.2ZM513.5,702.7c-71.9,0-130.4-58.5-130.4-130.4s58.5-130.4,130.4-130.4,130.4,58.5,130.4,130.4-58.5,130.4-130.4,130.4Z"/>
+      <path d="M526.5,567v-85c0-7.2-5.8-13-13-13s-13,5.8-13,13v90.4c0,3.6,1.5,6.9,3.8,9.2l45.2,45.2c2.5,2.5,5.9,3.8,9.2,3.8s6.7-1.3,9.2-3.8c5.1-5.1,5.1-13.3,0-18.4l-41.3-41.3Z"/>
+    </svg>
+  );
+}
+
+
   return isDark
     ? 'invert(48%) sepia(60%) saturate(400%) hue-rotate(120deg) brightness(90%)'
     : 'invert(30%) sepia(60%) saturate(500%) hue-rotate(130deg) brightness(80%)';
@@ -329,17 +340,11 @@ function Shell() {
                 {t.type === 'custom' ? (
                   <div style={{ position: 'relative', display: 'inline-flex' }}>
                     {t.icon === 'booking' ? (
-                      <svg width="22" height="22" viewBox="0 0 24 24" fill="none"
-                        stroke={active ? T.accent : T.isDark ? T.accent : T.text}
-                        strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"
-                        style={{ opacity: active ? 1 : T.isDark ? 0.75 : 1, transition: 'all .2s' }}>
-                        <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
-                        <line x1="16" y1="2" x2="16" y2="6"/>
-                        <line x1="8" y1="2" x2="8" y2="6"/>
-                        <line x1="3" y1="10" x2="21" y2="10"/>
-                        <line x1="9" y1="15" x2="15" y2="15"/>
-                        <line x1="12" y1="12" x2="12" y2="18"/>
-                      </svg>
+                      <CalendarClockIcon
+                        size={22}
+                        color={active ? T.accent : T.isDark ? T.accent : T.text}
+                        style={{ opacity: active ? 1 : T.isDark ? 0.75 : 1, transition: 'all .2s' }}
+                      />
                     ) : t.icon === 'ebooks' ? (
                       <svg width="22" height="22" viewBox="0 0 24 24" fill="none"
                         stroke={active ? T.accent : T.isDark ? T.accent : T.text}
