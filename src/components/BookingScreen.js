@@ -1348,13 +1348,10 @@ export default function BookingScreen({
 
   // Edge swipe back
   useEffect(() => {
-    const handler = () => {
-      if (view === 'calendar') onBack?.();
-      else setView('calendar');
-    };
+    const handler = () => { setView('calendar'); };
     window.addEventListener('edgeSwipeBack', handler);
     return () => window.removeEventListener('edgeSwipeBack', handler);
-  }, [view]); // eslint-disable-line
+  }, []); // eslint-disable-line
 
   // Tab bar hide/show based on view
   useEffect(() => {
