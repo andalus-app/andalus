@@ -35,6 +35,7 @@ const MONTHS_SV = ['Januari','Februari','Mars','April','Maj','Juni','Juli','Augu
 const DURATION_OPTIONS = [0.5,1,1.5,2,2.5,3,3.5,4,4.5,5,5.5,6,6.5,7,7.5,8,8.5,9,9.5,10,10.5,11,11.5,12,12.5,13,13.5,14,14.5,15,15.5,16];
 const RECUR_OPTIONS = [
   { value: 'none',    label: 'Ingen upprepning' },
+  { value: 'daily',   label: 'Varje dag' },
   { value: 'weekly',  label: 'Veckovis' },
   { value: 'monthly', label: 'Månadsvis' },
 ];
@@ -135,7 +136,10 @@ function expandBooking(booking, windowStart, windowEnd, exceptions = []) {
     if (current >= winStart && !skipDates.has(iso)) {
       dates.push(applyException(booking, iso, editMap[iso]));
     }
-    if (recurrence === 'weekly') {
+    if (recurrence === 'daily') {
+      current = new Date(current);
+      current.setDate(current.getDate() + 1);
+    } else if (recurrence === 'weekly') {
       current = new Date(current);
       current.setDate(current.getDate() + 7);
     } else if (recurrence === 'monthly') {
@@ -859,7 +863,7 @@ function BookingForm({ date, slotLabel: slot, durationHours, onSubmit, onBack, l
 
 // ── MyBookings ────────────────────────────────────────────────────────────────
 
-function MyBookings({ bookings, exceptions, loading, onBack, onCancel, onCancelFromDate, onCancelSeries, highlightBookingId, T }) {
+function MyBookings({ bookings, exceptions, loading, onBack, onCancel, onCancelFromDate, onCancelSeries, highlightBookingId, onLogout, T }) {
   const [selected, setSelected] = useState(null);
   const [deleteSheet, setDeleteSheet] = useState(null); // {booking, occurrence_date}
   const highlightRef = useRef(null);
@@ -987,7 +991,14 @@ function MyBookings({ bookings, exceptions, loading, onBack, onCancel, onCancelF
 
   return (
     <div style={{paddingTop:'max(20px, env(safe-area-inset-top, 0px))',paddingLeft:'16px',paddingRight:'16px',paddingBottom:'20px',fontFamily:'system-ui'}}>
-      <BackButton onBack={onBack} T={T}/>
+      <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:0}}>
+        <BackButton onBack={onBack} T={T}/>
+        <button onClick={onLogout}
+          style={{padding:'7px 14px',borderRadius:20,border:'1px solid #ef444433',background:'#ef444411',color:'#ef4444',fontSize:12,fontWeight:700,cursor:'pointer',fontFamily:'system-ui',WebkitTapHighlightColor:'transparent',display:'flex',alignItems:'center',gap:6}}>
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+          Logga ut
+        </button>
+      </div>
       <div style={{fontSize:22,fontWeight:800,color:T.text,marginTop:16,marginBottom:16}}>Mina bokningar</div>
       {loading && <Spinner T={T}/>}
       {!loading && sorted.length === 0 && (
@@ -1862,8 +1873,10 @@ export default function BookingScreen({
     activateForDevice?.();
     localStorage.setItem(STORAGE_PHONE, normalizePhone(formData.phone));
     showToast(skipDates.length > 0 ? `Förfrågan skickad — ${skipDates.length} krockar hoppades över!` : 'Bokningsförfrågan skickad!');
+    // Uppdatera listan direkt så den syns i Mina bokningar
+    await fetchAll();
     setView('my-bookings');
-  }, [deviceId, loggedInUser, showToast, activateForDevice]);
+  }, [deviceId, loggedInUser, showToast, activateForDevice, fetchAll]);
 
   // Visitor: cancel single occurrence (adds exception)
   const handleCancelOccurrence = useCallback(async (booking, occurrenceDate) => {
@@ -2093,7 +2106,9 @@ export default function BookingScreen({
           onCancel={handleCancelOccurrence}
           onCancelFromDate={handleCancelFromDate}
           onCancelSeries={handleCancelSeries}
-          highlightBookingId={highlightBookingId} T={T}
+          highlightBookingId={highlightBookingId}
+          onLogout={handleUserLogout}
+          T={T}
         />
       )}
 

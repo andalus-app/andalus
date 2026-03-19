@@ -352,7 +352,7 @@ export default function NewHomeScreen({ stream, onGoToAdminLogin, onGoToMyBookin
       if (prev) return false; // already open — close it
       // Opening: mark banners read and clear badge
       activeBanners.forEach(b => markRead(b.id));
-      if (visitorUnread > 0) markVisitorBadgeSeen();
+      if (visitorUnread > 0) markVisitorSeen();
       return true;
     });
   };
