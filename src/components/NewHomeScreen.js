@@ -618,7 +618,7 @@ export default function NewHomeScreen({ stream, onGoToAdminLogin, onGoToMyBookin
           return (
             <SwipeableItem key={`feed-booking-${n.id}`} onDismiss={() => markVisitorSeen()}>
               <div
-                onClick={() => { onGoToMyBookings?.(n.id); }}
+                onClick={() => { markVisitorSeen(); onGoToMyBookings?.(n.id); }}
                 style={{
                   background: T.isDark ? `rgba(30,30,30,0.6)` : `rgba(255,255,255,0.55)`,
                   backdropFilter: 'blur(20px)',

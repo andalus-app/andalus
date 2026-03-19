@@ -1169,7 +1169,7 @@ function AdminPanel({ bookings, exceptions, onBack, onApprove, onReject, onDelet
   }
 
   return (
-    <div style={{paddingTop:'max(20px, env(safe-area-inset-top, 0px))',paddingLeft:'16px',paddingRight:'16px',paddingBottom:'20px',fontFamily:'system-ui'}}>
+    <div style={{paddingTop:'max(20px, env(safe-area-inset-top, 0px))',paddingLeft:'16px',paddingRight:'16px',paddingBottom:'100px',fontFamily:'system-ui'}}>
       <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:16}}>
         <div style={{fontSize:22,fontWeight:800,color:T.text,letterSpacing:'-.4px'}}>Adminpanel</div>
         <div style={{display:'flex',gap:8}}>
@@ -1815,11 +1815,8 @@ export default function BookingScreen({
 
   // Tab bar hide/show based on view
   useEffect(() => {
-    if (view === 'admin' || view === 'form') {
-      onTabBarHide?.();
-    } else {
-      onTabBarShow?.();
-    }
+    // Tab bar alltid synlig — onTabBarShow körs alltid
+    onTabBarShow?.();
   }, [view]); // eslint-disable-line
 
   // ── My bookings: filter for this device/user ───────────────────────────────
