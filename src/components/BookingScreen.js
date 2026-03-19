@@ -863,30 +863,58 @@ function BookingForm({ date, slotLabel: slot, durationHours, onSubmit, onBack, l
 
 // ── MyBookings ────────────────────────────────────────────────────────────────
 
-function MyBookings({ bookings, exceptions, loading, onBack, onCancel, onCancelFromDate, onCancelSeries, onRestore, highlightBookingId, onLogout, T }) {
+function MyBookings({ bookings, exceptions, loading, onBack, onCancel, onCancelFromDate, onCancelSeries, onRestore, highlightBookingId, highlightFilter, onLogout, T }) {
   const [selectedId, setSelectedId] = useState(null);
-  const [deleteSheet, setDeleteSheet] = useState(null); // {booking, occurrence_date}
+  const [deleteSheet, setDeleteSheet] = useState(null);
   const [cancelReason, setCancelReason] = useState('');
   const [cancelReasonError, setCancelReasonError] = useState(false);
+  const [filter, setFilter] = useState(highlightFilter || 'all');
   const highlightRef = useRef(null);
 
-  // Synka selected med live bookings — uppdateras automatiskt när parent-state ändras
+  // Synka selected med live bookings
   const selected = useMemo(() =>
     selectedId ? bookings.find(b => b.id === selectedId) || null : null,
   [selectedId, bookings]);
 
+  // Synka filter när highlightFilter ändras utifrån
+  useEffect(() => {
+    if (highlightFilter) setFilter(highlightFilter);
+  }, [highlightFilter]);
+
+  // Scrolla till highlighted bokning
   useEffect(() => {
     if (highlightBookingId && highlightRef.current) {
-      setTimeout(() => highlightRef.current?.scrollIntoView({ behavior:'smooth', block:'center' }), 300);
+      setTimeout(() => highlightRef.current?.scrollIntoView({ behavior:'smooth', block:'center' }), 350);
     }
-  }, []); // eslint-disable-line
+  }, [highlightBookingId, filter]);
 
   const today = toISO(new Date());
-  // Expand my bookings for the next 2 years for display
   const windowEnd = (() => { const d=new Date(); d.setFullYear(d.getFullYear()+2); return toISO(d); })();
 
-  // Build display: show booking card + next upcoming occurrence
-  const sorted = bookings.slice().sort((a,b) => a.start_date.localeCompare(b.start_date));
+  // Sortera senaste överst (created_at desc)
+  const sorted = useMemo(() => {
+    const all = bookings.slice().sort((a,b) => (b.created_at||0) - (a.created_at||0));
+    if (filter === 'all') return all;
+    if (filter === 'pending') return all.filter(b => b.status === 'pending' || b.status === 'edit_pending');
+    if (filter === 'approved') return all.filter(b => b.status === 'approved' || b.status === 'edited');
+    if (filter === 'cancelled') return all.filter(b => b.status === 'cancelled' || b.status === 'rejected');
+    return all;
+  }, [bookings, filter]);
+
+  // Filter counts
+  const counts = useMemo(() => ({
+    all: bookings.length,
+    pending: bookings.filter(b => b.status==='pending'||b.status==='edit_pending').length,
+    approved: bookings.filter(b => b.status==='approved'||b.status==='edited').length,
+    cancelled: bookings.filter(b => b.status==='cancelled'||b.status==='rejected').length,
+  }), [bookings]);
+
+  const FILTERS = [
+    { id:'all',       label:'Alla' },
+    { id:'pending',   label:'Väntar' },
+    { id:'approved',  label:'Godkända' },
+    { id:'cancelled', label:'Inställda' },
+  ];
 
   if (selected !== null) {
     const b = selected;
@@ -1060,10 +1088,24 @@ function MyBookings({ bookings, exceptions, loading, onBack, onCancel, onCancelF
           Logga ut
         </button>
       </div>
-      <div style={{fontSize:22,fontWeight:800,color:T.text,marginTop:16,marginBottom:16}}>Mina bokningar</div>
+      <div style={{fontSize:22,fontWeight:800,color:T.text,marginTop:16,marginBottom:12}}>Mina bokningar</div>
+
+      {/* Filter chips */}
+      <div style={{display:'flex',gap:6,flexWrap:'wrap',marginBottom:14}}>
+        {FILTERS.map(f => (
+          <button key={f.id} onClick={()=>setFilter(f.id)}
+            style={{padding:'6px 14px',borderRadius:20,border:`1px solid ${filter===f.id?T.accent:T.border}`,background:filter===f.id?`${T.accent}22`:'none',color:filter===f.id?T.accent:T.textMuted,fontSize:12,fontWeight:600,cursor:'pointer',fontFamily:'system-ui',WebkitTapHighlightColor:'transparent',display:'flex',alignItems:'center',gap:5}}>
+            {f.label}
+            {counts[f.id]>0&&<span style={{background:filter===f.id?T.accent:'#88888833',color:filter===f.id?'#fff':T.textMuted,borderRadius:8,fontSize:10,fontWeight:800,padding:'1px 6px'}}>{counts[f.id]}</span>}
+          </button>
+        ))}
+      </div>
+
       {loading && <Spinner T={T}/>}
       {!loading && sorted.length === 0 && (
-        <div style={{textAlign:'center',padding:'40px 0',color:T.textMuted,fontSize:14}}>Inga bokningar hittades.</div>
+        <div style={{textAlign:'center',padding:'40px 0',color:T.textMuted,fontSize:14}}>
+          {filter==='all' ? 'Inga bokningar hittades.' : `Inga ${FILTERS.find(f=>f.id===filter)?.label.toLowerCase()} bokningar.`}
+        </div>
       )}
       <div style={{display:'flex',flexDirection:'column',gap:10}}>
         {sorted.map(b => {
@@ -1830,9 +1872,11 @@ export default function BookingScreen({
   onRefreshNotifications,
   startAtAdminLogin, startAtAdmin,
   highlightBookingId,
+  highlightFilter,
   onMarkAdminSeen,
   markVisitorSeen,
   adminInitialFilter,
+  visitorUnread = 0,
 }) {
   const { theme: T } = useTheme();
   const [bookings, setBookings] = useState([]);
@@ -1908,6 +1952,16 @@ export default function BookingScreen({
       .subscribe();
     return () => { clearTimeout(timer); supabase.removeChannel(ch); };
   }, [fetchAll]);
+
+  // Navigera till my-bookings när highlightBookingId sätts, till kalender när det rensas
+  useEffect(() => {
+    if (highlightBookingId) {
+      setView('my-bookings');
+    } else if (!highlightBookingId && view === 'my-bookings') {
+      // Rensades via direkt tab-klick — gå till kalender
+      setView('calendar');
+    }
+  }, [highlightBookingId]); // eslint-disable-line
 
   // Edge swipe back
   useEffect(() => {
@@ -2199,9 +2253,14 @@ export default function BookingScreen({
             <div style={{fontSize:22,fontWeight:800,color:T.text,letterSpacing:'-.4px'}}>Boka lokal</div>
             <div style={{display:'flex',gap:8}}>
               <button onClick={()=>{ setView('my-bookings'); markVisitorSeen?.(); }}
-                style={{padding:'7px 14px',borderRadius:20,border:`1px solid ${T.border}`,background:T.card,color:T.text,fontSize:12,fontWeight:600,cursor:'pointer',fontFamily:'system-ui',WebkitTapHighlightColor:'transparent',display:'flex',alignItems:'center',gap:6}}>
+                style={{padding:'7px 14px',borderRadius:20,border:`1px solid ${visitorUnread>0?T.accent:T.border}`,background:visitorUnread>0?`${T.accent}11`:T.card,color:T.text,fontSize:12,fontWeight:600,cursor:'pointer',fontFamily:'system-ui',WebkitTapHighlightColor:'transparent',display:'flex',alignItems:'center',gap:6,position:'relative'}}>
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
                 {loggedInUser?.name || 'Mitt konto'}
+                {visitorUnread > 0 && (
+                  <span style={{background:T.accent,color:'#fff',borderRadius:10,fontSize:10,fontWeight:800,padding:'1px 6px',minWidth:16,textAlign:'center'}}>
+                    {visitorUnread > 9 ? '9+' : visitorUnread}
+                  </span>
+                )}
               </button>
               {adminMode && (
                 <button onClick={()=>setView('admin')}
@@ -2234,6 +2293,7 @@ export default function BookingScreen({
           onCancelSeries={handleCancelSeries}
           onRestore={handleRestoreBooking}
           highlightBookingId={highlightBookingId}
+          highlightFilter={highlightFilter}
           onLogout={handleUserLogout}
           T={T}
         />

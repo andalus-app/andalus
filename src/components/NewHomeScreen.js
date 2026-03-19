@@ -540,7 +540,7 @@ export default function NewHomeScreen({ stream, onGoToAdminLogin, onGoToMyBookin
                     return (
                       <SwipeableItem key={`booking-${item.id}`} onDismiss={() => markVisitorSeen()}>
                       <div
-                        onClick={() => { setShowBellPanel(false); markVisitorSeen(); onGoToMyBookings?.(item.id); }}
+                        onClick={() => { setShowBellPanel(false); markVisitorSeen(); onGoToMyBookings?.(item.id, item.status); }}
                         style={{ padding: '11px 14px', borderBottom: `1px solid ${T.border}`, borderLeft: `3px solid ${color}`, background: T.isDark ? `${color}09` : `${color}07`, display: 'flex', alignItems: 'flex-start', gap: 10, cursor: 'pointer' }}>
                         <div style={{ width: 28, height: 28, borderRadius: 8, flexShrink: 0, background: `${color}20`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                           <CalendarClockIcon size={13} color={color} />
@@ -642,7 +642,7 @@ export default function NewHomeScreen({ stream, onGoToAdminLogin, onGoToMyBookin
           return (
             <SwipeableItem key={`feed-booking-${n.id}`} onDismiss={() => markVisitorSeen()}>
               <div
-                onClick={() => { markVisitorSeen(); onGoToMyBookings?.(n.id); }}
+                onClick={() => { markVisitorSeen(); onGoToMyBookings?.(n.id, n.status); }}
                 style={{
                   background: T.isDark ? `rgba(30,30,30,0.6)` : `rgba(255,255,255,0.55)`,
                   backdropFilter: 'blur(20px)',
