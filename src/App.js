@@ -215,7 +215,7 @@ function Shell() {
       case 'home':     return <NewHomeScreen stream={stream} onGoToAdminLogin={handleGoToAdminLogin} onGoToMyBookings={handleGoToMyBookings} />;
       case 'prayer':   return <PrayerScreen onMonthlyPress={() => setShowMonthly(true)} />;
       case 'qibla':    return <QiblaScreen />;
-      case 'booking':  return <BookingScreen onTabBarHide={() => { setTabBarHiddenByChild(true); setTabBarVisible(false); setScrollLocked(true); }} onTabBarHideNoLock={() => { setTabBarHiddenByChild(true); setTabBarVisible(false); setScrollLocked(false); }} onTabBarShow={() => { setTabBarHiddenByChild(false); setTabBarVisible(true); setScrollLocked(false); }} activateForDevice={activateForDevice} registerAdminDevice={registerAdminDevice} dismissAdminDevice={dismissAdminDevice} onRefreshNotifications={refreshNotifications} />;
+      case 'booking':  return <BookingScreen onTabBarHide={() => { setTabBarHiddenByChild(true); setTabBarVisible(false); setScrollLocked(true); }} onTabBarShow={() => { setTabBarHiddenByChild(false); setTabBarVisible(true); setScrollLocked(false); }} activateForDevice={activateForDevice} registerAdminDevice={registerAdminDevice} dismissAdminDevice={dismissAdminDevice} onRefreshNotifications={refreshNotifications} />;
       case 'ebooks':   return <EbooksScreen key={ebooksReset} onTabBarHide={() => { setTabBarHiddenByChild(true); setTabBarVisible(false); setScrollLocked(true); }} onTabBarShow={() => { setTabBarHiddenByChild(false); setTabBarVisible(true); setScrollLocked(false); }} onReaderOpen={() => {}} onReaderClose={() => {}} resetToLibrary={false} />;
       case 'more':     return <MoreScreen key={moreResetKey} onTabBarHide={() => { setTabBarHiddenByChild(true); setTabBarVisible(false); setScrollLocked(true); }} onTabBarShow={() => { setTabBarHiddenByChild(false); setTabBarVisible(true); setScrollLocked(false); }} initialView={moreInitialView} markVisitorSeen={markVisitorSeen} markAdminSeen={markAdminSeen} activateForDevice={activateForDevice} registerAdminDevice={registerAdminDevice} dismissAdminDevice={dismissAdminDevice} bookingBadge={totalUnread} visitorBadge={visitorUnread} adminBadge={adminUnread || adminPendingCount} onRefreshNotifications={refreshNotifications} />;
       default:         return <NewHomeScreen />;
@@ -394,31 +394,7 @@ function Shell() {
                         ) : null}
                       </div>
                     )}
-                    {/* More badge */}
-                    {t.id === 'more' && (visitorUnread > 0 || adminUnread > 0 || adminPendingCount > 0) && (
-                      <div style={{ position: 'absolute', top: -3, right: -4, display: 'flex', gap: 2 }}>
-                        {adminUnread > 0 || adminPendingCount > 0 ? (
-                          <div style={{
-                            minWidth: 14, height: 14, borderRadius: 7,
-                            background: '#f59e0b', color: '#fff',
-                            fontSize: 8, fontWeight: 800, fontFamily: 'system-ui',
-                            display: 'flex', alignItems: 'center', justifyContent: 'center',
-                            padding: '0 3px', boxSizing: 'border-box',
-                            border: `1.5px solid ${T.isDark ? 'rgba(18,18,18,0.9)' : 'rgba(245,248,247,0.9)'}`,
-                          }}>{(adminUnread || adminPendingCount) > 9 ? '9+' : (adminUnread || adminPendingCount)}</div>
-                        ) : null}
-                        {visitorUnread > 0 ? (
-                          <div style={{
-                            minWidth: 14, height: 14, borderRadius: 7,
-                            background: '#ef4444', color: '#fff',
-                            fontSize: 8, fontWeight: 800, fontFamily: 'system-ui',
-                            display: 'flex', alignItems: 'center', justifyContent: 'center',
-                            padding: '0 3px', boxSizing: 'border-box',
-                            border: `1.5px solid ${T.isDark ? 'rgba(18,18,18,0.9)' : 'rgba(245,248,247,0.9)'}`,
-                          }}>{visitorUnread > 9 ? '9+' : visitorUnread}</div>
-                        ) : null}
-                      </div>
-                    )}
+                    {/* More badge borttagen — bokning finns nu i tab-bar */}
                   </div>
                 ) : (
                   <div style={{ position: 'relative', display: 'inline-flex' }}>
