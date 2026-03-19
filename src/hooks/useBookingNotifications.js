@@ -309,8 +309,10 @@ export function useBookingNotifications() {
   }, []);
 
   const markAdminSeen = useCallback(() => {
-    // Mark cancelled notifications as seen — clears blue badge
-    localStorage.setItem(STORAGE_ADMIN_SEEN, Date.now().toString());
+    // Sätt timestamp till nu — cancelled-queryn filtrerar på gt(resolved_at, adminSeenAt)
+    // Så alla avbokningar med resolved_at <= nu räknas inte längre
+    const now = Date.now();
+    localStorage.setItem(STORAGE_ADMIN_SEEN, now.toString());
     setCancelledUnread(0);
     // Do NOT clear adminPendingCount — it reflects real pending bookings
   }, []);

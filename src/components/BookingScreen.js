@@ -1033,28 +1033,30 @@ function MyBookings({ bookings, exceptions, loading, onBack, onCancel, onCancelF
               </div>
 
               <div style={{display:'flex',flexDirection:'column',gap:10}}>
-                {!deleteSheet.deleteAll && <>
-                  <button onClick={()=>{
-                    const userName = localStorage.getItem('islamnu_user_name') || 'Besökaren';
-                    const reason = cancelReason.trim() ? `Avbokad av ${userName}: ${cancelReason.trim()}` : `Avbokad av ${userName}.`;
-                    setDeleteSheet(null); setCancelReason(''); setCancelReasonError(false);
-                    onCancel(deleteSheet.booking, deleteSheet.occurrence_date, reason);
-                  }}
-                    style={{padding:'14px',borderRadius:12,border:'1px solid #ef444433',background:'#ef444411',color:'#ef4444',fontSize:14,fontWeight:700,cursor:'pointer',fontFamily:'system-ui',textAlign:'left',WebkitTapHighlightColor:'transparent'}}>
-                    🗑 Ta bort bara detta tillfälle
-                    <div style={{fontSize:12,fontWeight:400,marginTop:3,opacity:.75}}>Övriga tillfällen påverkas inte</div>
-                  </button>
-                  <button onClick={()=>{
-                    const userName = localStorage.getItem('islamnu_user_name') || 'Besökaren';
-                    const reason = cancelReason.trim() ? `Avbokad av ${userName}: ${cancelReason.trim()}` : `Avbokad av ${userName}.`;
-                    setDeleteSheet(null); setCancelReason(''); setCancelReasonError(false);
-                    onCancelFromDate(deleteSheet.booking, deleteSheet.occurrence_date, reason);
-                  }}
-                    style={{padding:'14px',borderRadius:12,border:'1px solid #ef444433',background:'#ef444411',color:'#ef4444',fontSize:14,fontWeight:700,cursor:'pointer',fontFamily:'system-ui',textAlign:'left',WebkitTapHighlightColor:'transparent'}}>
-                    🗑 Ta bort detta och alla kommande
-                    <div style={{fontSize:12,fontWeight:400,marginTop:3,opacity:.75}}>Sätter slutdatum till dagen innan detta tillfälle</div>
-                  </button>
-                </>}
+                {!deleteSheet.deleteAll && (() => {
+                  const isRecurring = deleteSheet.booking.recurrence !== 'none';
+                  const userName = () => localStorage.getItem('islamnu_user_name') || 'Besökaren';
+                  const reason = () => cancelReason.trim() ? `Avbokad av ${userName()}: ${cancelReason.trim()}` : `Avbokad av ${userName()}.`;
+                  return isRecurring ? (
+                    <>
+                      <button onClick={()=>{ setDeleteSheet(null); setCancelReason(''); setCancelReasonError(false); onCancel(deleteSheet.booking, deleteSheet.occurrence_date, reason()); }}
+                        style={{padding:'14px',borderRadius:12,border:'1px solid #ef444433',background:'#ef444411',color:'#ef4444',fontSize:14,fontWeight:700,cursor:'pointer',fontFamily:'system-ui',textAlign:'left',WebkitTapHighlightColor:'transparent'}}>
+                        🗑 Ta bort bara detta tillfälle
+                        <div style={{fontSize:12,fontWeight:400,marginTop:3,opacity:.75}}>Övriga tillfällen påverkas inte</div>
+                      </button>
+                      <button onClick={()=>{ setDeleteSheet(null); setCancelReason(''); setCancelReasonError(false); onCancelFromDate(deleteSheet.booking, deleteSheet.occurrence_date, reason()); }}
+                        style={{padding:'14px',borderRadius:12,border:'1px solid #ef444433',background:'#ef444411',color:'#ef4444',fontSize:14,fontWeight:700,cursor:'pointer',fontFamily:'system-ui',textAlign:'left',WebkitTapHighlightColor:'transparent'}}>
+                        🗑 Ta bort detta och alla kommande
+                        <div style={{fontSize:12,fontWeight:400,marginTop:3,opacity:.75}}>Sätter slutdatum till dagen innan detta tillfälle</div>
+                      </button>
+                    </>
+                  ) : (
+                    <button onClick={()=>{ setDeleteSheet(null); setCancelReason(''); setCancelReasonError(false); onCancel(deleteSheet.booking, deleteSheet.occurrence_date, reason()); }}
+                      style={{padding:'14px',borderRadius:12,border:'1px solid #ef444433',background:'#ef444411',color:'#ef4444',fontSize:14,fontWeight:700,cursor:'pointer',fontFamily:'system-ui',textAlign:'left',WebkitTapHighlightColor:'transparent'}}>
+                      🗑 Avboka bokningen
+                    </button>
+                  );
+                })()}
                 {deleteSheet.deleteAll && (
                   <button onClick={()=>{
                     const userName = localStorage.getItem('islamnu_user_name') || 'Besökaren';
@@ -1965,10 +1967,14 @@ export default function BookingScreen({
   }, [highlightBookingId]); // eslint-disable-line
 
   // Edge swipe back — bara om inloggad (kalender är skyddad)
+  const viewRef = useRef(view);
+  useEffect(() => { viewRef.current = view; }, [view]);
   useEffect(() => {
     const handler = () => {
       const userId = localStorage.getItem(STORAGE_USER_ID);
-      if (userId) setView('calendar');
+      // Blockera om ej inloggad eller om vi redan är i login-vyn
+      if (!userId || viewRef.current === 'login') return;
+      setView('calendar');
     };
     window.addEventListener('edgeSwipeBack', handler);
     return () => window.removeEventListener('edgeSwipeBack', handler);
@@ -1980,7 +1986,8 @@ export default function BookingScreen({
     onTabBarShow?.();
     // Rensa visitor badge när Mina bokningar öppnas
     if (view === 'my-bookings') markVisitorSeen?.();
-    // Admin badge rensas av Realtime när pending-count når 0 — inte manuellt här
+    // Rensa admin cancelled badge när admin öppnar adminpanelen
+    if (view === 'admin') onMarkAdminSeen?.();
   }, [view]); // eslint-disable-line
 
   // ── My bookings: filter for this device/user ───────────────────────────────
