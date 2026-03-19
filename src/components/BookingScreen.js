@@ -1399,7 +1399,15 @@ function AdminAddForm({ bookings, exceptions, onSubmit, onClose, T }) {
             </button>
             <button onClick={handleBookAvailable} disabled={loading}
               style={{padding:'13px',borderRadius:12,border:'none',background:T.accent,color:'#fff',fontSize:14,fontWeight:700,cursor:'pointer',fontFamily:'system-ui',WebkitTapHighlightColor:'transparent'}}>
-              {loading ? 'Bokar...' : 'Boka bara lediga tillfällen ✓'}
+              {loading ? 'Bokar...' : `Boka bara lediga tillfällen (${conflicts ? (
+                (() => {
+                  const startISO = toISO(selectedDate);
+                  const windowEnd = endDate || (() => { const d=new Date(selectedDate); d.setFullYear(d.getFullYear()+2); return toISO(d); })();
+                  const temp = { id:'__p__', start_date:startISO, end_date:endDate||null, recurrence, time_slot:slotLabel(selectedStartH,durationHours), duration_hours:durationHours, status:'approved' };
+                  const total = expandBooking(temp, startISO, windowEnd, []).length;
+                  return total - conflicts.length;
+                })()
+              ) : 0} st)`}
             </button>
           </div>
         </div>
