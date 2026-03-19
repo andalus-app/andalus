@@ -1751,6 +1751,7 @@ export default function BookingScreen({
   startAtAdminLogin, startAtAdmin,
   highlightBookingId,
   onMarkAdminSeen,
+  markVisitorSeen,
 }) {
   const { theme: T } = useTheme();
   const [bookings, setBookings] = useState([]);
@@ -1817,6 +1818,8 @@ export default function BookingScreen({
   useEffect(() => {
     // Tab bar alltid synlig — onTabBarShow körs alltid
     onTabBarShow?.();
+    // Rensa badge när Mina bokningar öppnas
+    if (view === 'my-bookings') markVisitorSeen?.();
   }, [view]); // eslint-disable-line
 
   // ── My bookings: filter for this device/user ───────────────────────────────
@@ -1869,11 +1872,11 @@ export default function BookingScreen({
 
     activateForDevice?.();
     localStorage.setItem(STORAGE_PHONE, normalizePhone(formData.phone));
+    // Lägg till bokningen direkt i local state — syns omedelbart i Mina bokningar
+    setBookings(prev => [booking, ...prev]);
     showToast(skipDates.length > 0 ? `Förfrågan skickad — ${skipDates.length} krockar hoppades över!` : 'Bokningsförfrågan skickad!');
-    // Uppdatera listan direkt så den syns i Mina bokningar
-    await fetchAll();
     setView('my-bookings');
-  }, [deviceId, loggedInUser, showToast, activateForDevice, fetchAll]);
+  }, [deviceId, loggedInUser, showToast, activateForDevice]);
 
   // Visitor: cancel single occurrence (adds exception)
   const handleCancelOccurrence = useCallback(async (booking, occurrenceDate) => {
@@ -2069,7 +2072,7 @@ export default function BookingScreen({
           <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:20}}>
             <div style={{fontSize:22,fontWeight:800,color:T.text,letterSpacing:'-.4px'}}>Boka lokal</div>
             <div style={{display:'flex',gap:8}}>
-              <button onClick={()=>setView('my-bookings')}
+              <button onClick={()=>{ setView('my-bookings'); markVisitorSeen?.(); }}
                 style={{padding:'7px 14px',borderRadius:20,border:`1px solid ${T.border}`,background:T.card,color:T.text,fontSize:12,fontWeight:600,cursor:'pointer',fontFamily:'system-ui',WebkitTapHighlightColor:'transparent',display:'flex',alignItems:'center',gap:6}}>
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
                 {loggedInUser?.name || 'Mitt konto'}
