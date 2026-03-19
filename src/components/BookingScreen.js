@@ -500,106 +500,128 @@ function RecurrencePicker({ recurrence, onChange, endDate, onEndDateChange, T })
   );
 }
 
-// ── TimeSlotPanel ─────────────────────────────────────────────────────────────
+// ── TimeSlotPanel — Starttid/Sluttid-väljare ─────────────────────────────────
 
 function TimeSlotPanel({ bookings, exceptions, date, isAdmin, durationHours, onSelectSlot, onClose, T }) {
   const iso = toISO(date);
-  const occs = useMemo(() => getOccurrencesForDate(bookings, exceptions, iso), [bookings, exceptions, iso]);
-  const hasBookings = occs.length > 0;
-  const [showOnlyAvailable, setShowOnlyAvailable] = useState(hasBookings);
+  const booked = useMemo(() => getBookedBlocks(bookings, exceptions, iso), [bookings, exceptions, iso]);
 
-  const compactSlots = useMemo(() => {
-    const active = occs.map(o => {
-      const parts = o.time_slot.split('–');
-      const parseH = s => { const [hh,mm] = s.split(':').map(Number); const h = hh+(mm===30?0.5:0); return h===0?24:h; };
-      const startH = parseH(parts[0]);
-      const endH = startH + o.duration_hours;
-      return { startH, endH, status: o.status, booking: o };
-    }).sort((a,b) => a.startH - b.startH);
-
-    const merged = [];
-    for (const b of active) {
-      const last = merged[merged.length-1];
-      if (last && b.startH <= last.endH) {
-        last.endH = Math.max(last.endH, b.endH);
-        if (['pending','edit_pending'].includes(b.status) && last.status === 'booked') last.status = 'pending';
-      } else merged.push({...b});
+  // Alla möjliga starttider (ej passerade, ej bokade)
+  const availableStarts = useMemo(() => {
+    const starts = [];
+    for (let h = OPEN_HOUR; h < CLOSE_HOUR; h += 0.5) {
+      if (isHourPast(iso, h)) continue;
+      if (!booked.has(h * 2)) starts.push(h);
     }
+    return starts;
+  }, [booked, iso]);
 
-    const result = [];
-    let cursor = OPEN_HOUR;
-    for (const block of merged) {
-      if (block.startH > cursor) {
-        for (let h = cursor; h+durationHours <= block.startH; h+=0.5) {
-          if (!isHourPast(iso, h)) result.push({ type:'available', startH:h, label:slotLabel(h,durationHours) });
-        }
+  const [selectedStart, setSelectedStart] = useState(null);
+
+  // Giltiga sluttider baserat på vald starttid — stopp vid nästa bokad block
+  const availableEnds = useMemo(() => {
+    if (selectedStart === null) return [];
+    const ends = [];
+    for (let h = selectedStart + 0.5; h <= CLOSE_HOUR; h += 0.5) {
+      // Kolla om blocket [selectedStart, h) är fritt
+      let ok = true;
+      for (let b = selectedStart; b < h; b += 0.5) {
+        if (booked.has(b * 2)) { ok = false; break; }
       }
-      result.push({ type:'booked', startH:block.startH, endH:block.endH, label:`${fmtHour(block.startH)}–${fmtHour(block.endH)}`, status:block.status, booking:block.booking });
-      cursor = block.endH;
+      if (!ok) break;
+      ends.push(h);
     }
-    for (let h = cursor; h+durationHours <= CLOSE_HOUR; h+=0.5) {
-      if (!isHourPast(iso, h)) result.push({ type:'available', startH:h, label:slotLabel(h,durationHours) });
-    }
-    return result;
-  }, [occs, iso, durationHours]);
+    return ends;
+  }, [selectedStart, booked]);
 
-  const visible = showOnlyAvailable ? compactSlots.filter(s=>s.type==='available') : compactSlots;
+  const handleStartSelect = (h) => {
+    setSelectedStart(h);
+  };
+
+  const handleEndSelect = (endH) => {
+    const dur = endH - selectedStart;
+    const label = slotLabel(selectedStart, dur);
+    onSelectSlot(date, label, selectedStart, dur);
+  };
+
+  const occs = useMemo(() => getOccurrencesForDate(bookings, exceptions, iso), [bookings, exceptions, iso]);
 
   return (
     <div style={{marginTop:16,background:T.card,border:`1px solid ${T.border}`,borderRadius:16,overflow:'hidden'}}>
-      <div style={{padding:'14px 16px 10px',borderBottom:`1px solid ${T.border}`,display:'flex',alignItems:'center',justifyContent:'space-between'}}>
+      {/* Header */}
+      <div style={{padding:'14px 16px 12px',borderBottom:`1px solid ${T.border}`,display:'flex',alignItems:'center',justifyContent:'space-between'}}>
         <div>
-          <div style={{fontSize:13,fontWeight:700,color:T.text,fontFamily:'system-ui'}}>Tillgängliga tider · {fmtDuration(durationHours)}</div>
+          <div style={{fontSize:13,fontWeight:700,color:T.text,fontFamily:'system-ui'}}>
+            {selectedStart === null ? 'Välj starttid' : `Välj sluttid · från ${fmtHour(selectedStart)}`}
+          </div>
           <div style={{fontSize:11,color:T.textMuted,fontFamily:'system-ui',marginTop:2}}>{isoToDisplay(iso)}</div>
         </div>
         <div style={{display:'flex',alignItems:'center',gap:6}}>
-          <button onClick={()=>setShowOnlyAvailable(v=>!v)}
-            style={{padding:'4px 10px',borderRadius:20,border:`1px solid ${showOnlyAvailable?T.accent:T.border}`,background:showOnlyAvailable?`${T.accent}22`:'none',color:showOnlyAvailable?T.accent:T.textMuted,fontSize:11,fontWeight:600,cursor:'pointer',fontFamily:'system-ui',WebkitTapHighlightColor:'transparent'}}>
-            {showOnlyAvailable ? 'Visa alla' : 'Bara lediga'}
-          </button>
+          {selectedStart !== null && (
+            <button onClick={()=>setSelectedStart(null)}
+              style={{padding:'4px 10px',borderRadius:20,border:`1px solid ${T.border}`,background:'none',color:T.accent,fontSize:11,fontWeight:600,cursor:'pointer',fontFamily:'system-ui',WebkitTapHighlightColor:'transparent'}}>
+              ← Byt start
+            </button>
+          )}
           <button onClick={onClose} style={{background:'none',border:'none',cursor:'pointer',color:T.textMuted,padding:4}}>
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
           </button>
         </div>
       </div>
-      {visible.length === 0 && (
-        <div style={{padding:'20px 16px',textAlign:'center',color:T.textMuted,fontSize:13,fontFamily:'system-ui'}}>
-          Inga lediga tider för {fmtDuration(durationHours)} detta datum.
-        </div>
-      )}
-      <div style={{padding:'8px 10px 10px',display:'flex',flexDirection:'column',gap:5}}>
-        {visible.map((slot) => {
-          if (slot.type === 'available') {
+
+      {/* Bokade block — visas alltid som info */}
+      {occs.length > 0 && (
+        <div style={{padding:'8px 12px 0',display:'flex',flexWrap:'wrap',gap:4}}>
+          {occs.map(o => {
+            const color = ['pending','edit_pending'].includes(o.status) ? '#f59e0b' : '#ef4444';
             return (
-              <div key={`a-${slot.startH}`} style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'9px 12px',background:T.cardElevated,borderRadius:10,border:'1px solid #22c55e44'}}>
-                <div style={{display:'flex',alignItems:'center',gap:8}}>
-                  <div style={{width:8,height:8,borderRadius:'50%',background:'#22c55e',flexShrink:0}}/>
-                  <span style={{fontSize:14,fontWeight:600,color:T.text,fontFamily:'system-ui'}}>{slot.label}</span>
-                </div>
-                <button onClick={()=>onSelectSlot(date, slot.label, slot.startH, durationHours)}
-                  style={{background:T.accent,color:'#fff',border:'none',borderRadius:8,padding:'5px 12px',fontSize:12,fontWeight:700,cursor:'pointer',fontFamily:'system-ui',WebkitTapHighlightColor:'transparent'}}>
-                  Välj
-                </button>
+              <div key={o.id} style={{padding:'3px 8px',borderRadius:8,background:`${color}18`,border:`1px solid ${color}44`,fontSize:11,fontWeight:600,color,fontFamily:'system-ui'}}>
+                {o.time_slot} {isAdmin ? `· ${o.name}` : ''}
               </div>
             );
-          }
-          const color = slot.status==='pending'||slot.status==='edit_pending' ? '#f59e0b' : '#ef4444';
-          return (
-            <div key={`b-${slot.startH}`} style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'9px 12px',background:`${color}0d`,borderRadius:10,border:`1px solid ${color}33`,opacity:isAdmin?1:0.7}}>
-              <div style={{display:'flex',alignItems:'center',gap:8}}>
-                <div style={{width:8,height:8,borderRadius:'50%',background:color,flexShrink:0}}/>
-                <span style={{fontSize:14,fontWeight:600,color:T.text,fontFamily:'system-ui'}}>{slot.label}</span>
-                {isAdmin&&slot.booking&&<span style={{fontSize:11,color:T.textMuted,fontFamily:'system-ui'}}>· {slot.booking.name}</span>}
-              </div>
-              <div style={{display:'flex',alignItems:'center',gap:6}}>
-                <Badge status={slot.status}/>
-                {isAdmin&&slot.booking&&<button onClick={()=>onSelectSlot(date,slot.label,slot.startH,durationHours,slot.booking)}
-                  style={{background:`${T.accent}22`,color:T.accent,border:'none',borderRadius:8,padding:'5px 10px',fontSize:11,fontWeight:700,cursor:'pointer',fontFamily:'system-ui'}}>Detaljer</button>}
-              </div>
+          })}
+        </div>
+      )}
+
+      {/* Starttid-väljare */}
+      {selectedStart === null && (
+        <div style={{padding:'10px 10px 12px'}}>
+          {availableStarts.length === 0 ? (
+            <div style={{padding:'16px',textAlign:'center',color:T.textMuted,fontSize:13,fontFamily:'system-ui'}}>Inga lediga tider detta datum.</div>
+          ) : (
+            <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:6}}>
+              {availableStarts.map(h => (
+                <button key={h} onClick={()=>handleStartSelect(h)}
+                  style={{padding:'10px 4px',borderRadius:10,border:`1px solid ${T.accent}44`,background:`${T.accent}11`,color:T.accent,fontSize:13,fontWeight:700,cursor:'pointer',fontFamily:'system-ui',WebkitTapHighlightColor:'transparent',textAlign:'center'}}>
+                  {fmtHour(h)}
+                </button>
+              ))}
             </div>
-          );
-        })}
-      </div>
+          )}
+        </div>
+      )}
+
+      {/* Sluttid-väljare */}
+      {selectedStart !== null && (
+        <div style={{padding:'10px 10px 12px'}}>
+          {availableEnds.length === 0 ? (
+            <div style={{padding:'16px',textAlign:'center',color:T.textMuted,fontSize:13,fontFamily:'system-ui'}}>Ingen tid tillgänglig efter {fmtHour(selectedStart)}.</div>
+          ) : (
+            <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:6}}>
+              {availableEnds.map(h => {
+                const dur = h - selectedStart;
+                return (
+                  <button key={h} onClick={()=>handleEndSelect(h)}
+                    style={{padding:'10px 4px',borderRadius:10,border:`1px solid #22c55e44`,background:'#22c55e11',color:'#22c55e',fontSize:13,fontWeight:700,cursor:'pointer',fontFamily:'system-ui',WebkitTapHighlightColor:'transparent',textAlign:'center',display:'flex',flexDirection:'column',alignItems:'center',gap:1}}>
+                    <span>{fmtHour(h)}</span>
+                    <span style={{fontSize:10,fontWeight:500,opacity:0.8}}>{fmtDuration(dur)}</span>
+                  </button>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }
@@ -612,7 +634,7 @@ function CalendarView({ bookings, exceptions, onSelectSlot, isAdmin, T }) {
   const [anchor, setAnchor] = useState(today);
   const [selectedDate, setSelectedDate] = useState(today);
   const [showSlots, setShowSlots] = useState(true);
-  const [durationHours, setDurationHours] = useState(1);
+  const durationHours = 0.5; // används bara för hasAnyAvailable-check, visas ej
 
   const weekDays = useMemo(() => getWeekDays(anchor), [anchor]);
   const monthGrid = useMemo(() => getMonthGrid(anchor.getFullYear(), anchor.getMonth()), [anchor]);
@@ -645,7 +667,6 @@ function CalendarView({ bookings, exceptions, onSelectSlot, isAdmin, T }) {
 
   return (
     <div>
-      <div style={{marginBottom:14}}><DurationPicker value={durationHours} onChange={setDurationHours} T={T}/></div>
       <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:14}}>
         <div style={{display:'flex',gap:6}}>
           {['week','month'].map(m => (
@@ -694,11 +715,65 @@ function BookingForm({ date, slotLabel: slot, durationHours, onSubmit, onBack, l
   const [recurrence, setRecurrence] = useState('none');
   const [endDate, setEndDate] = useState(null);
   const [error, setError] = useState('');
+  const [conflicts, setConflicts] = useState(null);
   const set = f => v => setForm(p=>({...p,[f]:v}));
+
+  // Räkna ut starttid från slot-strängen t.ex. "11:00–12:00"
+  const parseStartH = (s) => {
+    const part = s.split('–')[0];
+    const [hh,mm] = part.split(':').map(Number);
+    return hh + (mm === 30 ? 0.5 : 0);
+  };
+
+  const findConflicts = () => {
+    if (recurrence === 'none') return [];
+    const startH = parseStartH(slot);
+    const startISO = toISO(date);
+    const windowEnd = (() => {
+      if (endDate) return endDate;
+      const d = new Date(date); d.setFullYear(d.getFullYear() + 2); return toISO(d);
+    })();
+    const tempBooking = {
+      id: '__preview__', start_date: startISO, end_date: endDate || null,
+      recurrence, time_slot: slot, duration_hours: durationHours, status: 'pending',
+    };
+    const occurrences = expandBooking(tempBooking, startISO, windowEnd, []);
+    const found = [];
+    for (const occ of occurrences) {
+      const bookedBlocks = getBookedBlocks(bookings, exceptions, occ.date);
+      let hasConflict = false;
+      for (let i = 0; i < durationHours * 2; i++) {
+        if (bookedBlocks.has(startH * 2 + i)) { hasConflict = true; break; }
+      }
+      if (hasConflict) {
+        const occsOnDate = getOccurrencesForDate(bookings, exceptions, occ.date);
+        const clashing = occsOnDate.filter(o => {
+          const parts = o.time_slot.split('–');
+          const parseH = s => { const [hh,mm]=s.split(':').map(Number); const h=hh+(mm===30?0.5:0); return h===0?24:h; };
+          const oStart = parseH(parts[0]);
+          const oEnd = oStart + o.duration_hours;
+          return !(oEnd <= startH || oStart >= startH + durationHours);
+        });
+        found.push({ date: occ.date, time_slot: slot, clashing });
+      }
+    }
+    return found;
+  };
 
   const handleSubmit = () => {
     if (!form.activity.trim()) { setError('Beskriv aktiviteten.'); return; }
-    onSubmit({ ...form, date:toISO(date), time_slot:slot, duration_hours:durationHours, recurrence, end_date:endDate });
+    if (recurrence !== 'none') {
+      const found = findConflicts();
+      if (found.length > 0) { setConflicts(found); return; }
+    }
+    onSubmit({ ...form, date:toISO(date), time_slot:slot, duration_hours:durationHours, recurrence, end_date:endDate, skip_dates:[] });
+  };
+
+  const handleBookAvailable = () => {
+    if (!conflicts) return;
+    const skipDates = conflicts.map(c => c.date);
+    onSubmit({ ...form, date:toISO(date), time_slot:slot, duration_hours:durationHours, recurrence, end_date:endDate, skip_dates:skipDates });
+    setConflicts(null);
   };
 
   return (
@@ -736,6 +811,49 @@ function BookingForm({ date, slotLabel: slot, durationHours, onSubmit, onBack, l
         </button>
         <p style={{fontSize:11,color:T.textMuted,textAlign:'center',margin:0}}>Din förfrågan granskas av en administratör.</p>
       </div>
+
+    {/* ── Konfliktdialog för besökare ── */}
+    {conflicts && (
+      <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.65)',zIndex:2000,display:'flex',alignItems:'flex-end',justifyContent:'center'}} onClick={()=>setConflicts(null)}>
+        <div onClick={e=>e.stopPropagation()} style={{background:T.card,borderRadius:'20px 20px 0 0',padding:'24px 20px 36px',width:'100%',maxWidth:500,boxSizing:'border-box',animation:'slideUp .25s cubic-bezier(0.32,0.72,0,1)',maxHeight:'80vh',overflowY:'auto'}}>
+          <div style={{display:'flex',alignItems:'center',gap:10,marginBottom:6}}>
+            <div style={{width:32,height:32,borderRadius:10,background:'#f59e0b22',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#f59e0b" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+            </div>
+            <div style={{fontSize:17,fontWeight:800,color:T.text,fontFamily:'system-ui'}}>Tidskonflikter hittades</div>
+          </div>
+          <div style={{fontSize:13,color:T.textMuted,marginBottom:16,fontFamily:'system-ui'}}>
+            {conflicts.length} av dina tillfällen krockar med befintliga bokningar. Välj hur du vill fortsätta.
+          </div>
+
+          <div style={{display:'flex',flexDirection:'column',gap:6,marginBottom:20,maxHeight:220,overflowY:'auto'}}>
+            {conflicts.map((c,i) => (
+              <div key={i} style={{background:'#f59e0b11',border:'1px solid #f59e0b33',borderRadius:10,padding:'10px 12px'}}>
+                <div style={{fontSize:13,fontWeight:700,color:T.text,fontFamily:'system-ui',marginBottom:4}}>
+                  {isoToDisplay(c.date)} · {c.time_slot}
+                </div>
+                {c.clashing.map(b => (
+                  <div key={b.id} style={{fontSize:11,color:'#f59e0b',fontFamily:'system-ui'}}>
+                    ↳ Redan bokad
+                  </div>
+                ))}
+              </div>
+            ))}
+          </div>
+
+          <div style={{display:'flex',flexDirection:'column',gap:10}}>
+            <button onClick={()=>setConflicts(null)}
+              style={{padding:'13px',borderRadius:12,border:`1px solid ${T.accent}`,background:'none',color:T.accent,fontSize:14,fontWeight:700,cursor:'pointer',fontFamily:'system-ui',WebkitTapHighlightColor:'transparent'}}>
+              ← Ändra tid
+            </button>
+            <button onClick={handleBookAvailable} disabled={loading}
+              style={{padding:'13px',borderRadius:12,border:'none',background:T.accent,color:'#fff',fontSize:14,fontWeight:700,cursor:'pointer',fontFamily:'system-ui',WebkitTapHighlightColor:'transparent'}}>
+              {loading ? 'Skickar...' : `Skicka förfrågan för lediga tillfällen (hoppa över ${conflicts.length} st)`}
+            </button>
+          </div>
+        </div>
+      </div>
+    )}
     </div>
   );
 }
@@ -1117,13 +1235,69 @@ function AdminAddForm({ bookings, exceptions, onSubmit, onClose, T }) {
   const [endDate, setEndDate] = useState(null);
   const [form, setForm] = useState({ name:'', phone:'', activity:'' });
   const [loading, setLoading] = useState(false);
+  const [conflicts, setConflicts] = useState(null); // null | [{date, time_slot, bookedBy}]
   const monthGrid = useMemo(()=>getMonthGrid(anchor.getFullYear(),anchor.getMonth()),[anchor]);
+
+  // Scanna alla framtida tillfällen för konflikter
+  const findConflicts = () => {
+    if (recurrence === 'none') return [];
+    const startISO = toISO(selectedDate);
+    const windowEnd = (() => {
+      if (endDate) return endDate;
+      const d = new Date(selectedDate); d.setFullYear(d.getFullYear() + 2); return toISO(d);
+    })();
+    // Generera alla tillfällen för den nya bokningen
+    const tempBooking = {
+      id: '__preview__', start_date: startISO, end_date: endDate || null,
+      recurrence, time_slot: slotLabel(selectedStartH, durationHours),
+      duration_hours: durationHours, status: 'approved',
+    };
+    const occurrences = expandBooking(tempBooking, startISO, windowEnd, []);
+    const found = [];
+    for (const occ of occurrences) {
+      const booked = getBookedBlocks(bookings, exceptions, occ.date);
+      let hasConflict = false;
+      for (let i = 0; i < durationHours * 2; i++) {
+        if (booked.has(selectedStartH * 2 + i)) { hasConflict = true; break; }
+      }
+      if (hasConflict) {
+        // Hitta vilka bokningar som krockar
+        const occsOnDate = getOccurrencesForDate(bookings, exceptions, occ.date);
+        const clashing = occsOnDate.filter(o => {
+          const parts = o.time_slot.split('–');
+          const parseH = s => { const [hh,mm]=s.split(':').map(Number); const h=hh+(mm===30?0.5:0); return h===0?24:h; };
+          const oStart = parseH(parts[0]);
+          const oEnd = oStart + o.duration_hours;
+          return !(oEnd <= selectedStartH || oStart >= selectedStartH + durationHours);
+        });
+        found.push({ date: occ.date, time_slot: slotLabel(selectedStartH, durationHours), clashing });
+      }
+    }
+    return found;
+  };
 
   const handleSubmit = async () => {
     if (!form.name.trim()||!form.activity.trim()) return;
+    // Kolla konflikter för återkommande bokningar
+    if (recurrence !== 'none' && selectedStartH !== null) {
+      const found = findConflicts();
+      if (found.length > 0) {
+        setConflicts(found);
+        return;
+      }
+    }
     setLoading(true);
-    await onSubmit({ ...form, date:toISO(selectedDate), time_slot:slotLabel(selectedStartH,durationHours), duration_hours:durationHours, recurrence, end_date:endDate });
+    await onSubmit({ ...form, date:toISO(selectedDate), time_slot:slotLabel(selectedStartH,durationHours), duration_hours:durationHours, recurrence, end_date:endDate, skip_dates:[] });
     setLoading(false);
+  };
+
+  const handleBookAvailable = async () => {
+    if (!conflicts) return;
+    setLoading(true);
+    const skipDates = conflicts.map(c => c.date);
+    await onSubmit({ ...form, date:toISO(selectedDate), time_slot:slotLabel(selectedStartH,durationHours), duration_hours:durationHours, recurrence, end_date:endDate, skip_dates:skipDates });
+    setLoading(false);
+    setConflicts(null);
   };
 
   return (
@@ -1186,6 +1360,59 @@ function AdminAddForm({ bookings, exceptions, onSubmit, onClose, T }) {
         </>}
       </div>
     </div>
+
+    {/* ── Konfliktdialog ── */}
+    {conflicts && (
+      <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.65)',zIndex:2000,display:'flex',alignItems:'flex-end',justifyContent:'center'}} onClick={()=>setConflicts(null)}>
+        <div onClick={e=>e.stopPropagation()} style={{background:T.card,borderRadius:'20px 20px 0 0',padding:'24px 20px 36px',width:'100%',maxWidth:500,boxSizing:'border-box',animation:'slideUp .25s cubic-bezier(0.32,0.72,0,1)',maxHeight:'80vh',overflowY:'auto'}}>
+          <div style={{display:'flex',alignItems:'center',gap:10,marginBottom:6}}>
+            <div style={{width:32,height:32,borderRadius:10,background:'#ef444422',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#ef4444" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+            </div>
+            <div style={{fontSize:17,fontWeight:800,color:T.text,fontFamily:'system-ui'}}>Tidskonflikter hittades</div>
+          </div>
+          <div style={{fontSize:13,color:T.textMuted,marginBottom:16,fontFamily:'system-ui'}}>
+            {conflicts.length} tillfälle{conflicts.length!==1?'n':''} krockar med befintliga bokningar.
+          </div>
+
+          {/* Lista konflikter */}
+          <div style={{display:'flex',flexDirection:'column',gap:6,marginBottom:20,maxHeight:260,overflowY:'auto'}}>
+            {conflicts.map((c,i) => (
+              <div key={i} style={{background:`#ef444411`,border:'1px solid #ef444433',borderRadius:10,padding:'10px 12px'}}>
+                <div style={{fontSize:13,fontWeight:700,color:T.text,fontFamily:'system-ui',marginBottom:4}}>
+                  {isoToDisplay(c.date)} · {c.time_slot}
+                </div>
+                {c.clashing.map(b => (
+                  <div key={b.id} style={{fontSize:11,color:'#ef4444',fontFamily:'system-ui'}}>
+                    ↳ {b.name} · {b.time_slot}
+                  </div>
+                ))}
+              </div>
+            ))}
+          </div>
+
+          {/* Val */}
+          <div style={{display:'flex',flexDirection:'column',gap:10}}>
+            <button onClick={()=>setConflicts(null)}
+              style={{padding:'13px',borderRadius:12,border:`1px solid ${T.accent}`,background:'none',color:T.accent,fontSize:14,fontWeight:700,cursor:'pointer',fontFamily:'system-ui',WebkitTapHighlightColor:'transparent'}}>
+              ← Ändra tid
+            </button>
+            <button onClick={handleBookAvailable} disabled={loading}
+              style={{padding:'13px',borderRadius:12,border:'none',background:T.accent,color:'#fff',fontSize:14,fontWeight:700,cursor:'pointer',fontFamily:'system-ui',WebkitTapHighlightColor:'transparent'}}>
+              {loading ? 'Bokar...' : `Boka bara lediga tillfällen (${conflicts ? (
+                (() => {
+                  const startISO = toISO(selectedDate);
+                  const windowEnd = endDate || (() => { const d=new Date(selectedDate); d.setFullYear(d.getFullYear()+2); return toISO(d); })();
+                  const temp = { id:'__p__', start_date:startISO, end_date:endDate||null, recurrence, time_slot:slotLabel(selectedStartH,durationHours), duration_hours:durationHours, status:'approved' };
+                  const total = expandBooking(temp, startISO, windowEnd, []).length;
+                  return total - conflicts.length;
+                })()
+              ) : 0} st)`}
+            </button>
+          </div>
+        </div>
+      </div>
+    )}
   );
 }
 
@@ -1584,7 +1811,7 @@ export default function BookingScreen({
 
   // Tab bar hide/show based on view
   useEffect(() => {
-    if (view === 'admin' || view === 'my-bookings' || view === 'form') {
+    if (view === 'admin' || view === 'form') {
       onTabBarHide?.();
     } else {
       onTabBarShow?.();
@@ -1624,9 +1851,24 @@ export default function BookingScreen({
     const { error } = await supabase.from('bookings').insert([booking]);
     setSubmitLoading(false);
     if (error) { showToast(`Fel: ${error.message}`); return; }
+
+    // Skapa skip-exceptions för krockar om användaren valde "boka bara lediga"
+    const skipDates = formData.skip_dates || [];
+    if (skipDates.length > 0) {
+      const excs = skipDates.map(date => ({
+        id: uid(),
+        booking_id: booking.id,
+        exception_date: date,
+        type: 'skip',
+        created_at: Date.now(),
+      }));
+      await supabase.from('booking_exceptions').insert(excs);
+      setExceptions(prev => [...prev, ...excs]);
+    }
+
     activateForDevice?.();
     localStorage.setItem(STORAGE_PHONE, normalizePhone(formData.phone));
-    showToast('Bokningsförfrågan skickad!');
+    showToast(skipDates.length > 0 ? `Förfrågan skickad — ${skipDates.length} krockar hoppades över!` : 'Bokningsförfrågan skickad!');
     setView('my-bookings');
   }, [deviceId, loggedInUser, showToast, activateForDevice]);
 
@@ -1707,8 +1949,9 @@ export default function BookingScreen({
 
   // Admin: add recurring booking directly
   const handleAdminAddRecurring = useCallback(async (formData) => {
+    const bookingId = uid();
     const booking = {
-      id: uid(),
+      id: bookingId,
       name: formData.name,
       phone: formData.phone || '',
       activity: formData.activity,
@@ -1726,8 +1969,25 @@ export default function BookingScreen({
     };
     const { error } = await supabase.from('bookings').insert([booking]);
     if (error) { showToast('Något gick fel.'); return; }
+
+    // Skapa skip-exceptions för krockar
+    const skipDates = formData.skip_dates || [];
+    if (skipDates.length > 0) {
+      const excs = skipDates.map(date => ({
+        id: uid(),
+        booking_id: bookingId,
+        exception_date: date,
+        type: 'skip',
+        created_at: Date.now(),
+      }));
+      const { error: excError } = await supabase.from('booking_exceptions').insert(excs);
+      if (excError) console.error('Exception insert error:', excError);
+      setExceptions(prev => [...prev, ...excs]);
+      showToast(`Bokning tillagd — ${skipDates.length} krockar hoppades över ✓`);
+    } else {
+      showToast('Återkommande bokning tillagd ✓');
+    }
     setBookings(prev => [booking, ...prev]);
-    showToast('Återkommande bokning tillagd ✓');
   }, [showToast]);
 
   // Called when UserLogin succeeds — handle both admin and regular user
