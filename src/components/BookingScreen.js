@@ -864,11 +864,16 @@ function BookingForm({ date, slotLabel: slot, durationHours, onSubmit, onBack, l
 // ── MyBookings ────────────────────────────────────────────────────────────────
 
 function MyBookings({ bookings, exceptions, loading, onBack, onCancel, onCancelFromDate, onCancelSeries, highlightBookingId, onLogout, T }) {
-  const [selected, setSelected] = useState(null);
+  const [selectedId, setSelectedId] = useState(null);
   const [deleteSheet, setDeleteSheet] = useState(null); // {booking, occurrence_date}
   const [cancelReason, setCancelReason] = useState('');
   const [cancelReasonError, setCancelReasonError] = useState(false);
   const highlightRef = useRef(null);
+
+  // Synka selected med live bookings — uppdateras automatiskt när parent-state ändras
+  const selected = useMemo(() =>
+    selectedId ? bookings.find(b => b.id === selectedId) || null : null,
+  [selectedId, bookings]);
 
   useEffect(() => {
     if (highlightBookingId && highlightRef.current) {
@@ -883,7 +888,7 @@ function MyBookings({ bookings, exceptions, loading, onBack, onCancel, onCancelF
   // Build display: show booking card + next upcoming occurrence
   const sorted = bookings.slice().sort((a,b) => a.start_date.localeCompare(b.start_date));
 
-  if (selected) {
+  if (selected !== null) {
     const b = selected;
     const isRecur = b.recurrence !== 'none';
     const upcoming = isRecur
@@ -892,7 +897,7 @@ function MyBookings({ bookings, exceptions, loading, onBack, onCancel, onCancelF
 
     return (
       <div style={{paddingTop:'max(20px, env(safe-area-inset-top, 0px))',paddingLeft:'16px',paddingRight:'16px',paddingBottom:'20px',fontFamily:'system-ui'}}>
-        <BackButton onBack={()=>setSelected(null)} T={T}/>
+        <BackButton onBack={()=>setSelectedId(null)} T={T}/>
         <div style={{fontSize:20,fontWeight:800,color:T.text,marginTop:16,marginBottom:16}}>Bokningsdetaljer</div>
 
         <div style={{background:T.card,border:`1px solid ${T.border}`,borderRadius:16,padding:'16px',marginBottom:12}}>
@@ -982,7 +987,8 @@ function MyBookings({ bookings, exceptions, loading, onBack, onCancel, onCancelF
                 {!deleteSheet.deleteAll && <>
                   <button onClick={()=>{
                     if (deleteSheet.booking.status==='approved' && !cancelReason.trim()) { setCancelReasonError(true); return; }
-                    const reason = deleteSheet.booking.status==='approved' ? `Avbokad av besökaren: ${cancelReason.trim()}` : 'Avbokad av besökaren.';
+                    const userName = localStorage.getItem('islamnu_user_name') || 'Besökaren';
+                    const reason = deleteSheet.booking.status==='approved' ? `Avbokad av ${userName}: ${cancelReason.trim()}` : `Avbokad av ${userName}.`;
                     setDeleteSheet(null); setCancelReason(''); setCancelReasonError(false);
                     onCancel(deleteSheet.booking, deleteSheet.occurrence_date, reason);
                   }}
@@ -992,7 +998,8 @@ function MyBookings({ bookings, exceptions, loading, onBack, onCancel, onCancelF
                   </button>
                   <button onClick={()=>{
                     if (deleteSheet.booking.status==='approved' && !cancelReason.trim()) { setCancelReasonError(true); return; }
-                    const reason = deleteSheet.booking.status==='approved' ? `Avbokad av besökaren: ${cancelReason.trim()}` : 'Avbokad av besökaren.';
+                    const userName = localStorage.getItem('islamnu_user_name') || 'Besökaren';
+                    const reason = deleteSheet.booking.status==='approved' ? `Avbokad av ${userName}: ${cancelReason.trim()}` : `Avbokad av ${userName}.`;
                     setDeleteSheet(null); setCancelReason(''); setCancelReasonError(false);
                     onCancelFromDate(deleteSheet.booking, deleteSheet.occurrence_date, reason);
                   }}
@@ -1004,7 +1011,8 @@ function MyBookings({ bookings, exceptions, loading, onBack, onCancel, onCancelF
                 {deleteSheet.deleteAll && (
                   <button onClick={()=>{
                     if (deleteSheet.booking.status==='approved' && !cancelReason.trim()) { setCancelReasonError(true); return; }
-                    const reason = deleteSheet.booking.status==='approved' ? `Avbokad av besökaren: ${cancelReason.trim()}` : 'Avbokad av besökaren.';
+                    const userName = localStorage.getItem('islamnu_user_name') || 'Besökaren';
+                    const reason = deleteSheet.booking.status==='approved' ? `Avbokad av ${userName}: ${cancelReason.trim()}` : `Avbokad av ${userName}.`;
                     setDeleteSheet(null); setCancelReason(''); setCancelReasonError(false);
                     onCancelSeries(deleteSheet.booking, reason);
                   }}
@@ -1049,7 +1057,7 @@ function MyBookings({ bookings, exceptions, loading, onBack, onCancel, onCancelF
           const isHighlight = b.id === highlightBookingId;
           return (
             <div key={b.id} ref={isHighlight?highlightRef:null}
-              onClick={()=>setSelected(b)}
+              onClick={()=>setSelectedId(b.id)}
               style={{background:T.card,border:`1px solid ${isHighlight?T.accent:T.border}`,borderRadius:14,padding:'14px 16px',cursor:'pointer',transition:'all .12s',boxShadow:isHighlight?`0 0 0 2px ${T.accent}44`:'none'}}>
               <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:8}}>
                 <div style={{display:'flex',alignItems:'center',gap:8}}>
@@ -1071,8 +1079,8 @@ function MyBookings({ bookings, exceptions, loading, onBack, onCancel, onCancelF
 
 // ── AdminPanel ────────────────────────────────────────────────────────────────
 
-function AdminPanel({ bookings, exceptions, onBack, onApprove, onReject, onDelete, onDeleteSeries, onDeleteFromDate, onAdminAddRecurring, onRefreshNotifications, onMarkAdminSeen, onManageUsers, T }) {
-  const [filter, setFilter] = useState('all');
+function AdminPanel({ bookings, exceptions, onBack, onApprove, onReject, onDelete, onDeleteSeries, onDeleteFromDate, onAdminAddRecurring, onRefreshNotifications, onMarkAdminSeen, onManageUsers, adminInitialFilter, T }) {
+  const [filter, setFilter] = useState(adminInitialFilter || 'all');
   const [selected, setSelected] = useState(null);
   const [actionLoading, setActionLoading] = useState(false);
   const [comment, setComment] = useState('');
@@ -1806,6 +1814,7 @@ export default function BookingScreen({
   highlightBookingId,
   onMarkAdminSeen,
   markVisitorSeen,
+  adminInitialFilter,
 }) {
   const { theme: T } = useTheme();
   const [bookings, setBookings] = useState([]);
@@ -1848,7 +1857,28 @@ export default function BookingScreen({
     setDbLoading(false);
   }, []);
 
-  useEffect(() => { fetchAll(); }, [fetchAll]);
+  // Smart initial load:
+  // Steg 1 — snabb fetch av egna bokningar → Mina bokningar visas omedelbart
+  // Steg 2 — full fetch i bakgrunden → kalendern och admin fylls på
+  useEffect(() => {
+    const userId = localStorage.getItem(STORAGE_USER_ID);
+    const devId  = localStorage.getItem('islamnu_device_id');
+
+    if (userId || devId) {
+      let q = supabase.from('bookings').select('*').order('created_at', { ascending: false });
+      if (userId) q = q.eq('user_id', userId);
+      else q = q.eq('device_id', devId);
+      q.then(({ data }) => {
+        if (data && data.length > 0) {
+          setBookings(data);
+          setDbLoading(false); // visa UI direkt utan att vänta på full fetch
+        }
+      });
+    }
+
+    // Full fetch i bakgrunden
+    fetchAll();
+  }, [fetchAll]); // eslint-disable-line
 
   // Realtime — debounced
   useEffect(() => {
@@ -1935,7 +1965,8 @@ export default function BookingScreen({
 
   // Visitor: cancel single occurrence (adds exception)
   const handleCancelOccurrence = useCallback(async (booking, occurrenceDate, reason) => {
-    const comment = reason || 'Avbokad av besökaren.';
+    const userName = localStorage.getItem(STORAGE_USER_NAME) || 'Besökaren';
+    const comment = reason || `Avbokad av ${userName}.`;
     if (!occurrenceDate || booking.recurrence === 'none') {
       // Single booking — cancel it directly
       const { error } = await supabase.from('bookings').update({ status:'cancelled', admin_comment:comment, resolved_at:Date.now() }).eq('id', booking.id);
@@ -1956,7 +1987,8 @@ export default function BookingScreen({
     const prevDay = new Date(parseISO(fromDate));
     prevDay.setDate(prevDay.getDate() - 1);
     const newEndDate = toISO(prevDay);
-    const comment = reason || 'Avbokad av besökaren.';
+    const userName = localStorage.getItem(STORAGE_USER_NAME) || 'Besökaren';
+    const comment = reason || `Avbokad av ${userName}.`;
     const { error } = await supabase.from('bookings').update({ end_date:newEndDate, admin_comment:comment, resolved_at:Date.now() }).eq('id', booking.id);
     if (error) { showToast('Något gick fel.'); return; }
     setBookings(prev => prev.map(b => b.id===booking.id ? {...b,end_date:newEndDate,admin_comment:comment} : b));
@@ -1965,7 +1997,8 @@ export default function BookingScreen({
 
   // Visitor: cancel entire series
   const handleCancelSeries = useCallback(async (booking, reason) => {
-    const comment = reason || 'Avbokad av besökaren.';
+    const userName = localStorage.getItem(STORAGE_USER_NAME) || 'Besökaren';
+    const comment = reason || `Avbokad av ${userName}.`;
     const { error } = await supabase.from('bookings').update({ status:'cancelled', admin_comment:comment, resolved_at:Date.now() }).eq('id', booking.id);
     if (error) { showToast('Något gick fel.'); return; }
     setBookings(prev => prev.map(b => b.id===booking.id ? {...b,status:'cancelled',admin_comment:comment} : b));
@@ -1990,24 +2023,28 @@ export default function BookingScreen({
 
   // Admin: delete single occurrence or single booking
   const handleAdminDelete = useCallback(async (booking, occurrenceDate, explanation) => {
+    const adminName = localStorage.getItem(STORAGE_USER_NAME) || 'Admin';
+    const comment = `Avbokad av ${adminName}: ${explanation}`;
     if (booking.recurrence !== 'none' && occurrenceDate) {
-      const exc = { id:uid(), booking_id:booking.id, exception_date:occurrenceDate, type:'skip', admin_comment:explanation, created_at:Date.now() };
+      const exc = { id:uid(), booking_id:booking.id, exception_date:occurrenceDate, type:'skip', admin_comment:comment, created_at:Date.now() };
       const { error } = await supabase.from('booking_exceptions').insert([exc]);
       if (error) { showToast('Något gick fel.'); return; }
       setExceptions(prev => [...prev, exc]);
     } else {
-      const { error } = await supabase.from('bookings').update({ status:'cancelled', admin_comment:explanation, resolved_at:Date.now() }).eq('id', booking.id);
+      const { error } = await supabase.from('bookings').update({ status:'cancelled', admin_comment:comment, resolved_at:Date.now() }).eq('id', booking.id);
       if (error) { showToast('Något gick fel.'); return; }
-      setBookings(prev => prev.map(b => b.id===booking.id ? {...b,status:'cancelled',admin_comment:explanation} : b));
+      setBookings(prev => prev.map(b => b.id===booking.id ? {...b,status:'cancelled',admin_comment:comment} : b));
     }
     showToast('Tillfälle borttaget & besökare notifierad.');
   }, [showToast]);
 
   // Admin: delete entire series
   const handleAdminDeleteSeries = useCallback(async (booking, explanation) => {
-    const { error } = await supabase.from('bookings').update({ status:'cancelled', admin_comment:explanation, resolved_at:Date.now() }).eq('id', booking.id);
+    const adminName = localStorage.getItem(STORAGE_USER_NAME) || 'Admin';
+    const comment = `Avbokad av ${adminName}: ${explanation}`;
+    const { error } = await supabase.from('bookings').update({ status:'cancelled', admin_comment:comment, resolved_at:Date.now() }).eq('id', booking.id);
     if (error) { showToast('Något gick fel.'); return; }
-    setBookings(prev => prev.map(b => b.id===booking.id ? {...b,status:'cancelled',admin_comment:explanation} : b));
+    setBookings(prev => prev.map(b => b.id===booking.id ? {...b,status:'cancelled',admin_comment:comment} : b));
     showToast('Hela serien borttagen & besökare notifierad.');
   }, [showToast]);
 
@@ -2189,6 +2226,7 @@ export default function BookingScreen({
           onApprove={handleApprove} onReject={handleReject}
           onDelete={handleAdminDelete} onDeleteSeries={handleAdminDeleteSeries}
           onDeleteFromDate={handleCancelFromDate}
+          adminInitialFilter={adminInitialFilter}
           onAdminAddRecurring={handleAdminAddRecurring}
           onRefreshNotifications={onRefreshNotifications}
           onMarkAdminSeen={onMarkAdminSeen}

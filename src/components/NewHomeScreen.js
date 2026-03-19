@@ -316,7 +316,7 @@ function SwipeableItem({ onDismiss, children }) {
 }
 
 /* ── Main screen ── */
-export default function NewHomeScreen({ stream, onGoToAdminLogin, onGoToMyBookings }) {
+export default function NewHomeScreen({ stream, onGoToAdminLogin, onGoToMyBookings, onGoToCancelledBookings }) {
   const { theme: T, mode, setMode } = useTheme();
   const isPWA = useIsPWA();
   const prevModeRef = React.useRef(mode);
@@ -584,7 +584,7 @@ export default function NewHomeScreen({ stream, onGoToAdminLogin, onGoToMyBookin
 
         {/* Admin-kort: avbokningar av godkända bokningar (blå) */}
         {isAdmin && cancelledUnread > 0 && (
-          <div onClick={() => { markAdminSeen?.(); onGoToAdminLogin?.(); }} style={{
+          <div onClick={() => { markAdminSeen?.(); onGoToCancelledBookings?.(); }} style={{
             background: T.card, border: `2px solid #3b82f666`,
             borderLeft: `4px solid #3b82f6`,
             borderRadius: 14, padding: '13px 14px',
