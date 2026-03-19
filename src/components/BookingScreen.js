@@ -811,8 +811,7 @@ function BookingForm({ date, slotLabel: slot, durationHours, onSubmit, onBack, l
         </button>
         <p style={{fontSize:11,color:T.textMuted,textAlign:'center',margin:0}}>Din förfrågan granskas av en administratör.</p>
       </div>
-
-    {/* ── Konfliktdialog för besökare ── */}
+      {/* ── Konfliktdialog för besökare ── */}
     {conflicts && (
       <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.65)',zIndex:2000,display:'flex',alignItems:'flex-end',justifyContent:'center'}} onClick={()=>setConflicts(null)}>
         <div onClick={e=>e.stopPropagation()} style={{background:T.card,borderRadius:'20px 20px 0 0',padding:'24px 20px 36px',width:'100%',maxWidth:500,boxSizing:'border-box',animation:'slideUp .25s cubic-bezier(0.32,0.72,0,1)',maxHeight:'80vh',overflowY:'auto'}}>
@@ -1301,6 +1300,7 @@ function AdminAddForm({ bookings, exceptions, onSubmit, onClose, T }) {
   };
 
   return (
+    <>
     <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.5)',zIndex:1000,display:'flex',alignItems:'flex-end',justifyContent:'center'}} onClick={onClose}>
       <div onClick={e=>e.stopPropagation()} style={{background:T.card,borderRadius:'20px 20px 0 0',padding:'24px 20px 36px',width:'100%',maxWidth:500,boxSizing:'border-box',animation:'slideUp .25s cubic-bezier(0.32,0.72,0,1)',maxHeight:'90vh',overflowY:'auto'}}>
         <div style={{fontSize:18,fontWeight:800,color:T.text,marginBottom:16,fontFamily:'system-ui'}}>Lägg till återkommande bokning</div>
@@ -1399,20 +1399,13 @@ function AdminAddForm({ bookings, exceptions, onSubmit, onClose, T }) {
             </button>
             <button onClick={handleBookAvailable} disabled={loading}
               style={{padding:'13px',borderRadius:12,border:'none',background:T.accent,color:'#fff',fontSize:14,fontWeight:700,cursor:'pointer',fontFamily:'system-ui',WebkitTapHighlightColor:'transparent'}}>
-              {loading ? 'Bokar...' : `Boka bara lediga tillfällen (${conflicts ? (
-                (() => {
-                  const startISO = toISO(selectedDate);
-                  const windowEnd = endDate || (() => { const d=new Date(selectedDate); d.setFullYear(d.getFullYear()+2); return toISO(d); })();
-                  const temp = { id:'__p__', start_date:startISO, end_date:endDate||null, recurrence, time_slot:slotLabel(selectedStartH,durationHours), duration_hours:durationHours, status:'approved' };
-                  const total = expandBooking(temp, startISO, windowEnd, []).length;
-                  return total - conflicts.length;
-                })()
-              ) : 0} st)`}
+              {loading ? 'Bokar...' : 'Boka bara lediga tillfällen ✓'}
             </button>
           </div>
         </div>
       </div>
     )}
+    </>
   );
 }
 
