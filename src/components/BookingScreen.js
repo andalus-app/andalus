@@ -782,7 +782,7 @@ function BookingForm({ date, slotLabel: slot, durationHours, onSubmit, onBack, l
 
   return (
     <div style={{paddingTop:'max(20px, env(safe-area-inset-top, 0px))',paddingLeft:'16px',paddingRight:'16px',paddingBottom:'20px',fontFamily:'system-ui'}}>
-      <BackButton onBack={onBack} T={T}/>
+      {onBack && <BackButton onBack={onBack} T={T}/>}
       <div style={{marginTop:16,marginBottom:20}}>
         <div style={{fontSize:22,fontWeight:800,color:T.text,letterSpacing:'-.4px',marginBottom:8}}>Bokningsförfrågan</div>
         <div style={{display:'inline-flex',alignItems:'center',gap:8,background:`${T.accent}18`,borderRadius:10,padding:'6px 12px'}}>
@@ -1607,7 +1607,7 @@ function UserLogin({ onSuccess, onBack, T }) {
 
   return (
     <div style={{paddingTop:'max(20px, env(safe-area-inset-top, 0px))',paddingLeft:'16px',paddingRight:'16px',paddingBottom:'20px',fontFamily:'system-ui'}}>
-      <BackButton onBack={onBack} T={T}/>
+      {onBack && <BackButton onBack={onBack} T={T}/>}
       <div style={{marginTop:24,maxWidth:340,margin:'24px auto 0'}}>
         {step==='phone'&&<>
           <div style={{textAlign:'center',marginBottom:24}}>
@@ -1887,7 +1887,7 @@ export default function BookingScreen({
   const [view, setView] = useState(() => {
     const userId = localStorage.getItem(STORAGE_USER_ID);
     const role   = localStorage.getItem(STORAGE_USER_ROLE);
-    if (!userId) return 'login'; // always show login first if not authenticated
+    if (!userId) return 'login'; // kalender är skyddad — alltid inloggning först
     if (startAtAdmin || role === 'admin') return 'admin';
     if (highlightBookingId) return 'my-bookings';
     return 'calendar';
@@ -1958,14 +1958,18 @@ export default function BookingScreen({
     if (highlightBookingId) {
       setView('my-bookings');
     } else if (!highlightBookingId && view === 'my-bookings') {
-      // Rensades via direkt tab-klick — gå till kalender
-      setView('calendar');
+      // Rensades via direkt tab-klick — gå till kalender (bara om inloggad)
+      const userId = localStorage.getItem(STORAGE_USER_ID);
+      if (userId) setView('calendar');
     }
   }, [highlightBookingId]); // eslint-disable-line
 
-  // Edge swipe back
+  // Edge swipe back — bara om inloggad (kalender är skyddad)
   useEffect(() => {
-    const handler = () => { setView('calendar'); };
+    const handler = () => {
+      const userId = localStorage.getItem(STORAGE_USER_ID);
+      if (userId) setView('calendar');
+    };
     window.addEventListener('edgeSwipeBack', handler);
     return () => window.removeEventListener('edgeSwipeBack', handler);
   }, []); // eslint-disable-line
