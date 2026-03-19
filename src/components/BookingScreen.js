@@ -32,6 +32,7 @@ const NO_END = 'no_end';
 const ALL_HOURS = Array.from({ length: (CLOSE_HOUR - OPEN_HOUR) * 2 }, (_, i) => OPEN_HOUR + i * 0.5);
 const DAYS_SV   = ['Mån','Tis','Ons','Tor','Fre','Lör','Sön'];
 const MONTHS_SV = ['Januari','Februari','Mars','April','Maj','Juni','Juli','Augusti','September','Oktober','November','December'];
+const DURATION_OPTIONS = [0.5,1,1.5,2,2.5,3,3.5,4,4.5,5,5.5,6,6.5,7,7.5,8,8.5,9,9.5,10,10.5,11,11.5,12,12.5,13,13.5,14,14.5,15,15.5,16];
 const RECUR_OPTIONS = [
   { value: 'none',    label: 'Ingen upprepning' },
   { value: 'weekly',  label: 'Veckovis' },
@@ -285,7 +286,7 @@ function ConfirmDialog({ title, message, confirmLabel, confirmColor='#ef4444', o
   const [text, setText] = useState('');
   const canConfirm = !requireText || text.trim().length > 0;
   return (
-    <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.5)',zIndex:1000,display:'flex',alignItems:'flex-end',justifyContent:'center',overscrollBehavior:'none',touchAction:'none'}} onClick={onCancel}>
+    <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.5)',zIndex:1000,display:'flex',alignItems:'flex-end',justifyContent:'center'}} onClick={onCancel}>
       <div onClick={e=>e.stopPropagation()} style={{background:T.card,borderRadius:'20px 20px 0 0',padding:'24px 20px 36px',width:'100%',maxWidth:500,boxSizing:'border-box',animation:'slideUp .25s cubic-bezier(0.32,0.72,0,1)'}}>
         <div style={{fontSize:18,fontWeight:800,color:T.text,marginBottom:8,fontFamily:'system-ui'}}>{title}</div>
         <div style={{fontSize:14,color:T.textMuted,marginBottom:16,fontFamily:'system-ui',lineHeight:1.5}}>{message}</div>
@@ -420,78 +421,8 @@ function ScrollPicker({ options, value, onChange, label, formatFn, T }) {
   );
 }
 
-const MIN_DURATION = 0.5; // 30 min minimum
-
-// Start options: every 30 min, must leave room for at least MIN_DURATION
-const START_OPTIONS = ALL_HOURS.filter(h => h + MIN_DURATION <= CLOSE_HOUR);
-
-function getEndOptions(startH) {
-  const opts = [];
-  for (let h = startH + MIN_DURATION; h <= CLOSE_HOUR; h += 0.5) opts.push(h);
-  return opts;
-}
-
-function TimeRangePicker({ startH, endH, onChange, T }) {
-  const endOptions = React.useMemo(() => getEndOptions(startH), [startH]);
-
-  // When start changes, clamp end to be valid (>= start + 30 min)
-  // Use a stable "safe" endH that is always in the current endOptions
-  const safeEndH = endH > startH + MIN_DURATION - 0.01 && endH <= CLOSE_HOUR && endOptions.includes(endH)
-    ? endH
-    : startH + MIN_DURATION;
-
-  const handleStartChange = (newStart) => {
-    // Keep same duration if possible, otherwise snap to minimum
-    const currentDur = safeEndH - startH;
-    const desiredEnd = newStart + currentDur;
-    const newEndOptions = getEndOptions(newStart);
-    const newEnd = newEndOptions.includes(desiredEnd)
-      ? desiredEnd
-      : newStart + MIN_DURATION;
-    onChange(newStart, newEnd);
-  };
-
-  const durationHours = safeEndH - startH;
-
-  return (
-    <div style={{display:'flex',flexDirection:'column',gap:10}}>
-      <div style={{display:'flex',gap:10}}>
-        <div style={{flex:1}}>
-          <ScrollPicker
-            options={START_OPTIONS}
-            value={startH}
-            onChange={handleStartChange}
-            label="STARTTID"
-            formatFn={fmtHour}
-            T={T}
-          />
-        </div>
-        <div style={{
-          display:'flex',alignItems:'center',justifyContent:'center',
-          paddingTop:28,color:T.textMuted,fontSize:18,fontWeight:300,flexShrink:0
-        }}>→</div>
-        <div style={{flex:1}}>
-          {/* key={startH} remounts end-picker when start changes, ensuring it scrolls to new minimum */}
-          <ScrollPicker
-            key={startH}
-            options={endOptions}
-            value={safeEndH}
-            onChange={v => onChange(startH, v)}
-            label="SLUTTID"
-            formatFn={fmtHour}
-            T={T}
-          />
-        </div>
-      </div>
-      <div style={{
-        textAlign:'center', fontSize:12, color:T.accent,
-        fontFamily:'system-ui', fontWeight:700,
-        background:`${T.accent}11`, borderRadius:8, padding:'5px 10px',
-      }}>
-        {fmtDuration(durationHours)}
-      </div>
-    </div>
-  );
+function DurationPicker({ value, onChange, T }) {
+  return <ScrollPicker options={DURATION_OPTIONS} value={value} onChange={onChange} label="BOKNINGSLÄNGD" formatFn={fmtDuration} T={T}/>;
 }
 
 // ── RecurrencePicker — välj upprepning + valfritt slutdatum ───────────────────
@@ -570,100 +501,105 @@ function RecurrencePicker({ recurrence, onChange, endDate, onEndDateChange, T })
 }
 
 // ── TimeSlotPanel ─────────────────────────────────────────────────────────────
-// Shows existing bookings for context + a CTA to book the chosen startH→endH range.
 
-function TimeSlotPanel({ bookings, exceptions, date, isAdmin, startH, endH, onSelectSlot, onClose, T }) {
+function TimeSlotPanel({ bookings, exceptions, date, isAdmin, durationHours, onSelectSlot, onClose, T }) {
   const iso = toISO(date);
-  const durationHours = endH - startH;
-  const slotLbl = `${fmtHour(startH)}–${fmtHour(endH)}`;
-
   const occs = useMemo(() => getOccurrencesForDate(bookings, exceptions, iso), [bookings, exceptions, iso]);
+  const hasBookings = occs.length > 0;
+  const [showOnlyAvailable, setShowOnlyAvailable] = useState(hasBookings);
 
-  // Check if the chosen range overlaps any existing booking
-  const bookedBlocks = useMemo(() => getBookedBlocks(bookings, exceptions, iso), [bookings, exceptions, iso]);
-  const isConflict = useMemo(() => {
-    for (let i = 0; i < durationHours * 2; i++) {
-      if (bookedBlocks.has(startH * 2 + i)) return true;
-    }
-    return false;
-  }, [bookedBlocks, startH, durationHours]);
-
-  const isPast = isHourPast(iso, startH);
-
-  // Build compact view of existing bookings for context
-  const existingBlocks = useMemo(() => {
+  const compactSlots = useMemo(() => {
     const active = occs.map(o => {
       const parts = o.time_slot.split('–');
       const parseH = s => { const [hh,mm] = s.split(':').map(Number); const h = hh+(mm===30?0.5:0); return h===0?24:h; };
-      const sH = parseH(parts[0]);
-      const eH = sH + o.duration_hours;
-      return { startH:sH, endH:eH, status: o.status, booking: o };
+      const startH = parseH(parts[0]);
+      const endH = startH + o.duration_hours;
+      return { startH, endH, status: o.status, booking: o };
     }).sort((a,b) => a.startH - b.startH);
-    return active;
-  }, [occs]);
+
+    const merged = [];
+    for (const b of active) {
+      const last = merged[merged.length-1];
+      if (last && b.startH <= last.endH) {
+        last.endH = Math.max(last.endH, b.endH);
+        if (['pending','edit_pending'].includes(b.status) && last.status === 'booked') last.status = 'pending';
+      } else merged.push({...b});
+    }
+
+    const result = [];
+    let cursor = OPEN_HOUR;
+    for (const block of merged) {
+      if (block.startH > cursor) {
+        for (let h = cursor; h+durationHours <= block.startH; h+=0.5) {
+          if (!isHourPast(iso, h)) result.push({ type:'available', startH:h, label:slotLabel(h,durationHours) });
+        }
+      }
+      result.push({ type:'booked', startH:block.startH, endH:block.endH, label:`${fmtHour(block.startH)}–${fmtHour(block.endH)}`, status:block.status, booking:block.booking });
+      cursor = block.endH;
+    }
+    for (let h = cursor; h+durationHours <= CLOSE_HOUR; h+=0.5) {
+      if (!isHourPast(iso, h)) result.push({ type:'available', startH:h, label:slotLabel(h,durationHours) });
+    }
+    return result;
+  }, [occs, iso, durationHours]);
+
+  const visible = showOnlyAvailable ? compactSlots.filter(s=>s.type==='available') : compactSlots;
 
   return (
     <div style={{marginTop:16,background:T.card,border:`1px solid ${T.border}`,borderRadius:16,overflow:'hidden'}}>
       <div style={{padding:'14px 16px 10px',borderBottom:`1px solid ${T.border}`,display:'flex',alignItems:'center',justifyContent:'space-between'}}>
         <div>
-          <div style={{fontSize:13,fontWeight:700,color:T.text,fontFamily:'system-ui'}}>{isoToDisplay(iso)}</div>
-          <div style={{fontSize:11,color:T.textMuted,fontFamily:'system-ui',marginTop:2}}>Vald tid: {slotLbl} · {fmtDuration(durationHours)}</div>
+          <div style={{fontSize:13,fontWeight:700,color:T.text,fontFamily:'system-ui'}}>Tillgängliga tider · {fmtDuration(durationHours)}</div>
+          <div style={{fontSize:11,color:T.textMuted,fontFamily:'system-ui',marginTop:2}}>{isoToDisplay(iso)}</div>
         </div>
-        <button onClick={onClose} style={{background:'none',border:'none',cursor:'pointer',color:T.textMuted,padding:4}}>
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-        </button>
+        <div style={{display:'flex',alignItems:'center',gap:6}}>
+          <button onClick={()=>setShowOnlyAvailable(v=>!v)}
+            style={{padding:'4px 10px',borderRadius:20,border:`1px solid ${showOnlyAvailable?T.accent:T.border}`,background:showOnlyAvailable?`${T.accent}22`:'none',color:showOnlyAvailable?T.accent:T.textMuted,fontSize:11,fontWeight:600,cursor:'pointer',fontFamily:'system-ui',WebkitTapHighlightColor:'transparent'}}>
+            {showOnlyAvailable ? 'Visa alla' : 'Bara lediga'}
+          </button>
+          <button onClick={onClose} style={{background:'none',border:'none',cursor:'pointer',color:T.textMuted,padding:4}}>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+          </button>
+        </div>
       </div>
-
-      {/* CTA — book or conflict warning */}
-      <div style={{padding:'12px 12px 4px'}}>
-        {isPast ? (
-          <div style={{padding:'10px 12px',borderRadius:10,background:'#88888811',border:'1px solid #88888833',fontSize:13,color:'#888',fontFamily:'system-ui',textAlign:'center'}}>
-            Denna tid har redan passerat
-          </div>
-        ) : isConflict ? (
-          <div style={{padding:'10px 12px',borderRadius:10,background:'#ef444411',border:'1px solid #ef444433',fontSize:13,color:'#ef4444',fontFamily:'system-ui',fontWeight:600}}>
-            ⚠️ {slotLbl} är redan bokad — välj en annan tid ovan
-          </div>
-        ) : (
-          <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'9px 12px',background:T.cardElevated,borderRadius:10,border:'1px solid #22c55e44'}}>
-            <div style={{display:'flex',alignItems:'center',gap:8}}>
-              <div style={{width:8,height:8,borderRadius:'50%',background:'#22c55e',flexShrink:0}}/>
-              <span style={{fontSize:14,fontWeight:600,color:T.text,fontFamily:'system-ui'}}>{slotLbl}</span>
-              <span style={{fontSize:11,color:T.textMuted,fontFamily:'system-ui'}}>{fmtDuration(durationHours)}</span>
-            </div>
-            <button onClick={()=>onSelectSlot(date, slotLbl, startH, durationHours)}
-              style={{background:T.accent,color:'#fff',border:'none',borderRadius:8,padding:'6px 16px',fontSize:13,fontWeight:700,cursor:'pointer',fontFamily:'system-ui',WebkitTapHighlightColor:'transparent'}}>
-              Boka
-            </button>
-          </div>
-        )}
-      </div>
-
-      {/* Existing bookings context */}
-      {existingBlocks.length > 0 && (
-        <div style={{padding:'8px 12px 10px'}}>
-          <div style={{fontSize:10,fontWeight:700,color:T.textMuted,letterSpacing:'.5px',marginBottom:6,fontFamily:'system-ui'}}>ÖVRIGA BOKNINGAR DENNA DAG</div>
-          <div style={{display:'flex',flexDirection:'column',gap:5}}>
-            {existingBlocks.map((block,i) => {
-              const color = block.status==='pending'||block.status==='edit_pending' ? '#f59e0b' : '#ef4444';
-              return (
-                <div key={i} style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'8px 10px',background:`${color}0d`,borderRadius:8,border:`1px solid ${color}33`}}>
-                  <div style={{display:'flex',alignItems:'center',gap:8}}>
-                    <div style={{width:7,height:7,borderRadius:'50%',background:color,flexShrink:0}}/>
-                    <span style={{fontSize:13,fontWeight:600,color:T.text,fontFamily:'system-ui'}}>{fmtHour(block.startH)}–{fmtHour(block.endH)}</span>
-                    {isAdmin&&block.booking&&<span style={{fontSize:11,color:T.textMuted,fontFamily:'system-ui'}}>· {block.booking.name}</span>}
-                  </div>
-                  <div style={{display:'flex',alignItems:'center',gap:6}}>
-                    <Badge status={block.status}/>
-                    {isAdmin&&block.booking&&<button onClick={()=>onSelectSlot(date,`${fmtHour(block.startH)}–${fmtHour(block.endH)}`,block.startH,block.endH-block.startH,block.booking)}
-                      style={{background:`${T.accent}22`,color:T.accent,border:'none',borderRadius:8,padding:'4px 8px',fontSize:11,fontWeight:700,cursor:'pointer',fontFamily:'system-ui'}}>Detaljer</button>}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
+      {visible.length === 0 && (
+        <div style={{padding:'20px 16px',textAlign:'center',color:T.textMuted,fontSize:13,fontFamily:'system-ui'}}>
+          Inga lediga tider för {fmtDuration(durationHours)} detta datum.
         </div>
       )}
+      <div style={{padding:'8px 10px 10px',display:'flex',flexDirection:'column',gap:5}}>
+        {visible.map((slot) => {
+          if (slot.type === 'available') {
+            return (
+              <div key={`a-${slot.startH}`} style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'9px 12px',background:T.cardElevated,borderRadius:10,border:'1px solid #22c55e44'}}>
+                <div style={{display:'flex',alignItems:'center',gap:8}}>
+                  <div style={{width:8,height:8,borderRadius:'50%',background:'#22c55e',flexShrink:0}}/>
+                  <span style={{fontSize:14,fontWeight:600,color:T.text,fontFamily:'system-ui'}}>{slot.label}</span>
+                </div>
+                <button onClick={()=>onSelectSlot(date, slot.label, slot.startH, durationHours)}
+                  style={{background:T.accent,color:'#fff',border:'none',borderRadius:8,padding:'5px 12px',fontSize:12,fontWeight:700,cursor:'pointer',fontFamily:'system-ui',WebkitTapHighlightColor:'transparent'}}>
+                  Välj
+                </button>
+              </div>
+            );
+          }
+          const color = slot.status==='pending'||slot.status==='edit_pending' ? '#f59e0b' : '#ef4444';
+          return (
+            <div key={`b-${slot.startH}`} style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'9px 12px',background:`${color}0d`,borderRadius:10,border:`1px solid ${color}33`,opacity:isAdmin?1:0.7}}>
+              <div style={{display:'flex',alignItems:'center',gap:8}}>
+                <div style={{width:8,height:8,borderRadius:'50%',background:color,flexShrink:0}}/>
+                <span style={{fontSize:14,fontWeight:600,color:T.text,fontFamily:'system-ui'}}>{slot.label}</span>
+                {isAdmin&&slot.booking&&<span style={{fontSize:11,color:T.textMuted,fontFamily:'system-ui'}}>· {slot.booking.name}</span>}
+              </div>
+              <div style={{display:'flex',alignItems:'center',gap:6}}>
+                <Badge status={slot.status}/>
+                {isAdmin&&slot.booking&&<button onClick={()=>onSelectSlot(date,slot.label,slot.startH,durationHours,slot.booking)}
+                  style={{background:`${T.accent}22`,color:T.accent,border:'none',borderRadius:8,padding:'5px 10px',fontSize:11,fontWeight:700,cursor:'pointer',fontFamily:'system-ui'}}>Detaljer</button>}
+              </div>
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 }
@@ -676,9 +612,7 @@ function CalendarView({ bookings, exceptions, onSelectSlot, isAdmin, T }) {
   const [anchor, setAnchor] = useState(today);
   const [selectedDate, setSelectedDate] = useState(today);
   const [showSlots, setShowSlots] = useState(true);
-  const [startH, setStartH] = useState(OPEN_HOUR);
-  const [endH,   setEndH]   = useState(OPEN_HOUR + 1);
-  const durationHours = endH - startH;
+  const [durationHours, setDurationHours] = useState(1);
 
   const weekDays = useMemo(() => getWeekDays(anchor), [anchor]);
   const monthGrid = useMemo(() => getMonthGrid(anchor.getFullYear(), anchor.getMonth()), [anchor]);
@@ -711,7 +645,7 @@ function CalendarView({ bookings, exceptions, onSelectSlot, isAdmin, T }) {
 
   return (
     <div>
-      <div style={{marginBottom:14}}><TimeRangePicker startH={startH} endH={endH} onChange={(s,e)=>{setStartH(s);setEndH(e);}} T={T}/></div>
+      <div style={{marginBottom:14}}><DurationPicker value={durationHours} onChange={setDurationHours} T={T}/></div>
       <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:14}}>
         <div style={{display:'flex',gap:6}}>
           {['week','month'].map(m => (
@@ -745,7 +679,7 @@ function CalendarView({ bookings, exceptions, onSelectSlot, isAdmin, T }) {
       </div>
       {showSlots && selectedDate && (
         <TimeSlotPanel bookings={bookings} exceptions={exceptions} date={selectedDate} isAdmin={isAdmin}
-          startH={startH} endH={endH} onSelectSlot={onSelectSlot} onClose={()=>setShowSlots(false)} T={T}/>
+          durationHours={durationHours} onSelectSlot={onSelectSlot} onClose={()=>setShowSlots(false)} T={T}/>
       )}
     </div>
   );
@@ -808,7 +742,7 @@ function BookingForm({ date, slotLabel: slot, durationHours, onSubmit, onBack, l
 
 // ── MyBookings ────────────────────────────────────────────────────────────────
 
-function MyBookings({ bookings, exceptions, loading, onBack, onLogout, onCancel, onCancelFromDate, onCancelSeries, highlightBookingId, T }) {
+function MyBookings({ bookings, exceptions, loading, onBack, onCancel, onCancelFromDate, onCancelSeries, highlightBookingId, T }) {
   const [selected, setSelected] = useState(null);
   const [deleteSheet, setDeleteSheet] = useState(null); // {booking, occurrence_date}
   const highlightRef = useRef(null);
@@ -898,7 +832,7 @@ function MyBookings({ bookings, exceptions, loading, onBack, onLogout, onCancel,
 
         {/* Delete sheet — Outlook-stil */}
         {deleteSheet && (
-          <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.5)',zIndex:1000,display:'flex',alignItems:'flex-end',justifyContent:'center',overscrollBehavior:'none',touchAction:'none'}} onClick={()=>setDeleteSheet(null)}>
+          <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.5)',zIndex:1000,display:'flex',alignItems:'flex-end',justifyContent:'center'}} onClick={()=>setDeleteSheet(null)}>
             <div onClick={e=>e.stopPropagation()} style={{background:T.card,borderRadius:'20px 20px 0 0',padding:'24px 20px 36px',width:'100%',maxWidth:500,boxSizing:'border-box',animation:'slideUp .25s cubic-bezier(0.32,0.72,0,1)'}}>
               <div style={{fontSize:16,fontWeight:800,color:T.text,marginBottom:16,fontFamily:'system-ui'}}>
                 {deleteSheet.deleteAll ? 'Avboka hela serien?' : `Avboka ${isoToDisplay(deleteSheet.occurrence_date)}?`}
@@ -936,16 +870,7 @@ function MyBookings({ bookings, exceptions, loading, onBack, onLogout, onCancel,
 
   return (
     <div style={{paddingTop:'max(20px, env(safe-area-inset-top, 0px))',paddingLeft:'16px',paddingRight:'16px',paddingBottom:'20px',fontFamily:'system-ui'}}>
-      <div style={{display:'flex',alignItems:'center',justifyContent:'space-between'}}>
-        <BackButton onBack={onBack} T={T}/>
-        {onLogout && (
-          <button onClick={onLogout}
-            style={{display:'flex',alignItems:'center',gap:6,background:'#ef444411',border:'1px solid #ef444433',borderRadius:20,padding:'6px 12px',cursor:'pointer',color:'#ef4444',fontSize:12,fontWeight:700,fontFamily:'system-ui',WebkitTapHighlightColor:'transparent'}}>
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
-            Logga ut
-          </button>
-        )}
-      </div>
+      <BackButton onBack={onBack} T={T}/>
       <div style={{fontSize:22,fontWeight:800,color:T.text,marginTop:16,marginBottom:16}}>Mina bokningar</div>
       {loading && <Spinner T={T}/>}
       {!loading && sorted.length === 0 && (
@@ -1186,9 +1111,7 @@ function AdminAddForm({ bookings, exceptions, onSubmit, onClose, T }) {
   const [step, setStep] = useState('date');
   const [anchor, setAnchor] = useState(today);
   const [selectedDate, setSelectedDate] = useState(today);
-  const [adminStartH, setAdminStartH] = useState(OPEN_HOUR);
-  const [adminEndH,   setAdminEndH]   = useState(OPEN_HOUR + 1);
-  const durationHours = adminEndH - adminStartH;
+  const [durationHours, setDurationHours] = useState(1);
   const [selectedStartH, setSelectedStartH] = useState(null);
   const [recurrence, setRecurrence] = useState('weekly');
   const [endDate, setEndDate] = useState(null);
@@ -1199,39 +1122,17 @@ function AdminAddForm({ bookings, exceptions, onSubmit, onClose, T }) {
   const handleSubmit = async () => {
     if (!form.name.trim()||!form.activity.trim()) return;
     setLoading(true);
-    await onSubmit({ ...form, date:toISO(selectedDate), time_slot:`${fmtHour(adminStartH)}–${fmtHour(adminEndH)}`, duration_hours:durationHours, recurrence, end_date:endDate });
+    await onSubmit({ ...form, date:toISO(selectedDate), time_slot:slotLabel(selectedStartH,durationHours), duration_hours:durationHours, recurrence, end_date:endDate });
     setLoading(false);
   };
 
   return (
-    <div
-      style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.5)',zIndex:1000,display:'flex',alignItems:'flex-end',justifyContent:'center',overscrollBehavior:'none',touchAction:'none'}}
-      onClick={onClose}
-    >
-      <div
-        onClick={e=>e.stopPropagation()}
-        style={{
-          background:T.card,
-          borderRadius:'20px 20px 0 0',
-          width:'100%',
-          maxWidth:500,
-          boxSizing:'border-box',
-          animation:'slideUp .25s cubic-bezier(0.32,0.72,0,1)',
-          /* Use dvh so the sheet resizes when keyboard appears, keeping content reachable */
-          maxHeight:'85dvh',
-          height:'85dvh',
-          display:'flex',
-          flexDirection:'column',
-          /* Isolate stacking so tab bar (outside this tree) isn't affected */
-          isolation:'isolate',
-          willChange:'transform',
-        }}
-      >
-        {/* Scrollable body — only this div scrolls, not the page behind */}
-        <div style={{flex:1,overflowY:'auto',WebkitOverflowScrolling:'touch',padding:'24px 20px 36px',overscrollBehavior:'contain'}}>
+    <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.5)',zIndex:1000,display:'flex',alignItems:'flex-end',justifyContent:'center'}} onClick={onClose}>
+      <div onClick={e=>e.stopPropagation()} style={{background:T.card,borderRadius:'20px 20px 0 0',padding:'24px 20px 36px',width:'100%',maxWidth:500,boxSizing:'border-box',animation:'slideUp .25s cubic-bezier(0.32,0.72,0,1)',maxHeight:'90vh',overflowY:'auto'}}>
         <div style={{fontSize:18,fontWeight:800,color:T.text,marginBottom:16,fontFamily:'system-ui'}}>Lägg till återkommande bokning</div>
 
         {step==='date' && <>
+          <div style={{marginBottom:14}}><DurationPicker value={durationHours} onChange={setDurationHours} T={T}/></div>
           <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:10}}>
             <button onClick={()=>{const d=new Date(anchor);d.setMonth(d.getMonth()-1);setAnchor(d);}} style={{width:32,height:32,borderRadius:8,border:`1px solid ${T.border}`,background:T.card,display:'flex',alignItems:'center',justifyContent:'center',cursor:'pointer',color:T.text}}>
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
@@ -1255,33 +1156,21 @@ function AdminAddForm({ bookings, exceptions, onSubmit, onClose, T }) {
 
         {step==='time' && selectedDate && <>
           <div style={{fontSize:12,fontWeight:700,color:T.textMuted,marginBottom:12,letterSpacing:'.3px'}}>{isoToDisplay(toISO(selectedDate))} — VÄLJ TID</div>
-          <TimeRangePicker startH={adminStartH} endH={adminEndH}
-            onChange={(s,e)=>{setAdminStartH(s);setAdminEndH(e);setSelectedStartH(s);}}
-            T={T}/>
-          {(() => {
-            const booked = getBookedBlocks(bookings, exceptions, toISO(selectedDate));
-            const startBlocks = adminStartH*2;
-            const dur = adminEndH - adminStartH;
-            let conflict = false;
-            for (let i = 0; i < dur*2; i++) { if (booked.has(startBlocks+i)) { conflict = true; break; } }
-            return conflict ? (
-              <div style={{marginTop:10,padding:'8px 12px',borderRadius:8,background:'#ef444411',border:'1px solid #ef444433',fontSize:12,color:'#ef4444',fontFamily:'system-ui',fontWeight:600}}>
-                ⚠️ Vald tid krockar med en befintlig bokning
-              </div>
-            ) : null;
-          })()}
-          <div style={{display:'flex',gap:8,marginTop:14}}>
-            <button onClick={()=>setStep('date')} style={{flex:1,padding:'11px',borderRadius:10,border:`1px solid ${T.border}`,background:'none',color:T.textMuted,fontSize:13,fontWeight:600,cursor:'pointer',fontFamily:'system-ui'}}>← Byt datum</button>
-            <button onClick={()=>{setSelectedStartH(adminStartH);setStep('details');}}
-              style={{flex:2,padding:'11px',borderRadius:10,border:'none',background:T.accent,color:'#fff',fontSize:13,fontWeight:700,cursor:'pointer',fontFamily:'system-ui',WebkitTapHighlightColor:'transparent'}}>
-              Välj denna tid →
-            </button>
+          <div style={{display:'flex',flexDirection:'column',gap:6,maxHeight:260,overflowY:'auto'}}>
+            {ALL_HOURS.filter(h=>h+durationHours<=CLOSE_HOUR).map(h=>{
+              const avail=getAvailableStarts(bookings,exceptions,toISO(selectedDate),durationHours).includes(h);
+              return <button key={h} onClick={()=>{setSelectedStartH(h);setStep('details');}} style={{padding:'11px 16px',borderRadius:10,border:`1px solid ${T.accent}44`,background:T.cardElevated,color:T.text,fontSize:14,fontWeight:600,cursor:'pointer',textAlign:'left',fontFamily:'system-ui',WebkitTapHighlightColor:'transparent',display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+                {slotLabel(h,durationHours)}
+                {!avail&&<span style={{fontSize:10,color:'#ef4444',fontWeight:700}}>Upptagen</span>}
+              </button>;
+            })}
           </div>
+          <button onClick={()=>setStep('date')} style={{marginTop:12,background:'none',border:'none',color:T.accent,cursor:'pointer',fontSize:13,fontWeight:600,fontFamily:'system-ui',padding:0}}>← Byt datum</button>
         </>}
 
         {step==='details' && <>
           <div style={{background:`${T.accent}18`,borderRadius:10,padding:'8px 12px',marginBottom:16}}>
-            <span style={{fontSize:13,color:T.accent,fontWeight:600}}>{isoToDisplay(toISO(selectedDate))} · {fmtHour(adminStartH)}–{fmtHour(adminEndH)} · {fmtDuration(durationHours)}</span>
+            <span style={{fontSize:13,color:T.accent,fontWeight:600}}>{isoToDisplay(toISO(selectedDate))} · {slotLabel(selectedStartH,durationHours)}</span>
           </div>
           <div style={{display:'flex',flexDirection:'column',gap:12}}>
             <Input label="NAMN" value={form.name} onChange={v=>setForm(p=>({...p,name:v}))} placeholder="Namn på bokaren" required T={T}/>
@@ -1295,8 +1184,7 @@ function AdminAddForm({ bookings, exceptions, onSubmit, onClose, T }) {
           </div>
           <button onClick={()=>setStep('time')} style={{marginTop:12,background:'none',border:'none',color:T.accent,cursor:'pointer',fontSize:13,fontWeight:600,fontFamily:'system-ui',padding:0}}>← Byt tid</button>
         </>}
-      </div>{/* end scroll body */}
-      </div>{/* end modal shell */}
+      </div>
     </div>
   );
 }
@@ -1385,7 +1273,7 @@ function UserLogin({ onSuccess, onBack, T }) {
 
   return (
     <div style={{paddingTop:'max(20px, env(safe-area-inset-top, 0px))',paddingLeft:'16px',paddingRight:'16px',paddingBottom:'20px',fontFamily:'system-ui'}}>
-      {onBack && <BackButton onBack={onBack} T={T}/>}
+      <BackButton onBack={onBack} T={T}/>
       <div style={{marginTop:24,maxWidth:340,margin:'24px auto 0'}}>
         {step==='phone'&&<>
           <div style={{textAlign:'center',marginBottom:24}}>
@@ -1519,7 +1407,7 @@ function UserManagement({ onBack, T }) {
   const roleColor = r => r==='admin'?'#f59e0b':'#22c55e';
 
   return (
-    <div style={{paddingTop:'max(20px, env(safe-area-inset-top, 0px))',paddingLeft:'16px',paddingRight:'16px',paddingBottom:'40px',fontFamily:'system-ui',background:T.bg}}>
+    <div style={{paddingTop:'max(20px, env(safe-area-inset-top, 0px))',paddingLeft:'16px',paddingRight:'16px',paddingBottom:'20px',fontFamily:'system-ui',minHeight:'100%',background:T.bg}}>
       <BackButton onBack={onBack} T={T}/>
       <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginTop:16,marginBottom:20}}>
         <div style={{fontSize:22,fontWeight:800,color:T.text}}>Hantera konton</div>
@@ -1623,65 +1511,10 @@ function UserManagement({ onBack, T }) {
   );
 }
 
-// ── ConflictDialog — shown when a recurring booking clashes with existing ones ─
-
-function ConflictDialog({ conflict, onBookAvailable, onCancel, T }) {
-  const { conflicts, conflictDetails, availableDates, hasNoEndDate, formData } = conflict;
-  const hasAvailable = availableDates.length > 0;
-
-  return (
-    <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.6)',zIndex:2000,display:'flex',alignItems:'flex-end',justifyContent:'center',overscrollBehavior:'none',touchAction:'none'}} onClick={onCancel}>
-      <div onClick={e=>e.stopPropagation()} style={{background:T.card,borderRadius:'20px 20px 0 0',padding:'24px 20px 36px',width:'100%',maxWidth:500,boxSizing:'border-box',animation:'slideUp .25s cubic-bezier(0.32,0.72,0,1)',maxHeight:'80vh',overflowY:'auto'}}>
-        <div style={{fontSize:18,fontWeight:800,color:'#ef4444',marginBottom:8,fontFamily:'system-ui',display:'flex',alignItems:'center',gap:8}}>
-          ⚠️ Återkommande bokning krockar
-        </div>
-        <div style={{fontSize:13,color:T.textMuted,marginBottom:14,fontFamily:'system-ui',lineHeight:1.5}}>
-          Din återkommande bokning ({formData.time_slot} · {fmtDuration(formData.duration_hours)}) krockar med{' '}
-          <strong style={{color:T.text}}>{conflicts.length} befintlig{conflicts.length > 1 ? 'a bokningar' : ' bokning'}</strong>:
-        </div>
-
-        <div style={{background:T.cardElevated,borderRadius:12,padding:'12px 14px',marginBottom:16,border:`1px solid #ef444433`}}>
-          {conflicts.slice(0,5).map((c, i) => (
-            <div key={i} style={{paddingBottom: i < Math.min(conflicts.length,5)-1 ? 10 : 0, marginBottom: i < Math.min(conflicts.length,5)-1 ? 10 : 0, borderBottom: i < Math.min(conflicts.length,5)-1 ? `1px solid ${T.border}` : 'none'}}>
-              <div style={{fontSize:13,fontWeight:700,color:T.text,fontFamily:'system-ui'}}>{isoToDisplay(c.date)}</div>
-              <div style={{fontSize:12,color:'#ef4444',fontFamily:'system-ui'}}>{c.existingSlot} · {c.activity}</div>
-              <div style={{fontSize:11,color:T.textMuted,fontFamily:'system-ui'}}>Bokad av: {c.name}</div>
-            </div>
-          ))}
-          {conflicts.length > 5 && (
-            <div style={{fontSize:12,color:T.textMuted,marginTop:8,fontFamily:'system-ui'}}>...och {conflicts.length - 5} till.</div>
-          )}
-        </div>
-
-        <div style={{display:'flex',flexDirection:'column',gap:10}}>
-          {hasAvailable && (
-            <button onClick={()=>onBookAvailable(availableDates)}
-              style={{padding:'13px',borderRadius:12,border:'none',background:T.accent,color:'#fff',fontSize:14,fontWeight:700,cursor:'pointer',fontFamily:'system-ui',textAlign:'left',WebkitTapHighlightColor:'transparent'}}>
-              ✓ Boka {availableDates.length} lediga dag{availableDates.length !== 1 ? 'ar' : ''} och hoppa över krockarna
-              <div style={{fontSize:12,fontWeight:400,marginTop:3,opacity:.85}}>
-                {hasNoEndDate ? 'Hoppar permanent över dagar som redan är bokade' : 'Bokar bara de tillgängliga datumen'}
-              </div>
-            </button>
-          )}
-          {!hasAvailable && (
-            <div style={{padding:'12px 14px',borderRadius:12,background:'#ef444411',border:'1px solid #ef444433',fontSize:13,color:'#ef4444',fontFamily:'system-ui',fontWeight:600}}>
-              Inga lediga dagar finns inom serien. Välj en annan tid eller annat datum.
-            </div>
-          )}
-          <button onClick={onCancel}
-            style={{padding:'13px',borderRadius:12,border:`1px solid ${T.border}`,background:'none',color:T.text,fontSize:14,fontWeight:600,cursor:'pointer',fontFamily:'system-ui',WebkitTapHighlightColor:'transparent'}}>
-            Avbryt och ändra bokning
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
 // ── Main BookingScreen ────────────────────────────────────────────────────────
 
 export default function BookingScreen({
-  onTabBarHide, onTabBarHideNoLock, onTabBarShow,
+  onTabBarHide, onTabBarShow,
   activateForDevice, registerAdminDevice, dismissAdminDevice,
   onRefreshNotifications,
   startAtAdminLogin, startAtAdmin,
@@ -1693,13 +1526,13 @@ export default function BookingScreen({
   const [exceptions, setExceptions] = useState([]);
   const [dbLoading, setDbLoading] = useState(true);
   const [submitLoading, setSubmitLoading] = useState(false);
-  const [pendingConflict, setPendingConflict] = useState(null);
   const [toast, setToast] = useState('');
   const [view, setView] = useState(() => {
     const userId = localStorage.getItem(STORAGE_USER_ID);
     const role   = localStorage.getItem(STORAGE_USER_ROLE);
     if (!userId) return 'login'; // always show login first if not authenticated
     if (startAtAdmin || role === 'admin') return 'admin';
+    if (highlightBookingId) return 'my-bookings';
     return 'calendar';
   });
   const [pendingSlot, setPendingSlot] = useState(null);
@@ -1742,34 +1575,18 @@ export default function BookingScreen({
     return () => { clearTimeout(timer); supabase.removeChannel(ch); };
   }, [fetchAll]);
 
-  // Edge swipe back — never allow unauthenticated calendar access
+  // Edge swipe back
   useEffect(() => {
-    const handler = () => {
-      const userId = localStorage.getItem(STORAGE_USER_ID);
-      if (!userId) {
-        setView('login');
-        return;
-      }
-      const role = localStorage.getItem(STORAGE_USER_ROLE);
-      if (role === 'admin') {
-        setView('admin');
-      } else {
-        setView('calendar');
-      }
-    };
+    const handler = () => { setView('calendar'); };
     window.addEventListener('edgeSwipeBack', handler);
     return () => window.removeEventListener('edgeSwipeBack', handler);
   }, []); // eslint-disable-line
 
   // Tab bar hide/show based on view
   useEffect(() => {
-    if (view === 'my-bookings' || view === 'form') {
+    if (view === 'admin' || view === 'my-bookings' || view === 'form') {
       onTabBarHide?.();
-    } else if (view === 'users') {
-      // Hide tab bar but don't lock scroll — users list needs to be scrollable
-      onTabBarHideNoLock?.();
     } else {
-      // Admin panel and calendar both show the tab bar
       onTabBarShow?.();
     }
   }, [view]); // eslint-disable-line
@@ -1786,113 +1603,7 @@ export default function BookingScreen({
 
   const handleSubmitBooking = useCallback(async (formData) => {
     setSubmitLoading(true);
-
-    // ── Recurring conflict check ───────────────────────────────────────────
-    if (formData.recurrence !== 'none') {
-      const windowEnd = formData.end_date
-        ? formData.end_date
-        : (() => { const d=new Date(); d.setFullYear(d.getFullYear()+2); return toISO(d); })();
-
-      // Build a temporary booking object to expand its occurrences
-      const tempBooking = {
-        id: '__temp__',
-        start_date: formData.date,
-        end_date: formData.end_date || null,
-        recurrence: formData.recurrence,
-        time_slot: formData.time_slot,
-        duration_hours: formData.duration_hours,
-        status: 'pending',
-      };
-
-      const occurrences = expandBooking(tempBooking, formData.date, windowEnd, []);
-
-      // Check each occurrence against existing approved/pending bookings
-      const conflicts = [];
-      for (const occ of occurrences) {
-        const iso = occ.date;
-        const startH = parseSlotStart(formData.time_slot);
-        const dur = formData.duration_hours;
-
-        // Get booked blocks for this date (exclude our temp booking)
-        const occsOnDate = getOccurrencesForDate(bookings, exceptions, iso);
-        for (const existing of occsOnDate) {
-          if (existing.status === 'cancelled' || existing.status === 'rejected') continue;
-          const existStartH = parseSlotStart(existing.time_slot);
-          const existEnd = existStartH + existing.duration_hours;
-          const newEnd = startH + dur;
-          // Check overlap
-          if (startH < existEnd && newEnd > existStartH) {
-            conflicts.push({
-              date: iso,
-              existingSlot: existing.time_slot,
-              activity: existing.activity,
-              name: existing.name,
-            });
-            break; // one conflict per date is enough
-          }
-        }
-      }
-
-      if (conflicts.length > 0) {
-        setSubmitLoading(false);
-        // Build conflict message
-        const conflictDetails = conflicts.slice(0,5).map(c =>
-          `• ${isoToDisplay(c.date)}: ${c.existingSlot} — "${c.activity}" (${c.name})`
-        ).join('\n');
-        const moreText = conflicts.length > 5 ? `\n...och ${conflicts.length - 5} till.` : '';
-
-        const hasNoEndDate = !formData.end_date;
-        const availableDates = occurrences
-          .filter(occ => !conflicts.find(c => c.date === occ.date))
-          .map(occ => occ.date);
-
-        // Store conflict info for the UI prompt
-        setPendingConflict({
-          formData,
-          conflicts,
-          conflictDetails: conflictDetails + moreText,
-          availableDates,
-          hasNoEndDate,
-        });
-        return;
-      }
-    }
-
-    await _doSubmitBooking(formData);
-  }, [bookings, exceptions, loggedInUser, deviceId, showToast, activateForDevice]); // eslint-disable-line
-
-  const _doSubmitBooking = useCallback(async (formData, overrideDates = null) => {
-    setSubmitLoading(true);
     const userId = localStorage.getItem(STORAGE_USER_ID) || loggedInUser?.id || null;
-
-    if (overrideDates && overrideDates.length > 0 && formData.recurrence !== 'none') {
-      // Book only specific dates as individual non-recurring bookings
-      const inserts = overrideDates.map(date => ({
-        id: uid(),
-        name: formData.name,
-        phone: formData.phone,
-        activity: formData.activity,
-        time_slot: formData.time_slot,
-        duration_hours: formData.duration_hours,
-        start_date: date,
-        end_date: null,
-        recurrence: 'none',
-        status: 'pending',
-        admin_comment: '',
-        created_at: Date.now(),
-        resolved_at: null,
-        device_id: deviceId,
-        user_id: userId,
-      }));
-      const { error } = await supabase.from('bookings').insert(inserts);
-      setSubmitLoading(false);
-      if (error) { showToast(`Fel: ${error.message}`); return; }
-      activateForDevice?.();
-      showToast(`${inserts.length} bokningsförfrågningar skickade!`);
-      setView('my-bookings');
-      return;
-    }
-
     const booking = {
       id: uid(),
       name: formData.name,
@@ -2066,8 +1777,6 @@ export default function BookingScreen({
 
   const handleSelectSlot = useCallback((date, slotLbl, startH, durationHours, existingBooking) => {
     if (adminMode && existingBooking) { setView('admin'); return; }
-    const userId = localStorage.getItem(STORAGE_USER_ID);
-    if (!userId) { setView('login'); return; }
     setPendingSlot({ date, slotLabel:slotLbl, startH, durationHours });
     setView('form');
   }, [adminMode]);
@@ -2082,7 +1791,7 @@ export default function BookingScreen({
   );
 
   return (
-    <div style={{background:T.bg,minHeight:'100%',fontFamily:'system-ui',position:'relative'}}>
+    <div style={{background:T.bg,minHeight:'100%',fontFamily:'system-ui'}}>
       <style>{`
         @keyframes fadeInUp{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
         @keyframes slideUp{from{transform:translateY(100%)}to{transform:translateY(0)}}
@@ -2128,7 +1837,6 @@ export default function BookingScreen({
         <MyBookings
           bookings={myBookings} exceptions={exceptions}
           loading={false} onBack={()=>setView('calendar')}
-          onLogout={!adminMode ? handleUserLogout : undefined}
           onCancel={handleCancelOccurrence}
           onCancelFromDate={handleCancelFromDate}
           onCancelSeries={handleCancelSeries}
@@ -2139,7 +1847,7 @@ export default function BookingScreen({
       {view === 'login' && (
         <UserLogin
           onSuccess={handleLoginSuccess}
-          onBack={loggedInUser ? ()=>setView(localStorage.getItem(STORAGE_USER_ROLE)==='admin' ? 'admin' : 'calendar') : undefined}
+          onBack={loggedInUser ? ()=>setView('calendar') : undefined}
           T={T}
         />
       )}
@@ -2159,19 +1867,6 @@ export default function BookingScreen({
           onRefreshNotifications={onRefreshNotifications}
           onMarkAdminSeen={onMarkAdminSeen}
           onManageUsers={()=>setView('users')}
-          T={T}
-        />
-      )}
-
-      {pendingConflict && (
-        <ConflictDialog
-          conflict={pendingConflict}
-          onBookAvailable={(availableDates) => {
-            const fd = pendingConflict.formData;
-            setPendingConflict(null);
-            _doSubmitBooking(fd, availableDates);
-          }}
-          onCancel={() => setPendingConflict(null)}
           T={T}
         />
       )}

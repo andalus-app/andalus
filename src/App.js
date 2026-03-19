@@ -119,36 +119,57 @@ function Shell() {
     };
   }, []);
 
-  // Silent background location update on every app open.
+  // Silent background location update on every app open AND when app comes to foreground.
   // Runs after 10 s if user has already granted GPS permission.
   // Only updates if new position is >30 km from cached location.
+  const locationRef = useRef(location);
+  useEffect(() => { locationRef.current = location; }, [location]);
+
   useEffect(() => {
     const alreadyGranted = localStorage.getItem(GPS_PROMPT_KEY) === 'done';
     if (!alreadyGranted || !navigator.geolocation) return;
 
-    const t = setTimeout(async () => {
-      navigator.geolocation.getCurrentPosition(
-        async (pos) => {
-          try {
-            const { latitude, longitude } = pos.coords;
-            const dist = location
-              ? haversineKm(location.latitude, location.longitude, latitude, longitude)
-              : Infinity;
+    let timer = null;
 
-            if (dist >= SILENT_UPDATE_THRESHOLD_KM) {
-              const geo = await reverseGeocode(latitude, longitude);
-              dispatch({ type: 'SET_LOCATION', payload: { latitude, longitude, ...geo } });
+    const checkLocation = () => {
+      if (timer) clearTimeout(timer);
+      timer = setTimeout(() => {
+        navigator.geolocation.getCurrentPosition(
+          async (pos) => {
+            try {
+              const { latitude, longitude } = pos.coords;
+              const current = locationRef.current;
+              const dist = current
+                ? haversineKm(current.latitude, current.longitude, latitude, longitude)
+                : Infinity;
+
+              if (dist >= SILENT_UPDATE_THRESHOLD_KM) {
+                const geo = await reverseGeocode(latitude, longitude);
+                dispatch({ type: 'SET_LOCATION', payload: { latitude, longitude, ...geo } });
+              }
+            } catch {
+              // Fail silently — never show any error to user
             }
-          } catch {
-            // Fail silently — never show any error to user
-          }
-        },
-        () => { /* Denied or timed out — fail silently */ },
-        { enableHighAccuracy: false, maximumAge: 0, timeout: 10000 }
-      );
-    }, 10000);
+          },
+          () => { /* Denied or timed out — fail silently */ },
+          { enableHighAccuracy: false, maximumAge: 0, timeout: 10000 }
+        );
+      }, 10000);
+    };
 
-    return () => clearTimeout(t);
+    // Kör vid appstart
+    checkLocation();
+
+    // Kör varje gång appen kommer till förgrunden (iOS PWA-fix)
+    const onVisibilityChange = () => {
+      if (!document.hidden) checkLocation();
+    };
+    document.addEventListener('visibilitychange', onVisibilityChange);
+
+    return () => {
+      if (timer) clearTimeout(timer);
+      document.removeEventListener('visibilitychange', onVisibilityChange);
+    };
   }, []); // eslint-disable-line
 
   // Nudge-animation — en gång per session, max var 7:e dag
@@ -199,7 +220,9 @@ function Shell() {
 
   const [moreInitialView, setMoreInitialView] = useState(null);
 
+  const [highlightBookingId, setHighlightBookingId] = useState(null);
   const handleGoToMyBookings = (bookingId) => {
+    setHighlightBookingId(bookingId || null);
     setTab('booking');
     try { sessionStorage.setItem('activeTab', 'booking'); } catch {}
   };
@@ -215,7 +238,7 @@ function Shell() {
       case 'home':     return <NewHomeScreen stream={stream} onGoToAdminLogin={handleGoToAdminLogin} onGoToMyBookings={handleGoToMyBookings} />;
       case 'prayer':   return <PrayerScreen onMonthlyPress={() => setShowMonthly(true)} />;
       case 'qibla':    return <QiblaScreen />;
-      case 'booking':  return <BookingScreen onTabBarHide={() => { setTabBarHiddenByChild(true); setTabBarVisible(false); setScrollLocked(true); }} onTabBarShow={() => { setTabBarHiddenByChild(false); setTabBarVisible(true); setScrollLocked(false); }} activateForDevice={activateForDevice} registerAdminDevice={registerAdminDevice} dismissAdminDevice={dismissAdminDevice} onRefreshNotifications={refreshNotifications} />;
+      case 'booking':  return <BookingScreen highlightBookingId={highlightBookingId} onTabBarHide={() => { setTabBarHiddenByChild(true); setTabBarVisible(false); setScrollLocked(true); }} onTabBarShow={() => { setTabBarHiddenByChild(false); setTabBarVisible(true); setScrollLocked(false); }} activateForDevice={activateForDevice} registerAdminDevice={registerAdminDevice} dismissAdminDevice={dismissAdminDevice} onRefreshNotifications={refreshNotifications} />;
       case 'ebooks':   return <EbooksScreen key={ebooksReset} onTabBarHide={() => { setTabBarHiddenByChild(true); setTabBarVisible(false); setScrollLocked(true); }} onTabBarShow={() => { setTabBarHiddenByChild(false); setTabBarVisible(true); setScrollLocked(false); }} onReaderOpen={() => {}} onReaderClose={() => {}} resetToLibrary={false} />;
       case 'more':     return <MoreScreen key={moreResetKey} onTabBarHide={() => { setTabBarHiddenByChild(true); setTabBarVisible(false); setScrollLocked(true); }} onTabBarShow={() => { setTabBarHiddenByChild(false); setTabBarVisible(true); setScrollLocked(false); }} initialView={moreInitialView} markVisitorSeen={markVisitorSeen} markAdminSeen={markAdminSeen} activateForDevice={activateForDevice} registerAdminDevice={registerAdminDevice} dismissAdminDevice={dismissAdminDevice} bookingBadge={totalUnread} visitorBadge={visitorUnread} adminBadge={adminUnread || adminPendingCount} onRefreshNotifications={refreshNotifications} />;
       default:         return <NewHomeScreen />;
