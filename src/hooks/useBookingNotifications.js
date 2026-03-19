@@ -109,7 +109,7 @@ export function useBookingNotifications() {
           .select('id, status, resolved_at, admin_comment')
           .eq('status', 'cancelled')
           .gt('resolved_at', adminSeenAt)
-          .ilike('admin_comment', 'Avbokad av besökaren:%');
+          .ilike('admin_comment', 'Avbokad av %');
         if (cancelData) {
           setCancelledUnread(cancelData.length);
         }

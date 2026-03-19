@@ -863,7 +863,7 @@ function BookingForm({ date, slotLabel: slot, durationHours, onSubmit, onBack, l
 
 // ── MyBookings ────────────────────────────────────────────────────────────────
 
-function MyBookings({ bookings, exceptions, loading, onBack, onCancel, onCancelFromDate, onCancelSeries, highlightBookingId, onLogout, T }) {
+function MyBookings({ bookings, exceptions, loading, onBack, onCancel, onCancelFromDate, onCancelSeries, onRestore, highlightBookingId, onLogout, T }) {
   const [selectedId, setSelectedId] = useState(null);
   const [deleteSheet, setDeleteSheet] = useState(null); // {booking, occurrence_date}
   const [cancelReason, setCancelReason] = useState('');
@@ -896,7 +896,7 @@ function MyBookings({ bookings, exceptions, loading, onBack, onCancel, onCancelF
       : [{ ...b, date: b.start_date }];
 
     return (
-      <div style={{paddingTop:'max(20px, env(safe-area-inset-top, 0px))',paddingLeft:'16px',paddingRight:'16px',paddingBottom:'20px',fontFamily:'system-ui'}}>
+      <div style={{paddingTop:'max(20px, env(safe-area-inset-top, 0px))',paddingLeft:'16px',paddingRight:'16px',paddingBottom:'100px',fontFamily:'system-ui'}}>
         <BackButton onBack={()=>setSelectedId(null)} T={T}/>
         <div style={{fontSize:20,fontWeight:800,color:T.text,marginTop:16,marginBottom:16}}>Bokningsdetaljer</div>
 
@@ -942,19 +942,43 @@ function MyBookings({ bookings, exceptions, loading, onBack, onCancel, onCancelF
           </div>
         )}
 
-        {/* Delete actions */}
+        {/* Delete / restore actions */}
         <div style={{display:'flex',flexDirection:'column',gap:8}}>
-          {isRecur ? <>
-            <button onClick={()=>setDeleteSheet({booking:b, occurrence_date:b.start_date, deleteAll:true})}
-              style={{padding:'13px',borderRadius:12,border:'1px solid #ef444433',background:'#ef444411',color:'#ef4444',fontSize:14,fontWeight:700,cursor:'pointer',fontFamily:'system-ui',textAlign:'left',WebkitTapHighlightColor:'transparent'}}>
-              🗑 Avboka hela serien
-              <div style={{fontSize:12,fontWeight:400,marginTop:3,opacity:.75}}>Tar bort alla kommande tillfällen</div>
-            </button>
-          </> : (
-            <button onClick={()=>onCancel(b)}
-              style={{padding:'13px',borderRadius:12,border:'1px solid #ef444433',background:'#ef444411',color:'#ef4444',fontSize:14,fontWeight:700,cursor:'pointer',fontFamily:'system-ui',textAlign:'left',WebkitTapHighlightColor:'transparent'}}>
-              🗑 Avboka
-            </button>
+          {b.status === 'cancelled' ? (
+            /* Avbokad — visa Återta för alla bokningstyper */
+            (() => {
+              // För upprepade: kolla om start_date är ledig (serien kan återtas)
+              // För engångsbokningar: kolla exakt datum
+              const checkDate = b.start_date;
+              const timeAvailable = getAvailableStarts(bookings, exceptions, checkDate, b.duration_hours, b.id).includes(parseSlotStart(b.time_slot));
+              return (
+                <button
+                  onClick={() => { if (timeAvailable) onRestore?.(b); }}
+                  disabled={!timeAvailable}
+                  style={{padding:'13px',borderRadius:12,border:`1px solid ${timeAvailable?'#22c55e44':'#88888844'}`,background:timeAvailable?'#22c55e11':'#88888811',color:timeAvailable?'#22c55e':'#888',fontSize:14,fontWeight:700,cursor:timeAvailable?'pointer':'not-allowed',fontFamily:'system-ui',textAlign:'left',WebkitTapHighlightColor:'transparent',opacity:timeAvailable?1:0.6}}>
+                  {timeAvailable ? '↩ Återta bokningen' : '↩ Återta bokningen (ej tillgänglig)'}
+                  <div style={{fontSize:12,fontWeight:400,marginTop:3,opacity:.75}}>
+                    {timeAvailable
+                      ? isRecur ? 'Serien återaktiveras — tillfällen skapas igen' : 'Tiden är ledig — bokningen återaktiveras som Väntar'
+                      : 'En annan bokning har tagit denna tid'}
+                  </div>
+                </button>
+              );
+            })()
+          ) : (
+            /* Aktiv bokning — visa Avboka med bekräftelse för alla typer */
+            isRecur ? (
+              <button onClick={()=>setDeleteSheet({booking:b, occurrence_date:b.start_date, deleteAll:true})}
+                style={{padding:'13px',borderRadius:12,border:'1px solid #ef444433',background:'#ef444411',color:'#ef4444',fontSize:14,fontWeight:700,cursor:'pointer',fontFamily:'system-ui',textAlign:'left',WebkitTapHighlightColor:'transparent'}}>
+                🗑 Avboka hela serien
+                <div style={{fontSize:12,fontWeight:400,marginTop:3,opacity:.75}}>Tar bort alla kommande tillfällen</div>
+              </button>
+            ) : (
+              <button onClick={()=>setDeleteSheet({booking:b, occurrence_date:b.start_date})}
+                style={{padding:'13px',borderRadius:12,border:'1px solid #ef444433',background:'#ef444411',color:'#ef4444',fontSize:14,fontWeight:700,cursor:'pointer',fontFamily:'system-ui',textAlign:'left',WebkitTapHighlightColor:'transparent'}}>
+                🗑 Avboka
+              </button>
+            )
           )}
         </div>
 
@@ -963,32 +987,28 @@ function MyBookings({ bookings, exceptions, loading, onBack, onCancel, onCancelF
           <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.5)',zIndex:1000,display:'flex',alignItems:'flex-end',justifyContent:'center'}} onClick={()=>{setDeleteSheet(null);setCancelReason('');setCancelReasonError(false);}}>
             <div onClick={e=>e.stopPropagation()} style={{background:T.card,borderRadius:'20px 20px 0 0',padding:'24px 20px 36px',width:'100%',maxWidth:500,boxSizing:'border-box',animation:'slideUp .25s cubic-bezier(0.32,0.72,0,1)'}}>
               <div style={{fontSize:16,fontWeight:800,color:T.text,marginBottom:4,fontFamily:'system-ui'}}>
-                {deleteSheet.deleteAll ? 'Avboka hela serien?' : `Avboka ${isoToDisplay(deleteSheet.occurrence_date)}?`}
+                {deleteSheet.deleteAll ? 'Är du säker? Avboka hela serien?' : 'Är du säker på att du vill avboka?'}
               </div>
               <div style={{fontSize:12,color:T.textMuted,marginBottom:14,fontFamily:'system-ui'}}>
-                {deleteSheet.booking.status === 'approved' ? 'Ange anledning — admin ser detta meddelande.' : 'Bokningsförfrågan dras tillbaka.'}
+                Du kan ange en anledning (valfritt) — admin ser detta meddelande.
               </div>
 
               {/* Anledning — krävs för godkända bokningar */}
-              {deleteSheet.booking.status === 'approved' && (
-                <div style={{marginBottom:14}}>
-                  <textarea
-                    value={cancelReason}
-                    onChange={e=>{setCancelReason(e.target.value);setCancelReasonError(false);}}
-                    placeholder="Varför avbokar du? (obligatoriskt)"
-                    rows={3}
-                    style={{width:'100%',boxSizing:'border-box',background:T.cardElevated,border:`1px solid ${cancelReasonError?'#ef4444':T.border}`,borderRadius:10,padding:'10px 12px',fontSize:14,color:T.text,fontFamily:'system-ui',resize:'none',outline:'none'}}
-                  />
-                  {cancelReasonError && <div style={{fontSize:12,color:'#ef4444',marginTop:4}}>Ange en anledning för att fortsätta.</div>}
-                </div>
-              )}
+              <div style={{marginBottom:14}}>
+                <textarea
+                  value={cancelReason}
+                  onChange={e=>{setCancelReason(e.target.value);setCancelReasonError(false);}}
+                  placeholder="Anledning (valfritt)"
+                  rows={3}
+                  style={{width:'100%',boxSizing:'border-box',background:T.cardElevated,border:`1px solid ${T.border}`,borderRadius:10,padding:'10px 12px',fontSize:14,color:T.text,fontFamily:'system-ui',resize:'none',outline:'none'}}
+                />
+              </div>
 
               <div style={{display:'flex',flexDirection:'column',gap:10}}>
                 {!deleteSheet.deleteAll && <>
                   <button onClick={()=>{
-                    if (deleteSheet.booking.status==='approved' && !cancelReason.trim()) { setCancelReasonError(true); return; }
                     const userName = localStorage.getItem('islamnu_user_name') || 'Besökaren';
-                    const reason = deleteSheet.booking.status==='approved' ? `Avbokad av ${userName}: ${cancelReason.trim()}` : `Avbokad av ${userName}.`;
+                    const reason = cancelReason.trim() ? `Avbokad av ${userName}: ${cancelReason.trim()}` : `Avbokad av ${userName}.`;
                     setDeleteSheet(null); setCancelReason(''); setCancelReasonError(false);
                     onCancel(deleteSheet.booking, deleteSheet.occurrence_date, reason);
                   }}
@@ -997,9 +1017,8 @@ function MyBookings({ bookings, exceptions, loading, onBack, onCancel, onCancelF
                     <div style={{fontSize:12,fontWeight:400,marginTop:3,opacity:.75}}>Övriga tillfällen påverkas inte</div>
                   </button>
                   <button onClick={()=>{
-                    if (deleteSheet.booking.status==='approved' && !cancelReason.trim()) { setCancelReasonError(true); return; }
                     const userName = localStorage.getItem('islamnu_user_name') || 'Besökaren';
-                    const reason = deleteSheet.booking.status==='approved' ? `Avbokad av ${userName}: ${cancelReason.trim()}` : `Avbokad av ${userName}.`;
+                    const reason = cancelReason.trim() ? `Avbokad av ${userName}: ${cancelReason.trim()}` : `Avbokad av ${userName}.`;
                     setDeleteSheet(null); setCancelReason(''); setCancelReasonError(false);
                     onCancelFromDate(deleteSheet.booking, deleteSheet.occurrence_date, reason);
                   }}
@@ -1010,9 +1029,8 @@ function MyBookings({ bookings, exceptions, loading, onBack, onCancel, onCancelF
                 </>}
                 {deleteSheet.deleteAll && (
                   <button onClick={()=>{
-                    if (deleteSheet.booking.status==='approved' && !cancelReason.trim()) { setCancelReasonError(true); return; }
                     const userName = localStorage.getItem('islamnu_user_name') || 'Besökaren';
-                    const reason = deleteSheet.booking.status==='approved' ? `Avbokad av ${userName}: ${cancelReason.trim()}` : `Avbokad av ${userName}.`;
+                    const reason = cancelReason.trim() ? `Avbokad av ${userName}: ${cancelReason.trim()}` : `Avbokad av ${userName}.`;
                     setDeleteSheet(null); setCancelReason(''); setCancelReasonError(false);
                     onCancelSeries(deleteSheet.booking, reason);
                   }}
@@ -1117,7 +1135,7 @@ function AdminPanel({ bookings, exceptions, onBack, onApprove, onReject, onDelet
     const upcoming = isRecur ? expandBooking(b, today, windowEnd, exceptions).slice(0,10) : null;
 
     return (
-      <div style={{paddingTop:'max(20px, env(safe-area-inset-top, 0px))',paddingLeft:'16px',paddingRight:'16px',paddingBottom:'20px',fontFamily:'system-ui'}}>
+      <div style={{paddingTop:'max(20px, env(safe-area-inset-top, 0px))',paddingLeft:'16px',paddingRight:'16px',paddingBottom:'100px',fontFamily:'system-ui'}}>
         <BackButton onBack={()=>{setSelected(null);setComment('');}} T={T}/>
         <div style={{fontSize:20,fontWeight:800,color:T.text,marginTop:16,marginBottom:16}}>Bokningsdetaljer</div>
 
@@ -2005,6 +2023,19 @@ export default function BookingScreen({
     showToast('Hela serien avbokad.');
   }, [showToast]);
 
+  // Visitor/Admin: restore a cancelled booking
+  const handleRestoreBooking = useCallback(async (booking) => {
+    const newStatus = booking.user_id ? 'pending' : 'approved';
+    const { error } = await supabase.from('bookings').update({
+      status: newStatus,
+      admin_comment: '',
+      resolved_at: null,
+    }).eq('id', booking.id);
+    if (error) { showToast('Något gick fel.'); return; }
+    setBookings(prev => prev.map(b => b.id===booking.id ? {...b,status:newStatus,admin_comment:'',resolved_at:null} : b));
+    showToast(newStatus==='pending' ? 'Bokning återskickad som förfrågan ✓' : 'Bokning återaktiverad ✓');
+  }, [showToast]);
+
   // Admin: approve
   const handleApprove = useCallback(async (bookingId, comment) => {
     const { error } = await supabase.from('bookings').update({ status:'approved', admin_comment:comment||'', resolved_at:Date.now() }).eq('id', bookingId);
@@ -2201,6 +2232,7 @@ export default function BookingScreen({
           onCancel={handleCancelOccurrence}
           onCancelFromDate={handleCancelFromDate}
           onCancelSeries={handleCancelSeries}
+          onRestore={handleRestoreBooking}
           highlightBookingId={highlightBookingId}
           onLogout={handleUserLogout}
           T={T}
