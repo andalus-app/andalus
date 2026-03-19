@@ -330,7 +330,7 @@ export default function NewHomeScreen({ stream, onGoToAdminLogin, onGoToMyBookin
     }
   }, [mode]);
   const { allBanners, activeBanners, banners, unreadCount, read, dismiss, markRead, markAllRead } = useBanner();
-  const { bellNotifs, visitorUnread, adminPendingNotif, adminUnread, adminPendingCount, isAdminState, markVisitorSeen, markVisitorBadgeSeen, dismissAdminDevice } = useBookingNotifications();
+  const { bellNotifs, visitorUnread, adminPendingNotif, adminUnread, adminPendingCount, cancelledUnread, isAdminState, markVisitorSeen, markVisitorBadgeSeen, markAdminSeen, dismissAdminDevice } = useBookingNotifications();
   const [showBellPanel, setShowBellPanel] = React.useState(false);
   const [adminNotifDismissedThisSession, setAdminNotifDismissedThisSession] = React.useState(false);
 
@@ -340,7 +340,7 @@ export default function NewHomeScreen({ stream, onGoToAdminLogin, onGoToMyBookin
   // - Non-logged-in admin device: show when there are pending bookings
   // - Logged-in admin: show when there are pending bookings (adminUnread or adminPendingCount)
   const adminPendingForBell = isAdmin
-    ? (adminUnread > 0 || adminPendingCount > 0 ? { count: adminUnread || adminPendingCount } : null)
+    ? (adminPendingCount > 0 ? { count: adminPendingCount } : null)
     : adminPendingNotif;
   const showAdminPending = adminPendingForBell && !adminNotifDismissedThisSession;
 
@@ -582,8 +582,32 @@ export default function NewHomeScreen({ stream, onGoToAdminLogin, onGoToMyBookin
       {/* ── CONTENT ── */}
       <div style={{ padding: '0 16px 32px', display: 'flex', flexDirection: 'column', gap: 12 }}>
 
-        {/* Admin-kort: synligt när inloggad som admin och det finns pending */}
-        {isAdmin && adminUnread > 0 && (
+        {/* Admin-kort: avbokningar av godkända bokningar (blå) */}
+        {isAdmin && cancelledUnread > 0 && (
+          <div onClick={() => { markAdminSeen?.(); onGoToAdminLogin?.(); }} style={{
+            background: T.card, border: `2px solid #3b82f666`,
+            borderLeft: `4px solid #3b82f6`,
+            borderRadius: 14, padding: '13px 14px',
+            display: 'flex', alignItems: 'center', gap: 12,
+            cursor: 'pointer', animation: 'bannerIn .3s ease both',
+          }}>
+            <div style={{ width: 36, height: 36, borderRadius: 10, background: '#3b82f622', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+              <CalendarClockIcon size={18} color="#3b82f6" />
+            </div>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontSize: 12, fontWeight: 700, color: '#3b82f6', marginBottom: 2, fontFamily: "'Inter',system-ui,sans-serif" }}>AVBOKNING</div>
+              <div style={{ fontSize: 13, color: T.text, fontFamily: "'Inter',system-ui,sans-serif" }}>
+                {cancelledUnread} bokning{cancelledUnread !== 1 ? 'ar' : ''} har avbokats av besökare
+              </div>
+            </div>
+            <div style={{ background: '#3b82f6', color: '#fff', borderRadius: 8, minWidth: 24, height: 24, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 800, padding: '0 6px', fontFamily: "'Inter',system-ui,sans-serif" }}>
+              {cancelledUnread > 9 ? '9+' : cancelledUnread}
+            </div>
+          </div>
+        )}
+
+        {/* Admin-kort: synligt när inloggad som admin och det finns ohanterade pending */}
+        {isAdmin && adminPendingCount > 0 && (
           <div onClick={() => onGoToAdminLogin?.()} style={{
             background: T.card, border: `2px solid #f59e0b66`,
             borderLeft: `4px solid #f59e0b`,
@@ -597,11 +621,11 @@ export default function NewHomeScreen({ stream, onGoToAdminLogin, onGoToMyBookin
             <div style={{ flex: 1 }}>
               <div style={{ fontSize: 12, fontWeight: 700, color: '#f59e0b', marginBottom: 2, fontFamily: "'Inter',system-ui,sans-serif" }}>ADMINPANEL</div>
               <div style={{ fontSize: 13, fontWeight: 400, color: T.text, fontFamily: "'Inter',system-ui,sans-serif" }}>
-                {adminUnread} bokning{adminUnread !== 1 ? 'ar' : ''} väntar på åtgärd
+                {adminPendingCount} bokning{adminPendingCount !== 1 ? 'ar' : ''} väntar på åtgärd
               </div>
             </div>
             <div style={{ background: '#f59e0b', color: '#fff', borderRadius: 8, minWidth: 24, height: 24, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 800, padding: '0 6px', fontFamily: "'Inter',system-ui,sans-serif" }}>
-              {adminUnread > 9 ? '9+' : adminUnread}
+              {adminPendingCount > 9 ? '9+' : adminPendingCount}
             </div>
           </div>
         )}

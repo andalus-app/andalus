@@ -45,6 +45,7 @@ export function useBookingNotifications() {
   const [visitorUnread,     setVisitorUnread]     = useState(0);
   const [adminUnread,       setAdminUnread]       = useState(0);
   const [adminPendingCount, setAdminPendingCount] = useState(0);
+  const [cancelledUnread,   setCancelledUnread]   = useState(0);
   const [bellNotifs,        setBellNotifs]        = useState([]);
   const [active,            setActive]            = useState(false);
   // Track admin state as React state so badge re-renders immediately on login/logout
@@ -90,20 +91,27 @@ export function useBookingNotifications() {
         }
       }
 
-      // 2. Admin inloggad — ett kombinerat anrop
+      // 2. Admin inloggad — separata queries för pending och avbokningar
       if (isAdmin) {
         const adminSeenAt = parseInt(localStorage.getItem(STORAGE_ADMIN_SEEN) || '0', 10);
-        const { data } = await supabase
+        // Pending — ohanterade bokningar (orange badge)
+        const { data: pendingData } = await supabase
           .from('bookings')
-          .select('id, status, created_at, resolved_at, admin_comment')
-          .or(
-            `status.in.(pending,edit_pending),` +
-            `and(status.eq.cancelled,resolved_at.gt.${adminSeenAt},admin_comment.ilike.%Avbok%)`
-          );
-        if (data) {
-          setAdminUnread(data.length);
-          // Also update pending count even when logged in, so badge is always fresh
-          setAdminPendingCount(data.filter(b => ['pending','edit_pending'].includes(b.status)).length);
+          .select('id, status')
+          .in('status', ['pending', 'edit_pending']);
+        if (pendingData) {
+          setAdminPendingCount(pendingData.length);
+          setAdminUnread(pendingData.length);
+        }
+        // Avbokningar av godkända bokningar (blå badge) — nya sedan senast sedd
+        const { data: cancelData } = await supabase
+          .from('bookings')
+          .select('id, status, resolved_at, admin_comment')
+          .eq('status', 'cancelled')
+          .gt('resolved_at', adminSeenAt)
+          .ilike('admin_comment', 'Avbokad av besökaren:%');
+        if (cancelData) {
+          setCancelledUnread(cancelData.length);
         }
         return;
       }
@@ -301,11 +309,10 @@ export function useBookingNotifications() {
   }, []);
 
   const markAdminSeen = useCallback(() => {
-    // Only mark admin "seen" timestamp — does NOT clear pending count.
-    // adminPendingCount is cleared only when pending bookings are resolved in DB (via Realtime).
+    // Mark cancelled notifications as seen — clears blue badge
     localStorage.setItem(STORAGE_ADMIN_SEEN, Date.now().toString());
-    setAdminUnread(0);
-    // Do NOT clear adminPendingCount here — it reflects real pending bookings
+    setCancelledUnread(0);
+    // Do NOT clear adminPendingCount — it reflects real pending bookings
   }, []);
 
   const totalUnread =
@@ -319,6 +326,7 @@ export function useBookingNotifications() {
     visitorUnread,
     adminUnread,
     adminPendingCount,
+    cancelledUnread,
     adminPendingNotif,
     totalUnread,
     bellNotifs,

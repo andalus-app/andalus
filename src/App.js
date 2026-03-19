@@ -87,7 +87,7 @@ function Shell() {
   const [nudging, setNudging] = useState(false);
   const { visible: tabBarScrollVisible, onScroll: onShellScroll, show: showTabBar } = useScrollHide({ threshold: 40 });
   const { isLive, isUpcoming, stream } = useYoutubeLive();
-  const { totalUnread, visitorUnread, adminUnread, adminPendingCount, markVisitorSeen, markAdminSeen, activateForDevice, registerAdminDevice, dismissAdminDevice, adminPendingNotif, refresh: refreshNotifications } = useBookingNotifications();
+  const { totalUnread, visitorUnread, adminUnread, adminPendingCount, cancelledUnread, markVisitorSeen, markAdminSeen, activateForDevice, registerAdminDevice, dismissAdminDevice, adminPendingNotif, refresh: refreshNotifications } = useBookingNotifications();
 
   // Effective tab bar visibility: hidden by child (BookingScreen etc) OR hidden by scroll
   // Tab 'prayer' (Bönetider) undantas från auto-hide — tab-baren är alltid synlig där.
@@ -238,9 +238,9 @@ function Shell() {
       case 'home':     return <NewHomeScreen stream={stream} onGoToAdminLogin={handleGoToAdminLogin} onGoToMyBookings={handleGoToMyBookings} />;
       case 'prayer':   return <PrayerScreen onMonthlyPress={() => setShowMonthly(true)} />;
       case 'qibla':    return <QiblaScreen />;
-      case 'booking':  return <BookingScreen highlightBookingId={highlightBookingId} onTabBarHide={() => { setTabBarHiddenByChild(true); setTabBarVisible(false); setScrollLocked(true); }} onTabBarShow={() => { setTabBarHiddenByChild(false); setTabBarVisible(true); setScrollLocked(false); }} activateForDevice={activateForDevice} registerAdminDevice={registerAdminDevice} dismissAdminDevice={dismissAdminDevice} onRefreshNotifications={refreshNotifications} markVisitorSeen={markVisitorSeen} />;
+      case 'booking':  return <BookingScreen highlightBookingId={highlightBookingId} onTabBarHide={() => { setTabBarHiddenByChild(true); setTabBarVisible(false); setScrollLocked(true); }} onTabBarShow={() => { setTabBarHiddenByChild(false); setTabBarVisible(true); setScrollLocked(false); }} activateForDevice={activateForDevice} registerAdminDevice={registerAdminDevice} dismissAdminDevice={dismissAdminDevice} onRefreshNotifications={refreshNotifications} markVisitorSeen={markVisitorSeen} onMarkAdminSeen={markAdminSeen} />;
       case 'ebooks':   return <EbooksScreen key={ebooksReset} onTabBarHide={() => { setTabBarHiddenByChild(true); setTabBarVisible(false); setScrollLocked(true); }} onTabBarShow={() => { setTabBarHiddenByChild(false); setTabBarVisible(true); setScrollLocked(false); }} onReaderOpen={() => {}} onReaderClose={() => {}} resetToLibrary={false} />;
-      case 'more':     return <MoreScreen key={moreResetKey} onTabBarHide={() => { setTabBarHiddenByChild(true); setTabBarVisible(false); setScrollLocked(true); }} onTabBarShow={() => { setTabBarHiddenByChild(false); setTabBarVisible(true); setScrollLocked(false); }} initialView={moreInitialView} markVisitorSeen={markVisitorSeen} markAdminSeen={markAdminSeen} activateForDevice={activateForDevice} registerAdminDevice={registerAdminDevice} dismissAdminDevice={dismissAdminDevice} bookingBadge={totalUnread} visitorBadge={visitorUnread} adminBadge={adminUnread || adminPendingCount} onRefreshNotifications={refreshNotifications} />;
+      case 'more':     return <MoreScreen key={moreResetKey} onTabBarHide={() => { setTabBarHiddenByChild(true); setTabBarVisible(false); setScrollLocked(true); }} onTabBarShow={() => { setTabBarHiddenByChild(false); setTabBarVisible(true); setScrollLocked(false); }} initialView={moreInitialView} markVisitorSeen={markVisitorSeen} markAdminSeen={markAdminSeen} activateForDevice={activateForDevice} registerAdminDevice={registerAdminDevice} dismissAdminDevice={dismissAdminDevice} bookingBadge={totalUnread} visitorBadge={visitorUnread} adminBadge={adminPendingCount} onRefreshNotifications={refreshNotifications} />;
       default:         return <NewHomeScreen />;
     }
   };
@@ -393,9 +393,9 @@ function Shell() {
                       />
                     )}
                     {/* Booking badge */}
-                    {t.id === 'booking' && (visitorUnread > 0 || adminUnread > 0 || adminPendingCount > 0) && (
+                    {t.id === 'booking' && (visitorUnread > 0 || adminPendingCount > 0 || cancelledUnread > 0) && (
                       <div style={{ position: 'absolute', top: -3, right: -4, display: 'flex', gap: 2 }}>
-                        {adminUnread > 0 || adminPendingCount > 0 ? (
+                        {adminPendingCount > 0 ? (
                           <div style={{
                             minWidth: 14, height: 14, borderRadius: 7,
                             background: '#f59e0b', color: '#fff',
@@ -403,7 +403,7 @@ function Shell() {
                             display: 'flex', alignItems: 'center', justifyContent: 'center',
                             padding: '0 3px', boxSizing: 'border-box',
                             border: `1.5px solid ${T.isDark ? 'rgba(18,18,18,0.9)' : 'rgba(245,248,247,0.9)'}`,
-                          }}>{(adminUnread || adminPendingCount) > 9 ? '9+' : (adminUnread || adminPendingCount)}</div>
+                          }}>{adminPendingCount > 9 ? '9+' : adminPendingCount}</div>
                         ) : null}
                         {visitorUnread > 0 ? (
                           <div style={{
@@ -414,6 +414,16 @@ function Shell() {
                             padding: '0 3px', boxSizing: 'border-box',
                             border: `1.5px solid ${T.isDark ? 'rgba(18,18,18,0.9)' : 'rgba(245,248,247,0.9)'}`,
                           }}>{visitorUnread > 9 ? '9+' : visitorUnread}</div>
+                        ) : null}
+                        {cancelledUnread > 0 ? (
+                          <div style={{
+                            minWidth: 14, height: 14, borderRadius: 7,
+                            background: '#3b82f6', color: '#fff',
+                            fontSize: 8, fontWeight: 800, fontFamily: 'system-ui',
+                            display: 'flex', alignItems: 'center', justifyContent: 'center',
+                            padding: '0 3px', boxSizing: 'border-box',
+                            border: `1.5px solid ${T.isDark ? 'rgba(18,18,18,0.9)' : 'rgba(245,248,247,0.9)'}`,
+                          }}>{cancelledUnread > 9 ? '9+' : cancelledUnread}</div>
                         ) : null}
                       </div>
                     )}
