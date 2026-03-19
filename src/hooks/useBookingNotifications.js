@@ -71,19 +71,21 @@ export function useBookingNotifications() {
         const seenAt = parseInt(localStorage.getItem(STORAGE_VISITOR_SEEN) || '0', 10);
         let query = supabase
           .from('bookings')
-          .select('id, status, resolved_at, date, time_slot, admin_comment')
-          .in('status', ['approved', 'rejected', 'cancelled', 'edited'])
-          .gt('resolved_at', seenAt);
+          .select('id, status, resolved_at, start_date, time_slot, admin_comment')
+          .in('status', ['approved', 'rejected', 'cancelled', 'edited']);
         // Prioritera user_id om inloggad
         if (userId) query = query.eq('user_id', userId);
         else query = query.eq('device_id', deviceId);
 
         const { data } = await query;
         if (data) {
-          setVisitorUnread(data.length);
-          setBellNotifs(data.map(b => ({
+          const filtered = seenAt > 0
+            ? data.filter(b => b.resolved_at && b.resolved_at > seenAt)
+            : data.filter(b => b.resolved_at != null);
+          setVisitorUnread(filtered.length);
+          setBellNotifs(filtered.map(b => ({
             id: b.id, type: 'booking', status: b.status,
-            date: b.date, time_slot: b.time_slot, admin_comment: b.admin_comment,
+            date: b.start_date, time_slot: b.time_slot, admin_comment: b.admin_comment,
           })));
         }
       }
