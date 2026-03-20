@@ -1166,7 +1166,7 @@ function MyBookings({ bookings, exceptions, loading, onBack, onCancel, onCancelF
 
 // ── AdminPanel ────────────────────────────────────────────────────────────────
 
-function AdminPanel({ bookings, exceptions, onBack, onApprove, onReject, onDelete, onDeleteSeries, onDeleteFromDate, onAdminAddRecurring, onRefreshNotifications, onMarkAdminSeen, onManageUsers, adminInitialFilter, T }) {
+function AdminPanel({ bookings, exceptions, onBack, onApprove, onReject, onDelete, onDeleteSeries, onDeleteFromDate, onAdminAddRecurring, onRefreshNotifications, onMarkAdminSeen, onManageUsers, adminInitialFilter, cancelledBookingIds = [], T }) {
   const [filter, setFilter] = useState(adminInitialFilter || 'all');
   const [selected, setSelected] = useState(null);
   const [actionLoading, setActionLoading] = useState(false);
@@ -1176,6 +1176,17 @@ function AdminPanel({ bookings, exceptions, onBack, onApprove, onReject, onDelet
 
   const today = toISO(new Date());
   const windowEnd = (() => { const d=new Date(); d.setFullYear(d.getFullYear()+2); return toISO(d); })();
+  const firstCancelledRef = useRef(null);
+
+  // Scrolla till + vibrera på första nya avbokade bokning när vi kommer från notis
+  useEffect(() => {
+    if (cancelledBookingIds.length > 0 && filter === 'cancelled') {
+      setTimeout(() => {
+        firstCancelledRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        if (navigator.vibrate) navigator.vibrate([60, 40, 60, 40, 120]);
+      }, 400);
+    }
+  }, []); // eslint-disable-line
 
   // Group bookings by status for filter tabs
   const pending   = bookings.filter(b=>b.status==='pending'||b.status==='edit_pending');
@@ -1337,12 +1348,14 @@ function AdminPanel({ bookings, exceptions, onBack, onApprove, onReject, onDelet
           const nextOcc = isRecur ? expandBooking(b, today, windowEnd, exceptions)[0] : null;
           const displayDate = nextOcc?.date || b.start_date;
           return (
-            <div key={b.id} onClick={()=>{setSelected(b);setComment('');}}
+            <div key={b.id}
+              ref={el => { if (el && cancelledBookingIds.includes(b.id) && !firstCancelledRef.current) firstCancelledRef.current = el; }}
+              onClick={()=>{setSelected(b);setComment('');}}
               style={{background:T.card,
-                border:`1px solid ${b.status==='pending'||b.status==='edit_pending'?'#f59e0b44':b.status==='cancelled'&&filter==='cancelled'?'#3b82f644':T.border}`,
+                border:`1px solid ${b.status==='pending'||b.status==='edit_pending'?'#f59e0b44':cancelledBookingIds.includes(b.id)?'#3b82f6':'none'?'#3b82f644':T.border}`,
                 borderRadius:14,padding:'14px 16px',cursor:'pointer',
-                animation:b.status==='pending'||b.status==='edit_pending'?'cardPulse 2s ease-in-out infinite':b.status==='cancelled'&&filter==='cancelled'?'cancelledPulse 1.8s ease-in-out 4':'none',
-                boxShadow:b.status==='cancelled'&&filter==='cancelled'?'0 0 0 2px #3b82f622':'none'}}>
+                animation:b.status==='pending'||b.status==='edit_pending'?'cardPulse 2s ease-in-out infinite':cancelledBookingIds.includes(b.id)?'cancelledPulse 1.8s ease-in-out 4':'none',
+                boxShadow:cancelledBookingIds.includes(b.id)?'0 0 0 3px #3b82f633':'none'}}>
               <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:8}}>
                 <div style={{display:'flex',alignItems:'center',gap:8}}>
                   <Badge status={b.status}/>
@@ -1907,6 +1920,7 @@ export default function BookingScreen({
   onMarkAdminSeen,
   markVisitorSeen,
   adminInitialFilter,
+  cancelledBookingIds = [],
   visitorUnread = 0,
 }) {
   const { theme: T } = useTheme();
@@ -2364,6 +2378,7 @@ export default function BookingScreen({
           onDelete={handleAdminDelete} onDeleteSeries={handleAdminDeleteSeries}
           onDeleteFromDate={handleCancelFromDate}
           adminInitialFilter={adminInitialFilter}
+          cancelledBookingIds={cancelledBookingIds}
           onAdminAddRecurring={handleAdminAddRecurring}
           onRefreshNotifications={onRefreshNotifications}
           onMarkAdminSeen={onMarkAdminSeen}

@@ -46,6 +46,7 @@ export function useBookingNotifications() {
   const [adminUnread,       setAdminUnread]       = useState(0);
   const [adminPendingCount, setAdminPendingCount] = useState(0);
   const [cancelledUnread,   setCancelledUnread]   = useState(0);
+  const [cancelledBookingIds, setCancelledBookingIds] = useState([]);
   const [bellNotifs,        setBellNotifs]        = useState([]);
   const [active,            setActive]            = useState(false);
   // Track admin state as React state so badge re-renders immediately on login/logout
@@ -117,6 +118,7 @@ export function useBookingNotifications() {
             b.admin_comment && b.admin_comment.startsWith('Avbokad av ')
           );
           setCancelledUnread(filtered.length);
+          setCancelledBookingIds(filtered.map(b => b.id));
         }
         return;
       }
@@ -314,12 +316,10 @@ export function useBookingNotifications() {
   }, []);
 
   const markAdminSeen = useCallback(() => {
-    // Sätt timestamp till nu — cancelled-queryn filtrerar på gt(resolved_at, adminSeenAt)
-    // Så alla avbokningar med resolved_at <= nu räknas inte längre
     const now = Date.now();
     localStorage.setItem(STORAGE_ADMIN_SEEN, now.toString());
     setCancelledUnread(0);
-    // Do NOT clear adminPendingCount — it reflects real pending bookings
+    setCancelledBookingIds([]);
   }, []);
 
   const totalUnread =
@@ -334,6 +334,7 @@ export function useBookingNotifications() {
     adminUnread,
     adminPendingCount,
     cancelledUnread,
+    cancelledBookingIds,
     adminPendingNotif,
     totalUnread,
     bellNotifs,
