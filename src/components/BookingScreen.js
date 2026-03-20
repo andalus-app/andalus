@@ -639,12 +639,27 @@ function CalendarView({ bookings, exceptions, onSelectSlot, isAdmin, T }) {
   const [selectedDate, setSelectedDate] = useState(today);
   const [showSlots, setShowSlots] = useState(true);
   const durationHours = 0.5; // används bara för hasAnyAvailable-check, visas ej
+  const swipeRef = useRef(null);
 
   const weekDays = useMemo(() => getWeekDays(anchor), [anchor]);
   const monthGrid = useMemo(() => getMonthGrid(anchor.getFullYear(), anchor.getMonth()), [anchor]);
 
   const navPrev = () => { const d=new Date(anchor); viewMode==='week'?d.setDate(d.getDate()-7):d.setMonth(d.getMonth()-1); setAnchor(d); };
   const navNext = () => { const d=new Date(anchor); viewMode==='week'?d.setDate(d.getDate()+7):d.setMonth(d.getMonth()+1); setAnchor(d); };
+
+  const handleSwipeStart = (e) => {
+    const t = e.touches[0];
+    swipeRef.current = { x: t.clientX, y: t.clientY };
+  };
+  const handleSwipeEnd = (e) => {
+    if (!swipeRef.current) return;
+    const t = e.changedTouches[0];
+    const dx = t.clientX - swipeRef.current.x;
+    const dy = Math.abs(t.clientY - swipeRef.current.y);
+    swipeRef.current = null;
+    if (Math.abs(dx) < 40 || dy > 60) return; // för liten rörelse eller vertikal
+    if (dx < 0) navNext(); else navPrev();
+  };
 
   const headerLabel = viewMode==='week'
     ? `${weekDays[0].getDate()} – ${weekDays[6].getDate()} ${MONTHS_SV[weekDays[6].getMonth()]} ${weekDays[6].getFullYear()}`
@@ -693,8 +708,10 @@ function CalendarView({ bookings, exceptions, onSelectSlot, isAdmin, T }) {
       <div style={{display:'grid',gridTemplateColumns:'repeat(7,1fr)',gap:2,marginBottom:6}}>
         {DAYS_SV.map(d=><div key={d} style={{textAlign:'center',fontSize:10,fontWeight:700,color:T.textMuted,fontFamily:'system-ui',letterSpacing:'.5px'}}>{d}</div>)}
       </div>
-      {viewMode==='week' && <div style={{display:'grid',gridTemplateColumns:'repeat(7,1fr)',gap:4}}>{weekDays.map((d,i)=><DayBtn key={i} date={d}/>)}</div>}
-      {viewMode==='month' && <div>{monthGrid.map((row,ri)=><div key={ri} style={{display:'grid',gridTemplateColumns:'repeat(7,1fr)',gap:3,marginBottom:3}}>{row.map((d,ci)=><DayBtn key={ci} date={d} small/>)}</div>)}</div>}
+      <div onTouchStart={handleSwipeStart} onTouchEnd={handleSwipeEnd} style={{userSelect:'none'}}>
+        {viewMode==='week' && <div style={{display:'grid',gridTemplateColumns:'repeat(7,1fr)',gap:4}}>{weekDays.map((d,i)=><DayBtn key={i} date={d}/>)}</div>}
+        {viewMode==='month' && <div>{monthGrid.map((row,ri)=><div key={ri} style={{display:'grid',gridTemplateColumns:'repeat(7,1fr)',gap:3,marginBottom:3}}>{row.map((d,ci)=><DayBtn key={ci} date={d} small/>)}</div>)}</div>}
+      </div>
       <div style={{display:'flex',gap:14,marginTop:14,flexWrap:'wrap'}}>
         {[['#22c55e','Ledig tid'],['#f59e0b','Väntar'],['#ef4444','Bokad/full']].map(([c,l])=>(
           <div key={l} style={{display:'flex',alignItems:'center',gap:5}}>
@@ -1971,9 +1988,10 @@ export default function BookingScreen({
   useEffect(() => { viewRef.current = view; }, [view]);
   useEffect(() => {
     const handler = () => {
+      // Blockera alltid edge swipe i login-vyn — oavsett localStorage-state
+      if (viewRef.current === 'login') return;
       const userId = localStorage.getItem(STORAGE_USER_ID);
-      // Blockera om ej inloggad eller om vi redan är i login-vyn
-      if (!userId || viewRef.current === 'login') return;
+      if (!userId) return;
       setView('calendar');
     };
     window.addEventListener('edgeSwipeBack', handler);
@@ -2313,7 +2331,7 @@ export default function BookingScreen({
       {view === 'login' && (
         <UserLogin
           onSuccess={handleLoginSuccess}
-          onBack={loggedInUser ? ()=>setView('calendar') : undefined}
+          onBack={undefined}
           T={T}
         />
       )}
