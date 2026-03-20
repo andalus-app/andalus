@@ -2003,8 +2003,16 @@ export default function BookingScreen({
 
   const viewRef=useRef(view);
   useEffect(()=>{viewRef.current=view;},[view]);
+  const showYearViewRef=useRef(false);
+  useEffect(()=>{
+    showYearViewRef.current=showYearView;
+    if(showYearView) onTabBarHide?.();
+    else onTabBarShow?.();
+  },[showYearView]);// eslint-disable-line
   useEffect(()=>{
     const h=()=>{
+      // Year view is open — close it first (restores tab bar via effect above)
+      if(showYearViewRef.current){setShowYearView(false);return;}
       if(viewRef.current==='login') return;
       const userId=localStorage.getItem(STORAGE_USER_ID);
       if(!userId) return;
@@ -2015,7 +2023,8 @@ export default function BookingScreen({
   },[]);
 
   useEffect(()=>{
-    onTabBarShow?.();
+    // Only manage tab bar for view changes (year view tab bar handled separately above)
+    if(!showYearViewRef.current) onTabBarShow?.();
     if(view==='my-bookings') markVisitorSeen?.();
     if(view==='admin') onMarkAdminSeen?.();
   },[view]);// eslint-disable-line
