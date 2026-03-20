@@ -1191,12 +1191,17 @@ function AdminPanel({ bookings, exceptions, onBack, onApprove, onReject, onDelet
   const firstCancelledRef = useRef(null);
 
   // Scrolla till + vibrera på första nya avbokade bokning när vi kommer från notis
+  // Rensa badge EFTER att highlight visats (2s fördröjning)
   useEffect(() => {
     if (cancelledBookingIds.length > 0 && filter === 'cancelled') {
       setTimeout(() => {
         firstCancelledRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
         if (navigator.vibrate) navigator.vibrate([60, 40, 60, 40, 120]);
       }, 400);
+      // Rensa badge efter att admin sett highlighten
+      setTimeout(() => {
+        onMarkAdminSeen?.();
+      }, 2500);
     }
   }, []); // eslint-disable-line
 
@@ -1944,8 +1949,11 @@ export default function BookingScreen({
   const [view, setView] = useState(() => {
     const userId = localStorage.getItem(STORAGE_USER_ID);
     if (!userId) return 'login'; // kalender är skyddad — alltid inloggning först
-    if (startAtAdmin) return 'admin'; // explicit admin start
-    // Alla (admin och användare) börjar alltid i kalendervyn
+    if (startAtAdmin) return 'admin'; // explicit admin start (via bell/banner)
+    const role = localStorage.getItem(STORAGE_USER_ROLE);
+    const isAdmin = role === 'admin' || localStorage.getItem(STORAGE_ADMIN) === 'true';
+    if (isAdmin) return 'admin'; // admin börjar alltid i adminpanelen
+    if (highlightBookingId) return 'my-bookings';
     return 'calendar';
   });
   const [pendingSlot, setPendingSlot] = useState(null);
@@ -2061,8 +2069,8 @@ export default function BookingScreen({
     onTabBarShow?.();
     // Rensa visitor badge när Mina bokningar öppnas
     if (view === 'my-bookings') markVisitorSeen?.();
-    // Rensa admin cancelled badge när admin öppnar adminpanelen
-    if (view === 'admin') onMarkAdminSeen?.();
+    // Rensa admin cancelled badge när admin öppnar panelen normalt (ej via notis)
+    if (view === 'admin' && cancelledBookingIds.length === 0) onMarkAdminSeen?.();
   }, [view]); // eslint-disable-line
 
   // ── My bookings: filter for this device/user ───────────────────────────────
@@ -2318,7 +2326,8 @@ export default function BookingScreen({
   const scrollRef = useRef(null);
   const { visible: headerVis, onScroll } = useScrollHide({ threshold:40 });
 
-  if (dbLoading) return (
+  // Admin ser adminpanelen direkt — skeleton visas inuti istället för global spinner
+  if (dbLoading && !adminMode) return (
     <div style={{padding:'80px 16px',background:T.bg,minHeight:'100%'}}><Spinner T={T}/></div>
   );
 

@@ -508,7 +508,7 @@ export default function NewHomeScreen({ stream, onGoToAdminLogin, onGoToMyBookin
                   /* ── Admin pending notis ── */
                   if (item.type === 'admin_cancelled') return (
                     <SwipeableItem key="admin-cancelled" onDismiss={() => { markAdminSeen?.(); }}>
-                    <div onClick={() => { setShowBellPanel(false); markAdminSeen?.(); onGoToCancelledBookings?.(); }}
+                    <div onClick={() => { setShowBellPanel(false); onGoToCancelledBookings?.(); }}
                       style={{ padding: '12px 14px', borderBottom: `1px solid ${T.border}`, background: T.isDark ? 'rgba(59,130,246,0.07)' : 'rgba(59,130,246,0.05)', display: 'flex', alignItems: 'flex-start', gap: 10, cursor: 'pointer', borderLeft: '3px solid #3b82f6' }}>
                       <div style={{ width: 28, height: 28, borderRadius: 8, flexShrink: 0, background: '#3b82f622', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                         <CalendarClockIcon size={13} color="#3b82f6" />
@@ -610,7 +610,7 @@ export default function NewHomeScreen({ stream, onGoToAdminLogin, onGoToMyBookin
 
         {/* Admin-kort: avbokningar av godkända bokningar (blå) */}
         {isAdmin && cancelledUnread > 0 && (
-          <div onClick={() => { markAdminSeen?.(); onGoToCancelledBookings?.(); }} style={{
+          <div onClick={() => { onGoToCancelledBookings?.(); }} style={{
             background: T.card, border: `2px solid #3b82f666`,
             borderLeft: `4px solid #3b82f6`,
             borderRadius: 14, padding: '13px 14px',
