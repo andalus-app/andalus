@@ -1211,23 +1211,36 @@ function AdminPanel({ bookings, exceptions, onBack, onApprove, onReject, onDelet
   const firstCancelledRef = useRef(null);
 
   // Scrolla till + vibrera på första nya avbokade bokning när vi kommer från notis
-  // Rensa badge EFTER att highlight visats (2.5s fördröjning)
-  // Lyssnar på cancelledBookingIds + filter + bookings — kör när allt är redo
   const highlightDoneRef = useRef(false);
+  const prevCancelledIdsRef = useRef([]);
+
+  // Nollställ highlightDoneRef när cancelledBookingIds ändras till nya IDs
+  useEffect(() => {
+    const prev = prevCancelledIdsRef.current;
+    prevCancelledIdsRef.current = cancelledBookingIds;
+    const isNew = cancelledBookingIds.length > 0 &&
+      (prev.length === 0 || cancelledBookingIds.some(id => !prev.includes(id)));
+    if (isNew) highlightDoneRef.current = false;
+  }, [cancelledBookingIds]); // eslint-disable-line
+
   useEffect(() => {
     if (highlightDoneRef.current) return;
     if (cancelledBookingIds.length === 0 || filter !== 'cancelled') return;
-    // Vänta lite extra så bookings hinner laddas och refs sättas
+    // Vänta så bookings hinner laddas och refs sättas
     const t1 = setTimeout(() => {
-      if (firstCancelledRef.current) {
-        firstCancelledRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      }
-      if (navigator.vibrate) navigator.vibrate([60, 40, 60, 40, 120]);
+      firstCancelledRef.current = null; // reset ref så ny sökning sker
+      // Scrolla till första matchande kort efter render
+      requestAnimationFrame(() => {
+        if (firstCancelledRef.current) {
+          firstCancelledRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+        if (navigator.vibrate) navigator.vibrate([60, 40, 60, 40, 120]);
+      });
       highlightDoneRef.current = true;
-    }, 600);
+    }, 700);
     const t2 = setTimeout(() => {
       onMarkAdminSeen?.();
-    }, 3000);
+    }, 3200);
     return () => { clearTimeout(t1); clearTimeout(t2); };
   }, [cancelledBookingIds, filter, bookings]); // eslint-disable-line
 
@@ -2058,17 +2071,24 @@ export default function BookingScreen({
   }, [fetchAll]);
 
   // Navigera till my-bookings BARA när highlightBookingId sätts via bell/banner
-  // Tab-tryck rensar highlightBookingId i App.js → view förblir calendar
   const prevHighlightRef = useRef(null);
   useEffect(() => {
     const prev = prevHighlightRef.current;
     prevHighlightRef.current = highlightBookingId;
-    // Navigera till my-bookings bara om highlightBookingId precis SATTES (null→värde)
     if (highlightBookingId && !prev) {
       setView('my-bookings');
     }
-    // Tab-tryck rensar till null utan att navigera
   }, [highlightBookingId]); // eslint-disable-line
+
+  // Navigera till admin-vyn när startAtAdmin sätts via bell/banner (komponent redan monterad)
+  const prevStartAtAdminRef = useRef(startAtAdmin);
+  useEffect(() => {
+    const prev = prevStartAtAdminRef.current;
+    prevStartAtAdminRef.current = startAtAdmin;
+    if (startAtAdmin && !prev) {
+      setView('admin');
+    }
+  }, [startAtAdmin]); // eslint-disable-line
 
   // Edge swipe back — bara om inloggad (kalender är skyddad)
   const viewRef = useRef(view);

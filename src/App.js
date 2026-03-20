@@ -251,7 +251,9 @@ function Shell() {
   const [bookingStartView, setBookingStartView] = useState(null); // 'admin' | null
   const handleGoToCancelledBookings = () => {
     setAdminInitialFilter('cancelled');
-    setBookingStartView('admin');
+    // Nollställ först så prop-förändring alltid triggas i BookingScreen
+    setBookingStartView(null);
+    setTimeout(() => setBookingStartView('admin'), 0);
     setTab('booking');
     try { sessionStorage.setItem('activeTab', 'booking'); } catch {}
   };
