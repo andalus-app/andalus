@@ -1130,6 +1130,18 @@ function MyBookings({ bookings, exceptions, loading, onBack, onCancel, onCancelF
           {filter==='all' ? 'Inga bokningar hittades.' : `Inga ${FILTERS.find(f=>f.id===filter)?.label.toLowerCase()} bokningar.`}
         </div>
       )}
+      {/* Skeleton — visas bara om bookings är tom men data fortfarande hämtas */}
+      {!loading && sorted.length === 0 && filter === 'all' && bookings.length === 0 && (
+        <div style={{display:'flex',flexDirection:'column',gap:10,marginTop:4,opacity:0.4}}>
+          {[1,2,3].map(i => (
+            <div key={i} style={{background:T.card,border:`1px solid ${T.border}`,borderRadius:14,padding:'14px 16px',height:80,animation:'shimmer 1.5s ease-in-out infinite'}}>
+              <div style={{width:'40%',height:12,borderRadius:6,background:T.border,marginBottom:8}}/>
+              <div style={{width:'60%',height:10,borderRadius:6,background:T.border,marginBottom:6}}/>
+              <div style={{width:'30%',height:10,borderRadius:6,background:T.border}}/>
+            </div>
+          ))}
+        </div>
+      )}
       <div style={{display:'flex',flexDirection:'column',gap:10}}>
         {sorted.map(b => {
           const isRecur = b.recurrence !== 'none';
@@ -1964,26 +1976,44 @@ export default function BookingScreen({
   }, []);
 
   // Smart initial load:
-  // Steg 1 — snabb fetch av egna bokningar → Mina bokningar visas omedelbart
-  // Steg 2 — full fetch i bakgrunden → kalendern och admin fylls på
+  // Admin: fetchAll direkt (behöver alla bokningar)
+  // Användare: Steg 1 snabb eigen fetch → Steg 2 full fetch i bakgrunden
   useEffect(() => {
     const userId = localStorage.getItem(STORAGE_USER_ID);
+    const role   = localStorage.getItem(STORAGE_USER_ROLE);
     const devId  = localStorage.getItem('islamnu_device_id');
+    const isAdminUser = role === 'admin' || localStorage.getItem(STORAGE_ADMIN) === 'true';
 
-    if (userId || devId) {
-      let q = supabase.from('bookings').select('*').order('created_at', { ascending: false });
-      if (userId) q = q.eq('user_id', userId);
-      else q = q.eq('device_id', devId);
-      q.then(({ data }) => {
-        if (data && data.length > 0) {
-          setBookings(data);
-          setDbLoading(false); // visa UI direkt utan att vänta på full fetch
+    const runLoad = async () => {
+      if (isAdminUser) {
+        // Admin: hämta allt direkt — fetchAll sätter dbLoading(false) när klar
+        await fetchAll();
+        return;
+      }
+
+      // Användare: Steg 1 — snabb fetch av egna bokningar
+      if (userId || devId) {
+        try {
+          let q = supabase.from('bookings').select('*').order('created_at', { ascending: false });
+          if (userId) q = q.eq('user_id', userId);
+          else q = q.eq('device_id', devId);
+          const { data } = await q;
+          if (data) {
+            setBookings(data);
+            setDbLoading(false); // visa UI direkt
+          }
+        } catch {
+          setDbLoading(false);
         }
-      });
-    }
+      } else {
+        setDbLoading(false); // ingen inloggad — visa login
+      }
 
-    // Full fetch i bakgrunden
-    fetchAll();
+      // Steg 2: Full fetch i bakgrunden
+      fetchAll();
+    };
+
+    runLoad();
   }, [fetchAll]); // eslint-disable-line
 
   // Realtime — debounced
@@ -2301,6 +2331,7 @@ export default function BookingScreen({
         @keyframes cardPulse{0%,100%{box-shadow:0 0 0 0 rgba(245,158,11,0.4)}50%{box-shadow:0 0 0 6px rgba(245,158,11,0)}}
         @keyframes cancelledPulse{0%,100%{box-shadow:0 0 0 0 rgba(59,130,246,0.4)}50%{box-shadow:0 0 0 6px rgba(59,130,246,0)}}
         @keyframes highlightPulse{0%,100%{box-shadow:0 0 0 3px var(--hl,rgba(45,139,120,0.3))}50%{box-shadow:0 0 0 8px transparent}}
+        @keyframes shimmer{0%,100%{opacity:0.4}50%{opacity:0.7}}
         @keyframes vibrate{0%,100%{transform:translateX(0)}10%,50%,90%{transform:translateX(-3px)}30%,70%{transform:translateX(3px)}}
       `}</style>
       <Toast message={toast} T={T}/>
