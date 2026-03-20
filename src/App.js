@@ -548,10 +548,24 @@ function SplashScreen({ onDone }) {
     return () => clearTimeout(t);
   }, [onDone]);
 
+  // Läs tema från localStorage (samma nyckel som ThemeContext)
+  const isDark = (() => {
+    try {
+      const saved = localStorage.getItem('theme');
+      if (saved === 'dark') return true;
+      if (saved === 'light') return false;
+    } catch {}
+    return window.matchMedia?.('(prefers-color-scheme: dark)').matches ?? true;
+  })();
+
+  const splashBg   = isDark ? '#060e0d' : '#F5F8F7';
+  const logoColor  = isDark ? '#2D8B78' : '#24645d';
+  const textColor  = isDark ? 'rgba(45,139,120,0.8)' : 'rgba(36,100,93,0.75)';
+
   return (
     <div style={{
       position: 'fixed', inset: 0, zIndex: 9999,
-      background: '#060e0d',
+      background: splashBg,
       display: 'flex', flexDirection: 'column',
       alignItems: 'center', justifyContent: 'center',
       animation: 'splashOut 0.35s 0.85s cubic-bezier(0.76,0,0.24,1) both',
@@ -602,7 +616,9 @@ function SplashScreen({ onDone }) {
           animation: 'splashLogoIn 0.5s 0.1s cubic-bezier(0.34,1.56,0.64,1) both',
         }}>
           <svg viewBox="0 0 297.86 300" width="40" height="40" xmlns="http://www.w3.org/2000/svg">
-            {ANDALUS_LOGO_PATH}
+            <path fill={logoColor} d="M229.9,232.4c-23.4-3.5-44.5.7-63.5,14.1-4.1,2.9-7.6,6.9-12.6,11.5 1.2-6.6,4.9-9.6,8.1-12.6 16.7-15.5,36.8-21.4,59.2-20.2 5,.3,6.2-1.2,6.5-5.9.6-13.2-1.8-26.2-1.4-39.4 0-1.2,0-2.8-.7-3.5-4.7-4.3-2.9-9-1.7-14 3.8-15.9-.4-30.5-10.1-42.9-15.8-20.1-36.3-34.5-59.5-45.2-3.9-1.8-7.9-1.8-11.7,0-24.2,11.8-46,26.8-61.8,48.8-9.2,12.7-10.5,27.4-6.6,42.4.9,3.3,1.3,6.2-1,9.2-.8,1.1-1.6,2.6-1.6,3.8.5,13.6-2.6,27-1.8,40.6.3,5.3,2.4,6.1,7.2,5.9 25.6-1.4,47.4,6.6,64.3,26.4 1.1,1.3,2.7,2.5,2.2,5.6-38.4-37.3-79.1-30.2-120.5-7.3 33.4-9.9,66.6-13.1,99-4.3 7.9,4.3,15,9.6,20.3,17.6-42.7-31.9-88.2-27.6-135.1-11.2 9.4-10.6,5-22.9,5.2-34.3.6-32,.1-64.1.2-96.1 0-31,12.3-56,37.6-73.8 27.1-19,56.2-34.7,85.5-49.9 8.3-4.3,16.5-4.8,25-.4 30.8,16,61.5,32.1,89.4,52.7 22.9,16.9,33.9,40.4,34.1,68.7.3,36.1,0,72.2.2,108.3.1,8.5-3.3,18.1,6.7,24.8-47.6-17.9-93.1-19.3-136.3,12.2 4.1-12.2,31.3-25.8,54.1-29.3 21.3-3.3,41.7.1,62.4,4.8-12.3-8.6-26-13.5-41.2-15.9z"/>
+            <path fill={logoColor} d="M203,280.3c-15.7,3.6-30.5,8.4-44.5,15.6-6.4,3.3-12.8,3.3-19.2.1-30.6-14.9-62.9-22-96.9-21.3-9.3.2-18.6-.2-27.9,1.2-3,.5-6.3.7-10.3-.8 7.8-7,16.6-9.9,25.6-11.6 38.7-7.2,76.2-3.6,111.8,14 5,2.5,9,2.5,14.2,0 27.2-12.8,55.7-18.8,85.9-17.1 14.5.8,28.6,2.7,42,8.3 3.5,1.4,7.1,2.9,10.4,7.7-31.2-2.2-61.1-3.5-91.1,3.9z"/>
+            <path fill={logoColor} d="M139.7,178.4c-11.1-5.3-16.5-14.1-16.2-25.4.3-11.6,7.1-19.4,17.8-23.9 1.7-.7,3.3-1.8,5.8-.1-10.8,8.6-13.8,19.1-6.5,31.2 3.3,5.4,8.3,8.8,14.8,9.4 6.1.6,11.8-.7,18.1-5-4.3,13.2-18.6,18.5-33.7,13.7z"/>
           </svg>
         </div>
       </div>
@@ -614,7 +630,7 @@ function SplashScreen({ onDone }) {
         fontFamily: "'Inter',system-ui,sans-serif",
         fontWeight: 500,
         letterSpacing: 3,
-        color: 'rgba(45,139,120,0.8)',
+        color: textColor,
         textTransform: 'uppercase',
         animation: 'splashName 0.5s 0.45s cubic-bezier(0.16,1,0.3,1) both',
       }}>

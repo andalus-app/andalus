@@ -2095,8 +2095,9 @@ export default function BookingScreen({
     onTabBarShow?.();
     // Rensa visitor badge när Mina bokningar öppnas
     if (view === 'my-bookings') markVisitorSeen?.();
-    // Rensa admin cancelled badge när admin öppnar panelen normalt (ej via notis)
-    if (view === 'admin' && cancelledBookingIds.length === 0) onMarkAdminSeen?.();
+    // Rensa admin cancelled badge vid normal navigation (ej från notis)
+    // Notis-fallet hanteras av AdminPanel's useEffect med 3s fördröjning
+    if (view === 'admin') onMarkAdminSeen?.();
   }, [view]); // eslint-disable-line
 
   // ── My bookings: filter for this device/user ───────────────────────────────
@@ -2341,8 +2342,14 @@ export default function BookingScreen({
     showToast('Utloggad');
   }, [showToast]);
 
+  const [calendarAdminDetail, setCalendarAdminDetail] = useState(null);
+
   const handleSelectSlot = useCallback((date, slotLbl, startH, durationHours, existingBooking) => {
-    if (adminMode && existingBooking) { setView('admin'); return; }
+    if (adminMode && existingBooking) {
+      // Visa detaljvy direkt i kalendervyn — inte adminpanelen
+      setCalendarAdminDetail(existingBooking);
+      return;
+    }
     setPendingSlot({ date, slotLabel:slotLbl, startH, durationHours });
     setView('form');
   }, [adminMode]);
@@ -2401,6 +2408,37 @@ export default function BookingScreen({
           <CalendarView bookings={bookings} exceptions={exceptions} onSelectSlot={handleSelectSlot} isAdmin={adminMode} T={T}/>
         </div>
       )}
+
+      {/* Admin detaljvy — bottom sheet direkt från kalender-chip */}
+      {calendarAdminDetail && (() => {
+        const b = calendarAdminDetail;
+        const statusColors = { approved:'#22c55e', edited:'#22c55e', pending:'#f59e0b', edit_pending:'#f59e0b', cancelled:'#64748b', rejected:'#ef4444' };
+        const sc = statusColors[b.status] || T.accent;
+        return (
+          <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.5)',zIndex:1000,display:'flex',alignItems:'flex-end',justifyContent:'center'}}
+            onClick={()=>setCalendarAdminDetail(null)}>
+            <div onClick={e=>e.stopPropagation()}
+              style={{background:T.card,borderRadius:'20px 20px 0 0',padding:'24px 20px max(32px,env(safe-area-inset-bottom,20px))',width:'100%',maxWidth:500,boxSizing:'border-box',animation:'slideUp .25s cubic-bezier(0.32,0.72,0,1)'}}>
+              <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:16}}>
+                <div style={{display:'flex',alignItems:'center',gap:8}}>
+                  <div style={{width:10,height:10,borderRadius:'50%',background:sc,flexShrink:0}}/>
+                  <span style={{fontSize:13,fontWeight:700,color:sc,textTransform:'uppercase',letterSpacing:1}}>{b.status}</span>
+                </div>
+                <button onClick={()=>setCalendarAdminDetail(null)}
+                  style={{background:'none',border:'none',fontSize:22,color:T.textMuted,cursor:'pointer',padding:'0 4px',lineHeight:1}}>×</button>
+              </div>
+              <div style={{fontSize:18,fontWeight:800,color:T.text,marginBottom:4}}>{b.activity}</div>
+              <div style={{fontSize:13,color:T.textMuted,marginBottom:12}}>{b.name} · {b.time_slot} · {b.start_date}</div>
+              {b.message && <div style={{fontSize:13,color:T.textSecondary,background:T.cardElevated,borderRadius:10,padding:'10px 12px',marginBottom:12}}>{b.message}</div>}
+              {b.admin_comment && <div style={{fontSize:12,color:T.textMuted,fontStyle:'italic',marginBottom:12}}>"{b.admin_comment}"</div>}
+              <button onClick={()=>{ setCalendarAdminDetail(null); setView('admin'); }}
+                style={{width:'100%',padding:'13px',borderRadius:12,border:`1px solid ${T.border}`,background:T.cardElevated,color:T.accent,fontSize:14,fontWeight:700,cursor:'pointer',fontFamily:'system-ui',WebkitTapHighlightColor:'transparent'}}>
+                Öppna i adminpanel →
+              </button>
+            </div>
+          </div>
+        );
+      })()}
 
       {view === 'form' && pendingSlot && (
         <BookingForm
