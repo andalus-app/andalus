@@ -1204,45 +1204,36 @@ function MyBookings({ bookings, exceptions, loading, onBack, onCancel, onCancelF
 
 // ── AdminPanel ────────────────────────────────────────────────────────────────
 
-function AdminPanel({ bookings, exceptions, onBack, onApprove, onReject, onDelete, onDeleteSeries, onDeleteFromDate, onAdminAddRecurring, onRefreshNotifications, onMarkAdminSeen, onManageUsers, adminInitialFilter, cancelledBookingIds = [], T }) {
-  const [filter, setFilter] = useState(adminInitialFilter || 'all');
+function AdminPanel({ bookings, exceptions, onBack, onApprove, onReject, onDelete, onDeleteSeries, onDeleteFromDate, onAdminAddRecurring, onRefreshNotifications, onMarkAdminSeen, onManageUsers, adminInitialFilter, adminHighlightId = null, adminHighlightFilter = null, cancelledBookingIds = [], T }) {
+  const [filter, setFilter] = useState(adminHighlightFilter || adminInitialFilter || 'all');
   const [selected, setSelected] = useState(null);
   const [actionLoading, setActionLoading] = useState(false);
+  const highlightRef = useRef(null);
+
+  // Synka filter när adminHighlightFilter ändras utifrån (precis som MyBookings)
+  useEffect(() => {
+    if (adminHighlightFilter) setFilter(adminHighlightFilter);
+  }, [adminHighlightFilter]);
+
+  // Scrolla till highlighted bokning + vibration (identiskt med MyBookings)
+  useEffect(() => {
+    if (adminHighlightId && highlightRef.current) {
+      setTimeout(() => {
+        highlightRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        if (navigator.vibrate) navigator.vibrate([60, 40, 60, 40, 120]);
+        // Rensa badge efter 3s
+        setTimeout(() => onMarkAdminSeen?.(), 3000);
+      }, 400);
+    }
+  }, [adminHighlightId, filter]); // eslint-disable-line
   const [comment, setComment] = useState('');
   const [deleteDialog, setDeleteDialog] = useState(null);
   const [addForm, setAddForm] = useState(null);
 
   const today = toISO(new Date());
   const windowEnd = (() => { const d=new Date(); d.setFullYear(d.getFullYear()+2); return toISO(d); })();
-  const firstCancelledRef = useRef(null);
 
-  // Vibration + scroll när admin kommer från notis och data är redo
-  const highlightDoneRef = useRef(false);
-  const prevCancelledIdsKey = cancelledBookingIds.join(',');
-
-  useEffect(() => {
-    // Nollställ när nya IDs kommer
-    highlightDoneRef.current = false;
-    firstCancelledRef.current = null;
-  }, [prevCancelledIdsKey]); // eslint-disable-line
-
-  useEffect(() => {
-    if (highlightDoneRef.current) return;
-    if (cancelledBookingIds.length === 0) return;
-    if (filter !== 'cancelled') return;
-    // Vänta tills bookings är laddade och DOM är renderad
-    if (bookings.length === 0) return;
-
-    highlightDoneRef.current = true;
-    const t1 = setTimeout(() => {
-      if (firstCancelledRef.current) {
-        firstCancelledRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      }
-      if (navigator.vibrate) navigator.vibrate([60, 40, 60, 40, 120]);
-    }, 500);
-    const t2 = setTimeout(() => { onMarkAdminSeen?.(); }, 3000);
-    return () => { clearTimeout(t1); clearTimeout(t2); };
-  }, [prevCancelledIdsKey, filter, bookings.length]); // eslint-disable-line
+  // highlight/vibration hanteras nu av adminHighlightId-effekten ovan
 
   // Group bookings by status for filter tabs
   const pending   = bookings.filter(b=>b.status==='pending'||b.status==='edit_pending');
@@ -1405,13 +1396,14 @@ function AdminPanel({ bookings, exceptions, onBack, onApprove, onReject, onDelet
           const displayDate = nextOcc?.date || b.start_date;
           return (
             <div key={b.id}
-              ref={el => { if (el && cancelledBookingIds.includes(b.id) && !firstCancelledRef.current) firstCancelledRef.current = el; }}
+              ref={b.id === adminHighlightId ? highlightRef : null}
               onClick={()=>{setSelected(b);setComment('');}}
               style={{background:T.card,
-                border:`1px solid ${b.status==='pending'||b.status==='edit_pending'?'#f59e0b44':cancelledBookingIds.includes(b.id)?'#3b82f6':'none'?'#3b82f644':T.border}`,
+                border:`1px solid ${b.id===adminHighlightId?'#3b82f6':b.status==='pending'||b.status==='edit_pending'?'#f59e0b44':T.border}`,
                 borderRadius:14,padding:'14px 16px',cursor:'pointer',
-                animation:b.status==='pending'||b.status==='edit_pending'?'cardPulse 2s ease-in-out infinite':cancelledBookingIds.includes(b.id)?'cancelledPulse 1.8s ease-in-out 4':'none',
-                boxShadow:cancelledBookingIds.includes(b.id)?'0 0 0 3px #3b82f633':'none'}}>
+                boxShadow:b.id===adminHighlightId?'0 0 0 3px #3b82f633':b.status==='pending'||b.status==='edit_pending'?'0 0 0 0 rgba(245,158,11,0)':'none',
+                animation:b.id===adminHighlightId?'highlightPulse 1.2s ease-in-out 3, vibrate 0.4s 0.35s ease':b.status==='pending'||b.status==='edit_pending'?'cardPulse 2s ease-in-out infinite':'none',
+                '--hl':'#3b82f655'}}>
               <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:8}}>
                 <div style={{display:'flex',alignItems:'center',gap:8}}>
                   <Badge status={b.status}/>
@@ -1976,6 +1968,8 @@ export default function BookingScreen({
   onMarkAdminSeen,
   markVisitorSeen,
   adminInitialFilter,
+  adminHighlightId = null,
+  adminHighlightFilter = null,
   cancelledBookingIds = [],
   visitorUnread = 0,
 }) {
@@ -2500,6 +2494,8 @@ export default function BookingScreen({
           onDelete={handleAdminDelete} onDeleteSeries={handleAdminDeleteSeries}
           onDeleteFromDate={handleCancelFromDate}
           adminInitialFilter={adminInitialFilter}
+          adminHighlightId={adminHighlightId}
+          adminHighlightFilter={adminHighlightFilter}
           cancelledBookingIds={cancelledBookingIds}
           onAdminAddRecurring={handleAdminAddRecurring}
           onRefreshNotifications={onRefreshNotifications}

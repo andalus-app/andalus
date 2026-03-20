@@ -316,7 +316,7 @@ function SwipeableItem({ onDismiss, children }) {
 }
 
 /* ── Main screen ── */
-export default function NewHomeScreen({ stream, onGoToAdminLogin, onGoToMyBookings, onGoToCancelledBookings }) {
+export default function NewHomeScreen({ stream, onGoToAdminLogin, onGoToMyBookings, onGoToCancelledBookings, onGoToPendingBookings }) {
   const { theme: T, mode, setMode } = useTheme();
   const isPWA = useIsPWA();
   const prevModeRef = React.useRef(mode);
@@ -530,7 +530,7 @@ export default function NewHomeScreen({ stream, onGoToAdminLogin, onGoToMyBookin
                   if (item.type === 'admin_pending') return (
                     <SwipeableItem key="admin-pending" onDismiss={() => setAdminNotifDismissedThisSession(true)}>
                     <div style={{ borderBottom: `1px solid ${T.border}`, background: T.isDark ? 'rgba(245,158,11,0.07)' : 'rgba(245,158,11,0.05)' }}>
-                      <div onClick={handleAdminNotifClick} style={{ padding: '12px 14px 8px', display: 'flex', alignItems: 'flex-start', gap: 10, cursor: 'pointer' }}>
+                      <div onClick={() => { setShowBellPanel(false); if (isAdmin) { onGoToPendingBookings?.(); } else { handleAdminNotifClick(); } }} style={{ padding: '12px 14px 8px', display: 'flex', alignItems: 'flex-start', gap: 10, cursor: 'pointer' }}>
                         <div style={{ width: 28, height: 28, borderRadius: 8, flexShrink: 0, background: '#f59e0b22', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#f59e0b" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                             <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/>
