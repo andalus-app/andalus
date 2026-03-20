@@ -2006,45 +2006,44 @@ export default function BookingScreen({
     setDbLoading(false);
   }, []);
 
-  // Smart initial load:
-  // Admin: fetchAll direkt (behöver alla bokningar)
-  // Användare: Steg 1 snabb eigen fetch → Steg 2 full fetch i bakgrunden
+  // Smart initial load — två parallella fetchar:
+  // Steg 1: Snabb filtrerad fetch på user_id → Mina bokningar visas omedelbart
+  // Steg 2: Full fetch i bakgrunden → kalender + admin fylls på
+  // Gäller ALLA inloggade (admin och användare)
   useEffect(() => {
     const userId = localStorage.getItem(STORAGE_USER_ID);
-    const role   = localStorage.getItem(STORAGE_USER_ROLE);
     const devId  = localStorage.getItem('islamnu_device_id');
-    const isAdminUser = role === 'admin' || localStorage.getItem(STORAGE_ADMIN) === 'true';
 
-    const runLoad = async () => {
-      if (isAdminUser) {
-        // Admin: hämta allt direkt — fetchAll sätter dbLoading(false) när klar
-        await fetchAll();
-        return;
-      }
+    if (!userId && !devId) {
+      setDbLoading(false); // ingen inloggad — visa login
+      return;
+    }
 
-      // Användare: Steg 1 — snabb fetch av egna bokningar
-      if (userId || devId) {
-        try {
-          let q = supabase.from('bookings').select('*').order('created_at', { ascending: false });
-          if (userId) q = q.eq('user_id', userId);
-          else q = q.eq('device_id', devId);
-          const { data } = await q;
-          if (data) {
-            setBookings(data);
-            setDbLoading(false); // visa UI direkt
-          }
-        } catch {
+    // Steg 1 + Steg 2 parallellt
+    const step1 = async () => {
+      try {
+        let q = supabase.from('bookings').select('*').order('created_at', { ascending: false });
+        if (userId) q = q.eq('user_id', userId);
+        else        q = q.eq('device_id', devId);
+        const { data } = await q;
+        if (data && data.length > 0) {
+          // Sätt egna bokningar direkt — full fetch skriver sedan över med komplett lista
+          setBookings(prev => {
+            // Merga: behåll ev. redan hämtade bookings, lägg till egna om de saknas
+            if (prev.length > 0) return prev;
+            return data;
+          });
           setDbLoading(false);
         }
-      } else {
-        setDbLoading(false); // ingen inloggad — visa login
-      }
-
-      // Steg 2: Full fetch i bakgrunden
-      fetchAll();
+      } catch { /* fail silently */ }
     };
 
-    runLoad();
+    const step2 = async () => {
+      await fetchAll(); // sätter dbLoading(false) när klar
+    };
+
+    // Kör parallellt — steg1 visar egna bokningar snabbt, steg2 fyller på resten
+    Promise.all([step1(), step2()]).finally(() => setDbLoading(false));
   }, [fetchAll]); // eslint-disable-line
 
   // Realtime — debounced
