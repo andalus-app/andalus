@@ -1,7 +1,7 @@
 {
   "files": {
     "main.css": "/andalus/static/css/main.00346464.css",
-    "main.js": "/andalus/static/js/main.e88a4f2f.js",
+    "main.js": "/andalus/static/js/main.5295de38.js",
     "static/media/prayer-times.svg": "/andalus/static/media/prayer-times.148f31c09bcb28b9f3b34e17aa3a7142.svg",
     "static/media/charity-svgrepo-com.svg": "/andalus/static/media/charity-svgrepo-com.589729fed54a7ec980eff273d7e5153b.svg",
     "static/media/swish-logo.svg": "/andalus/static/media/swish-logo.beb9bff5dda4b18f7d2548de42c783ea.svg",
@@ -24,10 +24,10 @@
     "static/media/bonen.svg": "/andalus/static/media/bonen.0e618d84a2e5e150cc13d1cbf70728b7.svg",
     "static/media/svarigheter-och-skydd.svg": "/andalus/static/media/svarigheter-och-skydd.66efee627f95dbfffd65764bdf478cd4.svg",
     "main.00346464.css.map": "/andalus/static/css/main.00346464.css.map",
-    "main.e88a4f2f.js.map": "/andalus/static/js/main.e88a4f2f.js.map"
+    "main.5295de38.js.map": "/andalus/static/js/main.5295de38.js.map"
   },
   "entrypoints": [
     "static/css/main.00346464.css",
-    "static/js/main.e88a4f2f.js"
+    "static/js/main.5295de38.js"
   ]
 }
