@@ -353,6 +353,10 @@ export default function NewHomeScreen({ stream, onGoToAdminLogin, onGoToMyBookin
       // Opening: mark banners read and clear badge
       activeBanners.forEach(b => markRead(b.id));
       if (visitorUnread > 0) markVisitorSeen();
+      // Vibration om admin har avbokningar
+      if (isAdmin && cancelledUnread > 0) {
+        if (navigator.vibrate) navigator.vibrate([60, 40, 60, 40, 120]);
+      }
       return true;
     });
   };
@@ -365,6 +369,7 @@ export default function NewHomeScreen({ stream, onGoToAdminLogin, onGoToMyBookin
 
   const allItems = [
     ...(showAdminPending ? [{ type: 'admin_pending', count: adminPendingForBell.count }] : []),
+    ...(isAdmin && cancelledUnread > 0 ? [{ type: 'admin_cancelled', count: cancelledUnread }] : []),
     ...bellNotifs.map(n => ({ type: 'booking', ...n })),
     ...activeBanners.map(b => ({ type: 'banner', ...b })),
   ];
@@ -501,6 +506,27 @@ export default function NewHomeScreen({ stream, onGoToAdminLogin, onGoToMyBookin
                 : allItems.map((item) => {
 
                   /* ── Admin pending notis ── */
+                  if (item.type === 'admin_cancelled') return (
+                    <SwipeableItem key="admin-cancelled" onDismiss={() => { markAdminSeen?.(); }}>
+                    <div onClick={() => { setShowBellPanel(false); markAdminSeen?.(); onGoToCancelledBookings?.(); }}
+                      style={{ padding: '12px 14px', borderBottom: `1px solid ${T.border}`, background: T.isDark ? 'rgba(59,130,246,0.07)' : 'rgba(59,130,246,0.05)', display: 'flex', alignItems: 'flex-start', gap: 10, cursor: 'pointer', borderLeft: '3px solid #3b82f6' }}>
+                      <div style={{ width: 28, height: 28, borderRadius: 8, flexShrink: 0, background: '#3b82f622', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                        <CalendarClockIcon size={13} color="#3b82f6" />
+                      </div>
+                      <div style={{ flex: 1 }}>
+                        <div style={{ fontSize: 12, fontWeight: 700, color: '#3b82f6', marginBottom: 2 }}>AVBOKNING</div>
+                        <div style={{ fontSize: 13, color: T.text, lineHeight: 1.45 }}>
+                          {item.count} bokning{item.count !== 1 ? 'ar' : ''} har avbokats —{' '}
+                          <span style={{ color: '#3b82f6', fontWeight: 600 }}>visa inställda</span>
+                        </div>
+                      </div>
+                      <div style={{ background: '#3b82f6', color: '#fff', borderRadius: 8, minWidth: 20, height: 20, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 800, padding: '0 5px', flexShrink: 0 }}>
+                        {item.count > 9 ? '9+' : item.count}
+                      </div>
+                    </div>
+                    </SwipeableItem>
+                  );
+
                   if (item.type === 'admin_pending') return (
                     <SwipeableItem key="admin-pending" onDismiss={() => setAdminNotifDismissedThisSession(true)}>
                     <div style={{ borderBottom: `1px solid ${T.border}`, background: T.isDark ? 'rgba(245,158,11,0.07)' : 'rgba(245,158,11,0.05)' }}>

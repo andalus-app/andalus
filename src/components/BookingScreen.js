@@ -898,10 +898,14 @@ function MyBookings({ bookings, exceptions, loading, onBack, onCancel, onCancelF
     if (highlightFilter) setFilter(highlightFilter);
   }, [highlightFilter]);
 
-  // Scrolla till highlighted bokning
+  // Scrolla till highlighted bokning + vibration
   useEffect(() => {
     if (highlightBookingId && highlightRef.current) {
-      setTimeout(() => highlightRef.current?.scrollIntoView({ behavior:'smooth', block:'center' }), 350);
+      setTimeout(() => {
+        highlightRef.current?.scrollIntoView({ behavior:'smooth', block:'center' });
+        // Vibration — rolig effekt: kort-kort-lång
+        if (navigator.vibrate) navigator.vibrate([60, 40, 60, 40, 120]);
+      }, 350);
     }
   }, [highlightBookingId, filter]);
 
@@ -1134,10 +1138,14 @@ function MyBookings({ bookings, exceptions, loading, onBack, onCancel, onCancelF
             : null;
           const displayDate = nextOcc?.date || b.start_date;
           const isHighlight = b.id === highlightBookingId;
+          const highlightColor = (b.status==='cancelled'||b.status==='rejected') ? '#3b82f6' : T.accent;
           return (
             <div key={b.id} ref={isHighlight?highlightRef:null}
               onClick={()=>setSelectedId(b.id)}
-              style={{background:T.card,border:`1px solid ${isHighlight?T.accent:T.border}`,borderRadius:14,padding:'14px 16px',cursor:'pointer',transition:'all .12s',boxShadow:isHighlight?`0 0 0 2px ${T.accent}44`:'none'}}>
+              style={{background:T.card,border:`1px solid ${isHighlight?highlightColor:T.border}`,borderRadius:14,padding:'14px 16px',cursor:'pointer',transition:'all .12s',
+                boxShadow:isHighlight?`0 0 0 3px ${highlightColor}44`:'none',
+                animation:isHighlight?`highlightPulse 1.2s ease-in-out 3, vibrate 0.4s 0.35s ease`:'none',
+                '--hl': `${highlightColor}55`}}>
               <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:8}}>
                 <div style={{display:'flex',alignItems:'center',gap:8}}>
                   <Badge status={b.status}/>
@@ -1330,7 +1338,11 @@ function AdminPanel({ bookings, exceptions, onBack, onApprove, onReject, onDelet
           const displayDate = nextOcc?.date || b.start_date;
           return (
             <div key={b.id} onClick={()=>{setSelected(b);setComment('');}}
-              style={{background:T.card,border:`1px solid ${b.status==='pending'||b.status==='edit_pending'?'#f59e0b44':T.border}`,borderRadius:14,padding:'14px 16px',cursor:'pointer',animation:(b.status==='pending'||b.status==='edit_pending')?'cardPulse 2s ease-in-out infinite':'none'}}>
+              style={{background:T.card,
+                border:`1px solid ${b.status==='pending'||b.status==='edit_pending'?'#f59e0b44':b.status==='cancelled'&&filter==='cancelled'?'#3b82f644':T.border}`,
+                borderRadius:14,padding:'14px 16px',cursor:'pointer',
+                animation:b.status==='pending'||b.status==='edit_pending'?'cardPulse 2s ease-in-out infinite':b.status==='cancelled'&&filter==='cancelled'?'cancelledPulse 1.8s ease-in-out 4':'none',
+                boxShadow:b.status==='cancelled'&&filter==='cancelled'?'0 0 0 2px #3b82f622':'none'}}>
               <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:8}}>
                 <div style={{display:'flex',alignItems:'center',gap:8}}>
                   <Badge status={b.status}/>
@@ -1905,10 +1917,9 @@ export default function BookingScreen({
   const [toast, setToast] = useState('');
   const [view, setView] = useState(() => {
     const userId = localStorage.getItem(STORAGE_USER_ID);
-    const role   = localStorage.getItem(STORAGE_USER_ROLE);
     if (!userId) return 'login'; // kalender är skyddad — alltid inloggning först
-    if (startAtAdmin || role === 'admin') return 'admin';
-    if (highlightBookingId) return 'my-bookings';
+    if (startAtAdmin) return 'admin'; // explicit admin start
+    // Alla (admin och användare) börjar alltid i kalendervyn
     return 'calendar';
   });
   const [pendingSlot, setPendingSlot] = useState(null);
@@ -1972,15 +1983,17 @@ export default function BookingScreen({
     return () => { clearTimeout(timer); supabase.removeChannel(ch); };
   }, [fetchAll]);
 
-  // Navigera till my-bookings när highlightBookingId sätts, till kalender när det rensas
+  // Navigera till my-bookings BARA när highlightBookingId sätts via bell/banner
+  // Tab-tryck rensar highlightBookingId i App.js → view förblir calendar
+  const prevHighlightRef = useRef(null);
   useEffect(() => {
-    if (highlightBookingId) {
+    const prev = prevHighlightRef.current;
+    prevHighlightRef.current = highlightBookingId;
+    // Navigera till my-bookings bara om highlightBookingId precis SATTES (null→värde)
+    if (highlightBookingId && !prev) {
       setView('my-bookings');
-    } else if (!highlightBookingId && view === 'my-bookings') {
-      // Rensades via direkt tab-klick — gå till kalender (bara om inloggad)
-      const userId = localStorage.getItem(STORAGE_USER_ID);
-      if (userId) setView('calendar');
     }
+    // Tab-tryck rensar till null utan att navigera
   }, [highlightBookingId]); // eslint-disable-line
 
   // Edge swipe back — bara om inloggad (kalender är skyddad)
@@ -2272,6 +2285,9 @@ export default function BookingScreen({
         @keyframes slideUp{from{transform:translateY(100%)}to{transform:translateY(0)}}
         @keyframes spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}
         @keyframes cardPulse{0%,100%{box-shadow:0 0 0 0 rgba(245,158,11,0.4)}50%{box-shadow:0 0 0 6px rgba(245,158,11,0)}}
+        @keyframes cancelledPulse{0%,100%{box-shadow:0 0 0 0 rgba(59,130,246,0.4)}50%{box-shadow:0 0 0 6px rgba(59,130,246,0)}}
+        @keyframes highlightPulse{0%,100%{box-shadow:0 0 0 3px var(--hl,rgba(45,139,120,0.3))}50%{box-shadow:0 0 0 8px transparent}}
+        @keyframes vibrate{0%,100%{transform:translateX(0)}10%,50%,90%{transform:translateX(-3px)}30%,70%{transform:translateX(3px)}}
       `}</style>
       <Toast message={toast} T={T}/>
 

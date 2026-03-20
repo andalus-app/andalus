@@ -203,6 +203,7 @@ function Shell() {
       setHighlightBookingId(null);
       setHighlightFilter(null);
       setAdminInitialFilter(null);
+      setBookingStartView(null);
     }
     if (id === 'ebooks') {
       if (tab === 'ebooks') {
@@ -242,12 +243,15 @@ function Shell() {
 
   const handleGoToAdminLogin = () => {
     setAdminInitialFilter(null);
+    setBookingStartView('admin');
     setTab('booking');
     try { sessionStorage.setItem('activeTab', 'booking'); } catch {}
   };
 
+  const [bookingStartView, setBookingStartView] = useState(null); // 'admin' | null
   const handleGoToCancelledBookings = () => {
     setAdminInitialFilter('cancelled');
+    setBookingStartView('admin');
     setTab('booking');
     try { sessionStorage.setItem('activeTab', 'booking'); } catch {}
   };
@@ -258,7 +262,7 @@ function Shell() {
       case 'home':     return <NewHomeScreen stream={stream} onGoToAdminLogin={handleGoToAdminLogin} onGoToMyBookings={handleGoToMyBookings} onGoToCancelledBookings={handleGoToCancelledBookings} />;
       case 'prayer':   return <PrayerScreen onMonthlyPress={() => setShowMonthly(true)} />;
       case 'qibla':    return <QiblaScreen />;
-      case 'booking':  return <BookingScreen highlightBookingId={highlightBookingId} highlightFilter={highlightFilter} adminInitialFilter={adminInitialFilter} visitorUnread={visitorUnread} onTabBarHide={() => { setTabBarHiddenByChild(true); setTabBarVisible(false); setScrollLocked(true); }} onTabBarShow={() => { setTabBarHiddenByChild(false); setTabBarVisible(true); setScrollLocked(false); }} activateForDevice={activateForDevice} registerAdminDevice={registerAdminDevice} dismissAdminDevice={dismissAdminDevice} onRefreshNotifications={refreshNotifications} markVisitorSeen={markVisitorSeen} onMarkAdminSeen={markAdminSeen} />;
+      case 'booking':  return <BookingScreen highlightBookingId={highlightBookingId} highlightFilter={highlightFilter} adminInitialFilter={adminInitialFilter} startAtAdmin={bookingStartView==='admin'} visitorUnread={visitorUnread} onTabBarHide={() => { setTabBarHiddenByChild(true); setTabBarVisible(false); setScrollLocked(true); }} onTabBarShow={() => { setTabBarHiddenByChild(false); setTabBarVisible(true); setScrollLocked(false); }} activateForDevice={activateForDevice} registerAdminDevice={registerAdminDevice} dismissAdminDevice={dismissAdminDevice} onRefreshNotifications={refreshNotifications} markVisitorSeen={markVisitorSeen} onMarkAdminSeen={markAdminSeen} />;
       case 'ebooks':   return <EbooksScreen key={ebooksReset} onTabBarHide={() => { setTabBarHiddenByChild(true); setTabBarVisible(false); setScrollLocked(true); }} onTabBarShow={() => { setTabBarHiddenByChild(false); setTabBarVisible(true); setScrollLocked(false); }} onReaderOpen={() => {}} onReaderClose={() => {}} resetToLibrary={false} />;
       case 'more':     return <MoreScreen key={moreResetKey} onTabBarHide={() => { setTabBarHiddenByChild(true); setTabBarVisible(false); setScrollLocked(true); }} onTabBarShow={() => { setTabBarHiddenByChild(false); setTabBarVisible(true); setScrollLocked(false); }} initialView={moreInitialView} markVisitorSeen={markVisitorSeen} markAdminSeen={markAdminSeen} activateForDevice={activateForDevice} registerAdminDevice={registerAdminDevice} dismissAdminDevice={dismissAdminDevice} bookingBadge={totalUnread} visitorBadge={visitorUnread} adminBadge={adminPendingCount} onRefreshNotifications={refreshNotifications} />;
       default:         return <NewHomeScreen />;
@@ -436,13 +440,16 @@ function Shell() {
                           }}>{visitorUnread > 9 ? '9+' : visitorUnread}</div>
                         ) : null}
                         {cancelledUnread > 0 ? (
-                          <div style={{
+                          <div
+                            onClick={e => { e.stopPropagation(); if (navigator.vibrate) navigator.vibrate([60,40,60,40,120]); handleGoToCancelledBookings(); }}
+                            style={{
                             minWidth: 14, height: 14, borderRadius: 7,
                             background: '#3b82f6', color: '#fff',
                             fontSize: 8, fontWeight: 800, fontFamily: 'system-ui',
                             display: 'flex', alignItems: 'center', justifyContent: 'center',
                             padding: '0 3px', boxSizing: 'border-box',
                             border: `1.5px solid ${T.isDark ? 'rgba(18,18,18,0.9)' : 'rgba(245,248,247,0.9)'}`,
+                            cursor: 'pointer',
                           }}>{cancelledUnread > 9 ? '9+' : cancelledUnread}</div>
                         ) : null}
                       </div>
