@@ -556,7 +556,7 @@ function YearView({year,onSelectMonth,bookings,exceptions,T,onBack}) {
     if(el) setTimeout(()=>el.scrollIntoView({behavior:'smooth',block:'center'}),200);
   },[]);
 
-  const years=[year,year+1];
+  const years=Array.from({length:5},(_,i)=>year+i);
 
   return <div style={{position:'fixed',inset:0,background:T.bg,zIndex:100,
     display:'flex',flexDirection:'column',
@@ -576,9 +576,6 @@ function YearView({year,onSelectMonth,bookings,exceptions,T,onBack}) {
       }} T={T}/>
     </div>
     <div ref={scrollRef} style={{flex:1,overflowY:'auto',padding:'0 16px 40px',WebkitOverflowScrolling:'touch'}}>
-      <div style={{position:'sticky',top:0,height:28,zIndex:5,
-        background:`linear-gradient(to bottom,${T.bg}ff 0%,${T.bg}00 100%)`,
-        marginBottom:-28,pointerEvents:'none'}}/>
       {years.map(yr=>(
         <div key={yr}>
           <div style={{fontSize:28,fontWeight:700,color:T.text,fontFamily:'system-ui',
@@ -625,8 +622,6 @@ function YearView({year,onSelectMonth,bookings,exceptions,T,onBack}) {
           </div>
         </div>
       ))}
-      <div style={{position:'sticky',bottom:0,height:40,pointerEvents:'none',
-        background:`linear-gradient(to top,${T.bg}ff 0%,${T.bg}00 100%)`}}/>
     </div>
   </div>;
 }
