@@ -1013,29 +1013,44 @@ function MyBookings({ bookings, exceptions, loading, onBack, onCancel, onCancelF
 
         {/* Delete / restore actions */}
         <div style={{display:'flex',flexDirection:'column',gap:8}}>
-          {b.status === 'cancelled' ? (
-            /* Avbokad — visa Återta för alla bokningstyper */
-            (() => {
-              // För upprepade: kolla om start_date är ledig (serien kan återtas)
-              // För engångsbokningar: kolla exakt datum
-              const checkDate = b.start_date;
-              const timeAvailable = getAvailableStarts(bookings, exceptions, checkDate, b.duration_hours, b.id).includes(parseSlotStart(b.time_slot));
+          {(b.status === 'cancelled' || b.status === 'rejected') ? (() => {
+            const myName = localStorage.getItem('islamnu_user_name') || '';
+            // Admin har avbokat om kommentaren INTE börjar med "Avbokad av [mitt namn]"
+            // eller om status är rejected
+            const cancelledByAdmin = b.status === 'rejected' ||
+              !b.admin_comment ||
+              !b.admin_comment.startsWith('Avbokad av ' + myName);
+            if (cancelledByAdmin) {
               return (
-                <button
-                  onClick={() => { if (timeAvailable) onRestore?.(b); }}
-                  disabled={!timeAvailable}
-                  style={{padding:'13px',borderRadius:12,border:`1px solid ${timeAvailable?'#22c55e44':'#88888844'}`,background:timeAvailable?'#22c55e11':'#88888811',color:timeAvailable?'#22c55e':'#888',fontSize:14,fontWeight:700,cursor:timeAvailable?'pointer':'not-allowed',fontFamily:'system-ui',textAlign:'left',WebkitTapHighlightColor:'transparent',opacity:timeAvailable?1:0.6}}>
-                  {timeAvailable ? '↩ Återta bokningen' : '↩ Återta bokningen (ej tillgänglig)'}
-                  <div style={{fontSize:12,fontWeight:400,marginTop:3,opacity:.75}}>
-                    {timeAvailable
-                      ? isRecur ? 'Serien återaktiveras — tillfällen skapas igen' : 'Tiden är ledig — bokningen återaktiveras som Väntar'
-                      : 'En annan bokning har tagit denna tid'}
+                <div>
+                  <div style={{padding:'10px 12px',background:`${T.accent}0d`,borderRadius:10,marginBottom:10,fontSize:13,color:T.textMuted,fontFamily:'system-ui'}}>
+                    {b.status === 'rejected' ? 'Din bokning avböjdes av admin.' : 'Bokningen ställdes in av admin.'}{' '}
+                    Du kan boka en ny tid nedan.
                   </div>
-                </button>
+                  <button onClick={()=>{ setSelectedId(null); onBack(); }}
+                    style={{padding:'13px',borderRadius:12,border:`1px solid ${T.accent}44`,background:`${T.accent}11`,color:T.accent,fontSize:14,fontWeight:700,cursor:'pointer',fontFamily:'system-ui',textAlign:'left',width:'100%',WebkitTapHighlightColor:'transparent'}}>
+                    📅 Byt datum och tid
+                    <div style={{fontSize:12,fontWeight:400,marginTop:3,opacity:.75}}>Gå till kalendern och välj en ny tid</div>
+                  </button>
+                </div>
               );
-            })()
-          ) : (
-            /* Aktiv bokning — visa Avboka med bekräftelse för alla typer */
+            }
+            // Avbokad av användaren själv — visa Återta
+            const checkDate = b.start_date;
+            const timeAvailable = getAvailableStarts(bookings, exceptions, checkDate, b.duration_hours, b.id).includes(parseSlotStart(b.time_slot));
+            return (
+              <button onClick={() => { if (timeAvailable) onRestore?.(b); }} disabled={!timeAvailable}
+                style={{padding:'13px',borderRadius:12,border:`1px solid ${timeAvailable?'#22c55e44':'#88888844'}`,background:timeAvailable?'#22c55e11':'#88888811',color:timeAvailable?'#22c55e':'#888',fontSize:14,fontWeight:700,cursor:timeAvailable?'pointer':'not-allowed',fontFamily:'system-ui',textAlign:'left',WebkitTapHighlightColor:'transparent',opacity:timeAvailable?1:0.6}}>
+                {timeAvailable ? '↩ Återta bokningen' : '↩ Återta bokningen (ej tillgänglig)'}
+                <div style={{fontSize:12,fontWeight:400,marginTop:3,opacity:.75}}>
+                  {timeAvailable
+                    ? isRecur ? 'Serien återaktiveras — tillfällen skapas igen' : 'Tiden är ledig — bokningen återaktiveras som Väntar'
+                    : 'En annan bokning har tagit denna tid'}
+                </div>
+              </button>
+            );
+          })() : (
+            /* Aktiv bokning — visa Avboka */
             isRecur ? (
               <button onClick={()=>setDeleteSheet({booking:b, occurrence_date:b.start_date, deleteAll:true})}
                 style={{padding:'13px',borderRadius:12,border:'1px solid #ef444433',background:'#ef444411',color:'#ef4444',fontSize:14,fontWeight:700,cursor:'pointer',fontFamily:'system-ui',textAlign:'left',WebkitTapHighlightColor:'transparent'}}>
