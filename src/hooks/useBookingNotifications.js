@@ -75,16 +75,30 @@ export function useBookingNotifications() {
         let query = supabase
           .from('bookings')
           .select('id, status, resolved_at, start_date, time_slot, admin_comment')
-          .in('status', ['approved', 'rejected', 'edited']); // cancelled exkluderas — irrelevant för användaren
+          .in('status', ['approved', 'rejected', 'edited', 'cancelled']);
         // Prioritera user_id om inloggad
         if (userId) query = query.eq('user_id', userId);
         else query = query.eq('device_id', deviceId);
 
         const { data } = await query;
         if (data) {
-          const filtered = seenAt > 0
+          const userName = localStorage.getItem('islamnu_user_name') || '';
+          const timeFiltered = seenAt > 0
             ? data.filter(b => b.resolved_at && b.resolved_at > seenAt)
             : data.filter(b => b.resolved_at != null);
+          // Exkludera cancelled som användaren själv avbokade
+          // Identifiera egna avbokningar: kommentaren börjar med "Avbokad av [userName]:" eller "Avbokad av [userName]."
+          const filtered = timeFiltered.filter(b => {
+            if (b.status !== 'cancelled') return true;
+            if (!b.admin_comment) return false;
+            // Om userName är satt — kolla om EXAKT detta namn avbokade (avslutas med : eller .)
+            if (userName) {
+              const selfPrefix1 = 'Avbokad av ' + userName + ':';
+              const selfPrefix2 = 'Avbokad av ' + userName + '.';
+              if (b.admin_comment.startsWith(selfPrefix1) || b.admin_comment.startsWith(selfPrefix2)) return false;
+            }
+            return true;
+          });
           setVisitorUnread(filtered.length);
           setBellNotifs(filtered.map(b => ({
             id: b.id, type: 'booking', status: b.status,
