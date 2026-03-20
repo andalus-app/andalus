@@ -254,23 +254,33 @@ function Shell() {
 
   const [bookingStartView, setBookingStartView] = useState(null); // 'admin' | null
   const handleGoToCancelledBookings = (highlightId = null) => {
-    setAdminInitialFilter('cancelled');
-    setAdminHighlightFilter('cancelled');
-    // Toggle för att garantera prop-förändring även om samma värde
+    // Toggle allt till null först — garanterar att useEffect triggas i AdminPanel
+    setAdminHighlightFilter(null);
     setAdminHighlightId(null);
-    setTimeout(() => setAdminHighlightId(highlightId || cancelledBookingIds[0] || null), 0);
+    setAdminInitialFilter(null);
     setBookingStartView(null);
-    setTimeout(() => setBookingStartView('admin'), 0);
+    setTimeout(() => {
+      setAdminInitialFilter('cancelled');
+      setAdminHighlightFilter('cancelled');
+      setAdminHighlightId(highlightId || cancelledBookingIds[0] || null);
+      setBookingStartView('admin');
+    }, 0);
     setTab('booking');
     try { sessionStorage.setItem('activeTab', 'booking'); } catch {}
   };
 
   const handleGoToPendingBookings = () => {
-    setAdminInitialFilter('pending');
-    setAdminHighlightFilter('pending');
+    // Hämta första pending-bokningens ID för highlight
+    setAdminHighlightFilter(null);
     setAdminHighlightId(null);
+    setAdminInitialFilter(null);
     setBookingStartView(null);
-    setTimeout(() => setBookingStartView('admin'), 0);
+    setTimeout(() => {
+      setAdminInitialFilter('pending');
+      setAdminHighlightFilter('pending');
+      // adminHighlightId sätts inte för pending — vi vill bara filtrera, inte highlighta ett specifikt
+      setBookingStartView('admin');
+    }, 0);
     setTab('booking');
     try { sessionStorage.setItem('activeTab', 'booking'); } catch {}
   };

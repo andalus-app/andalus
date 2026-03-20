@@ -2013,41 +2013,42 @@ export default function BookingScreen({
     setDbLoading(false);
   }, []);
 
-  // Smart initial load — två parallella fetchar:
-  // Steg 1: Snabb filtrerad fetch på user_id → Mina bokningar visas omedelbart
-  // Steg 2: Full fetch i bakgrunden → kalender + admin fylls på
-  // Gäller ALLA inloggade (admin och användare)
+  // Smart initial load:
+  // Steg 1 (snabb): hämta bara egna bokningar → Mina bokningar visas omedelbart
+  // Steg 2 (full): fetchAll i bakgrunden → komplett lista för kalender + admin
+  // step1 skriver bara om bookings är fortfarande tom (step2 inte hunnit)
+  // step2 vinner alltid — den kompletta listan är sanningskällan
   useEffect(() => {
     const userId = localStorage.getItem(STORAGE_USER_ID);
     const devId  = localStorage.getItem('islamnu_device_id');
 
     if (!userId && !devId) {
-      setDbLoading(false); // ingen inloggad — visa login
+      setDbLoading(false);
       return;
     }
 
-    // Steg 1 + Steg 2 parallellt
-    const step1 = async () => {
+    let step2Done = false;
+
+    // Steg 2: full fetch — kör alltid, sätter alltid bookings
+    fetchAll().then(() => { step2Done = true; });
+
+    // Steg 1: snabb filtrerad fetch — visa egna bokningar direkt
+    // Hoppar över om step2 redan är klar (snabbt nätverk)
+    const runStep1 = async () => {
       try {
         let q = supabase.from('bookings').select('*').order('created_at', { ascending: false });
         if (userId) q = q.eq('user_id', userId);
         else        q = q.eq('device_id', devId);
         const { data } = await q;
-        if (data) {
-          // Sätt egna bokningar direkt — visas omedelbart i Mina bokningar
-          // fetchAll() skriver sedan över med komplett lista
-          setBookings(data);
+        if (data && !step2Done) {
+          // Bara om step2 inte redan satt komplett data
+          setBookings(prev => prev.length === 0 ? data : prev);
           setDbLoading(false);
         }
       } catch { /* fail silently */ }
     };
 
-    const step2 = async () => {
-      await fetchAll(); // sätter dbLoading(false) när klar
-    };
-
-    // Kör parallellt — steg1 visar egna bokningar snabbt, steg2 fyller på resten
-    Promise.all([step1(), step2()]).finally(() => setDbLoading(false));
+    runStep1();
   }, [fetchAll]); // eslint-disable-line
 
   // Realtime — debounced
