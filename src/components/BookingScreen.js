@@ -1049,7 +1049,7 @@ function MyBookings({ bookings, exceptions, loading, onBack, onCancel, onCancelF
                   onChange={e=>{setCancelReason(e.target.value);setCancelReasonError(false);}}
                   placeholder="Anledning (valfritt)"
                   rows={3}
-                  style={{width:'100%',boxSizing:'border-box',background:T.cardElevated,border:`1px solid ${T.border}`,borderRadius:10,padding:'10px 12px',fontSize:14,color:T.text,fontFamily:'system-ui',resize:'none',outline:'none'}}
+                  style={{width:'100%',boxSizing:'border-box',background:T.cardElevated,border:`1px solid ${T.border}`,borderRadius:10,padding:'10px 12px',fontSize:16,color:T.text,fontFamily:'system-ui',resize:'none',outline:'none'}}
                 />
               </div>
 

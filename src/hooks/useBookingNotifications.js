@@ -74,7 +74,7 @@ export function useBookingNotifications() {
         let query = supabase
           .from('bookings')
           .select('id, status, resolved_at, start_date, time_slot, admin_comment')
-          .in('status', ['approved', 'rejected', 'cancelled', 'edited']);
+          .in('status', ['approved', 'rejected', 'edited']); // cancelled exkluderas — irrelevant för användaren
         // Prioritera user_id om inloggad
         if (userId) query = query.eq('user_id', userId);
         else query = query.eq('device_id', deviceId);
