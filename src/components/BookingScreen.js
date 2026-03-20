@@ -1059,40 +1059,45 @@ function MyBookings({ bookings, exceptions, loading, onBack, onCancel, onCancelF
                 {deleteSheet.deleteAll ? 'Är du säker? Avboka hela serien?' : 'Är du säker på att du vill avboka?'}
               </div>
               <div style={{fontSize:12,color:T.textMuted,marginBottom:14,fontFamily:'system-ui'}}>
-                Du kan ange en anledning (valfritt) — admin ser detta meddelande.
+                Ange en anledning — admin ser detta meddelande.
               </div>
 
-              {/* Anledning — krävs för godkända bokningar */}
+              {/* Anledning — obligatorisk */}
               <div style={{marginBottom:14}}>
                 <textarea
                   value={cancelReason}
                   onChange={e=>{setCancelReason(e.target.value);setCancelReasonError(false);}}
-                  placeholder="Anledning (valfritt)"
+                  placeholder="Anledning (obligatorisk)"
                   rows={3}
-                  style={{width:'100%',boxSizing:'border-box',background:T.cardElevated,border:`1px solid ${T.border}`,borderRadius:10,padding:'10px 12px',fontSize:16,color:T.text,fontFamily:'system-ui',resize:'none',outline:'none'}}
+                  style={{width:'100%',boxSizing:'border-box',background:T.cardElevated,border:`1px solid ${cancelReasonError?'#ef4444':T.border}`,borderRadius:10,padding:'10px 12px',fontSize:16,color:T.text,fontFamily:'system-ui',resize:'none',outline:'none'}}
                 />
+                {cancelReasonError && <div style={{color:'#ef4444',fontSize:12,marginTop:4,fontFamily:'system-ui'}}>Anledning krävs för avbokning.</div>}
               </div>
 
               <div style={{display:'flex',flexDirection:'column',gap:10}}>
                 {!deleteSheet.deleteAll && (() => {
                   const isRecurring = deleteSheet.booking.recurrence !== 'none';
                   const userName = () => localStorage.getItem('islamnu_user_name') || 'Besökaren';
-                  const reason = () => cancelReason.trim() ? `Avbokad av ${userName()}: ${cancelReason.trim()}` : `Avbokad av ${userName()}.`;
+                  const reason = () => `Avbokad av ${userName()}: ${cancelReason.trim()}`;
+                  const validateAndRun = (fn) => {
+                    if (!cancelReason.trim()) { setCancelReasonError(true); return; }
+                    fn();
+                  };
                   return isRecurring ? (
                     <>
-                      <button onClick={()=>{ setDeleteSheet(null); setCancelReason(''); setCancelReasonError(false); onCancel(deleteSheet.booking, deleteSheet.occurrence_date, reason()); }}
+                      <button onClick={()=>validateAndRun(()=>{ setDeleteSheet(null); setCancelReason(''); setCancelReasonError(false); onCancel(deleteSheet.booking, deleteSheet.occurrence_date, reason()); })}
                         style={{padding:'14px',borderRadius:12,border:'1px solid #ef444433',background:'#ef444411',color:'#ef4444',fontSize:14,fontWeight:700,cursor:'pointer',fontFamily:'system-ui',textAlign:'left',WebkitTapHighlightColor:'transparent'}}>
                         🗑 Ta bort bara detta tillfälle
                         <div style={{fontSize:12,fontWeight:400,marginTop:3,opacity:.75}}>Övriga tillfällen påverkas inte</div>
                       </button>
-                      <button onClick={()=>{ setDeleteSheet(null); setCancelReason(''); setCancelReasonError(false); onCancelFromDate(deleteSheet.booking, deleteSheet.occurrence_date, reason()); }}
+                      <button onClick={()=>validateAndRun(()=>{ setDeleteSheet(null); setCancelReason(''); setCancelReasonError(false); onCancelFromDate(deleteSheet.booking, deleteSheet.occurrence_date, reason()); })}
                         style={{padding:'14px',borderRadius:12,border:'1px solid #ef444433',background:'#ef444411',color:'#ef4444',fontSize:14,fontWeight:700,cursor:'pointer',fontFamily:'system-ui',textAlign:'left',WebkitTapHighlightColor:'transparent'}}>
                         🗑 Ta bort detta och alla kommande
                         <div style={{fontSize:12,fontWeight:400,marginTop:3,opacity:.75}}>Sätter slutdatum till dagen innan detta tillfälle</div>
                       </button>
                     </>
                   ) : (
-                    <button onClick={()=>{ setDeleteSheet(null); setCancelReason(''); setCancelReasonError(false); onCancel(deleteSheet.booking, deleteSheet.occurrence_date, reason()); }}
+                    <button onClick={()=>validateAndRun(()=>{ setDeleteSheet(null); setCancelReason(''); setCancelReasonError(false); onCancel(deleteSheet.booking, deleteSheet.occurrence_date, reason()); })}
                       style={{padding:'14px',borderRadius:12,border:'1px solid #ef444433',background:'#ef444411',color:'#ef4444',fontSize:14,fontWeight:700,cursor:'pointer',fontFamily:'system-ui',textAlign:'left',WebkitTapHighlightColor:'transparent'}}>
                       🗑 Avboka bokningen
                     </button>
@@ -1100,6 +1105,7 @@ function MyBookings({ bookings, exceptions, loading, onBack, onCancel, onCancelF
                 })()}
                 {deleteSheet.deleteAll && (
                   <button onClick={()=>{
+                    if (!cancelReason.trim()) { setCancelReasonError(true); return; }
                     const userName = localStorage.getItem('islamnu_user_name') || 'Besökaren';
                     const reason = cancelReason.trim() ? `Avbokad av ${userName}: ${cancelReason.trim()}` : `Avbokad av ${userName}.`;
                     setDeleteSheet(null); setCancelReason(''); setCancelReasonError(false);
@@ -1210,39 +1216,33 @@ function AdminPanel({ bookings, exceptions, onBack, onApprove, onReject, onDelet
   const windowEnd = (() => { const d=new Date(); d.setFullYear(d.getFullYear()+2); return toISO(d); })();
   const firstCancelledRef = useRef(null);
 
-  // Scrolla till + vibrera på första nya avbokade bokning när vi kommer från notis
+  // Vibration + scroll när admin kommer från notis och data är redo
   const highlightDoneRef = useRef(false);
-  const prevCancelledIdsRef = useRef([]);
+  const prevCancelledIdsKey = cancelledBookingIds.join(',');
 
-  // Nollställ highlightDoneRef när cancelledBookingIds ändras till nya IDs
   useEffect(() => {
-    const prev = prevCancelledIdsRef.current;
-    prevCancelledIdsRef.current = cancelledBookingIds;
-    const isNew = cancelledBookingIds.length > 0 &&
-      (prev.length === 0 || cancelledBookingIds.some(id => !prev.includes(id)));
-    if (isNew) highlightDoneRef.current = false;
-  }, [cancelledBookingIds]); // eslint-disable-line
+    // Nollställ när nya IDs kommer
+    highlightDoneRef.current = false;
+    firstCancelledRef.current = null;
+  }, [prevCancelledIdsKey]); // eslint-disable-line
 
   useEffect(() => {
     if (highlightDoneRef.current) return;
-    if (cancelledBookingIds.length === 0 || filter !== 'cancelled') return;
-    // Vänta så bookings hinner laddas och refs sättas
+    if (cancelledBookingIds.length === 0) return;
+    if (filter !== 'cancelled') return;
+    // Vänta tills bookings är laddade och DOM är renderad
+    if (bookings.length === 0) return;
+
+    highlightDoneRef.current = true;
     const t1 = setTimeout(() => {
-      firstCancelledRef.current = null; // reset ref så ny sökning sker
-      // Scrolla till första matchande kort efter render
-      requestAnimationFrame(() => {
-        if (firstCancelledRef.current) {
-          firstCancelledRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        }
-        if (navigator.vibrate) navigator.vibrate([60, 40, 60, 40, 120]);
-      });
-      highlightDoneRef.current = true;
-    }, 700);
-    const t2 = setTimeout(() => {
-      onMarkAdminSeen?.();
-    }, 3200);
+      if (firstCancelledRef.current) {
+        firstCancelledRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
+      if (navigator.vibrate) navigator.vibrate([60, 40, 60, 40, 120]);
+    }, 500);
+    const t2 = setTimeout(() => { onMarkAdminSeen?.(); }, 3000);
     return () => { clearTimeout(t1); clearTimeout(t2); };
-  }, [cancelledBookingIds, filter, bookings]); // eslint-disable-line
+  }, [prevCancelledIdsKey, filter, bookings.length]); // eslint-disable-line
 
   // Group bookings by status for filter tabs
   const pending   = bookings.filter(b=>b.status==='pending'||b.status==='edit_pending');
@@ -2039,13 +2039,10 @@ export default function BookingScreen({
         if (userId) q = q.eq('user_id', userId);
         else        q = q.eq('device_id', devId);
         const { data } = await q;
-        if (data && data.length > 0) {
-          // Sätt egna bokningar direkt — full fetch skriver sedan över med komplett lista
-          setBookings(prev => {
-            // Merga: behåll ev. redan hämtade bookings, lägg till egna om de saknas
-            if (prev.length > 0) return prev;
-            return data;
-          });
+        if (data) {
+          // Sätt egna bokningar direkt — visas omedelbart i Mina bokningar
+          // fetchAll() skriver sedan över med komplett lista
+          setBookings(data);
           setDbLoading(false);
         }
       } catch { /* fail silently */ }
