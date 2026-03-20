@@ -573,14 +573,20 @@ function TimeSlotPanel({ bookings, exceptions, date, isAdmin, durationHours, onS
         </div>
       </div>
 
-      {/* Bokade block — visas alltid som info */}
+      {/* Bokade block — klickbara för admin */}
       {occs.length > 0 && (
         <div style={{padding:'8px 12px 0',display:'flex',flexWrap:'wrap',gap:4}}>
           {occs.map(o => {
-            const color = ['pending','edit_pending'].includes(o.status) ? '#f59e0b' : '#ef4444';
-            return (
+            const color = ['pending','edit_pending'].includes(o.status) ? '#f59e0b' : o.status==='cancelled'?'#64748b':'#ef4444';
+            return isAdmin ? (
+              <button key={o.id} onClick={()=>onSelectSlot(iso,o.time_slot,null,null,o)}
+                style={{padding:'4px 10px',borderRadius:8,background:`${color}18`,border:`1px solid ${color}44`,fontSize:11,fontWeight:600,color,fontFamily:'system-ui',cursor:'pointer',WebkitTapHighlightColor:'transparent',display:'flex',alignItems:'center',gap:4}}>
+                {o.time_slot} · {o.name}
+                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+              </button>
+            ) : (
               <div key={o.id} style={{padding:'3px 8px',borderRadius:8,background:`${color}18`,border:`1px solid ${color}44`,fontSize:11,fontWeight:600,color,fontFamily:'system-ui'}}>
-                {o.time_slot} {isAdmin ? `· ${o.name}` : ''}
+                {o.time_slot}
               </div>
             );
           })}
@@ -638,14 +644,26 @@ function CalendarView({ bookings, exceptions, onSelectSlot, isAdmin, T }) {
   const [anchor, setAnchor] = useState(today);
   const [selectedDate, setSelectedDate] = useState(today);
   const [showSlots, setShowSlots] = useState(true);
-  const durationHours = 0.5; // används bara för hasAnyAvailable-check, visas ej
+  const [slideDir, setSlideDir] = useState(null); // 'left' | 'right' | null
+  const [adminDetailBooking, setAdminDetailBooking] = useState(null);
+  const durationHours = 0.5;
   const swipeRef = useRef(null);
 
   const weekDays = useMemo(() => getWeekDays(anchor), [anchor]);
   const monthGrid = useMemo(() => getMonthGrid(anchor.getFullYear(), anchor.getMonth()), [anchor]);
 
-  const navPrev = () => { const d=new Date(anchor); viewMode==='week'?d.setDate(d.getDate()-7):d.setMonth(d.getMonth()-1); setAnchor(d); };
-  const navNext = () => { const d=new Date(anchor); viewMode==='week'?d.setDate(d.getDate()+7):d.setMonth(d.getMonth()+1); setAnchor(d); };
+  const navigate = (dir) => {
+    setSlideDir(dir);
+    setTimeout(() => {
+      const d = new Date(anchor);
+      if (dir === 'next') viewMode==='week' ? d.setDate(d.getDate()+7) : d.setMonth(d.getMonth()+1);
+      else viewMode==='week' ? d.setDate(d.getDate()-7) : d.setMonth(d.getMonth()-1);
+      setAnchor(d);
+      setSlideDir(null);
+    }, 180);
+  };
+  const navPrev = () => navigate('prev');
+  const navNext = () => navigate('next');
 
   const handleSwipeStart = (e) => {
     const t = e.touches[0];
@@ -657,7 +675,7 @@ function CalendarView({ bookings, exceptions, onSelectSlot, isAdmin, T }) {
     const dx = t.clientX - swipeRef.current.x;
     const dy = Math.abs(t.clientY - swipeRef.current.y);
     swipeRef.current = null;
-    if (Math.abs(dx) < 40 || dy > 60) return; // för liten rörelse eller vertikal
+    if (Math.abs(dx) < 40 || dy > 60) return;
     if (dx < 0) navNext(); else navPrev();
   };
 
@@ -708,7 +726,9 @@ function CalendarView({ bookings, exceptions, onSelectSlot, isAdmin, T }) {
       <div style={{display:'grid',gridTemplateColumns:'repeat(7,1fr)',gap:2,marginBottom:6}}>
         {DAYS_SV.map(d=><div key={d} style={{textAlign:'center',fontSize:10,fontWeight:700,color:T.textMuted,fontFamily:'system-ui',letterSpacing:'.5px'}}>{d}</div>)}
       </div>
-      <div onTouchStart={handleSwipeStart} onTouchEnd={handleSwipeEnd} style={{userSelect:'none'}}>
+      <div onTouchStart={handleSwipeStart} onTouchEnd={handleSwipeEnd}
+        style={{userSelect:'none',overflow:'hidden',
+          animation: slideDir ? `calSlide${slideDir==='next'?'Left':'Right'} 0.18s ease` : 'none'}}>
         {viewMode==='week' && <div style={{display:'grid',gridTemplateColumns:'repeat(7,1fr)',gap:4}}>{weekDays.map((d,i)=><DayBtn key={i} date={d}/>)}</div>}
         {viewMode==='month' && <div>{monthGrid.map((row,ri)=><div key={ri} style={{display:'grid',gridTemplateColumns:'repeat(7,1fr)',gap:3,marginBottom:3}}>{row.map((d,ci)=><DayBtn key={ci} date={d} small/>)}</div>)}</div>}
       </div>
@@ -1191,19 +1211,25 @@ function AdminPanel({ bookings, exceptions, onBack, onApprove, onReject, onDelet
   const firstCancelledRef = useRef(null);
 
   // Scrolla till + vibrera på första nya avbokade bokning när vi kommer från notis
-  // Rensa badge EFTER att highlight visats (2s fördröjning)
+  // Rensa badge EFTER att highlight visats (2.5s fördröjning)
+  // Lyssnar på cancelledBookingIds + filter + bookings — kör när allt är redo
+  const highlightDoneRef = useRef(false);
   useEffect(() => {
-    if (cancelledBookingIds.length > 0 && filter === 'cancelled') {
-      setTimeout(() => {
-        firstCancelledRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        if (navigator.vibrate) navigator.vibrate([60, 40, 60, 40, 120]);
-      }, 400);
-      // Rensa badge efter att admin sett highlighten
-      setTimeout(() => {
-        onMarkAdminSeen?.();
-      }, 2500);
-    }
-  }, []); // eslint-disable-line
+    if (highlightDoneRef.current) return;
+    if (cancelledBookingIds.length === 0 || filter !== 'cancelled') return;
+    // Vänta lite extra så bookings hinner laddas och refs sättas
+    const t1 = setTimeout(() => {
+      if (firstCancelledRef.current) {
+        firstCancelledRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
+      if (navigator.vibrate) navigator.vibrate([60, 40, 60, 40, 120]);
+      highlightDoneRef.current = true;
+    }, 600);
+    const t2 = setTimeout(() => {
+      onMarkAdminSeen?.();
+    }, 3000);
+    return () => { clearTimeout(t1); clearTimeout(t2); };
+  }, [cancelledBookingIds, filter, bookings]); // eslint-disable-line
 
   // Group bookings by status for filter tabs
   const pending   = bookings.filter(b=>b.status==='pending'||b.status==='edit_pending');
@@ -1950,11 +1976,8 @@ export default function BookingScreen({
     const userId = localStorage.getItem(STORAGE_USER_ID);
     if (!userId) return 'login'; // kalender är skyddad — alltid inloggning först
     if (startAtAdmin) return 'admin'; // explicit admin start (via bell/banner)
-    const role = localStorage.getItem(STORAGE_USER_ROLE);
-    const isAdmin = role === 'admin' || localStorage.getItem(STORAGE_ADMIN) === 'true';
-    if (isAdmin) return 'admin'; // admin börjar alltid i adminpanelen
     if (highlightBookingId) return 'my-bookings';
-    return 'calendar';
+    return 'calendar'; // alla börjar i kalendervyn — admin når sin panel via knapp
   });
   const [pendingSlot, setPendingSlot] = useState(null);
   const [adminMode, setAdminMode] = useState(() => localStorage.getItem(STORAGE_ADMIN)==='true');
@@ -2053,11 +2076,14 @@ export default function BookingScreen({
   useEffect(() => { viewRef.current = view; }, [view]);
   useEffect(() => {
     const handler = () => {
-      // Blockera alltid edge swipe i login-vyn — oavsett localStorage-state
       if (viewRef.current === 'login') return;
       const userId = localStorage.getItem(STORAGE_USER_ID);
       if (!userId) return;
-      setView('calendar');
+      // Om redan i kalender — låt Shell hantera swipe (byt tab)
+      // Om i annan vy — gå till kalender
+      if (viewRef.current !== 'calendar') {
+        setView('calendar');
+      }
     };
     window.addEventListener('edgeSwipeBack', handler);
     return () => window.removeEventListener('edgeSwipeBack', handler);
@@ -2339,6 +2365,8 @@ export default function BookingScreen({
         @keyframes spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}
         @keyframes cardPulse{0%,100%{box-shadow:0 0 0 0 rgba(245,158,11,0.4)}50%{box-shadow:0 0 0 6px rgba(245,158,11,0)}}
         @keyframes cancelledPulse{0%,100%{box-shadow:0 0 0 0 rgba(59,130,246,0.4)}50%{box-shadow:0 0 0 6px rgba(59,130,246,0)}}
+        @keyframes calSlideLeft{from{opacity:0.4;transform:translateX(8%)}to{opacity:1;transform:translateX(0)}}
+        @keyframes calSlideRight{from{opacity:0.4;transform:translateX(-8%)}to{opacity:1;transform:translateX(0)}}
         @keyframes highlightPulse{0%,100%{box-shadow:0 0 0 3px var(--hl,rgba(45,139,120,0.3))}50%{box-shadow:0 0 0 8px transparent}}
         @keyframes shimmer{0%,100%{opacity:0.4}50%{opacity:0.7}}
         @keyframes vibrate{0%,100%{transform:translateX(0)}10%,50%,90%{transform:translateX(-3px)}30%,70%{transform:translateX(3px)}}

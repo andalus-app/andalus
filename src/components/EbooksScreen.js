@@ -487,7 +487,7 @@ function PdfReader({ book, onClose, onSetPage, onAddBookmark, onRemoveBookmark, 
 
       {/* CANVAS AREA */}
       <div style={{
-        flex:1, position:'relative', background:'#111',
+        flex:1, position:'relative', background: status === 'loading' ? T.bg : '#111',
         display:'flex', alignItems:'center', justifyContent:'center',
         overflow: scale > 1.05 ? 'auto' : 'hidden',
         WebkitOverflowScrolling: 'touch',
@@ -504,9 +504,20 @@ function PdfReader({ book, onClose, onSetPage, onAddBookmark, onRemoveBookmark, 
         />
 
         {status === 'loading' && (
-          <div style={{ display:'flex', flexDirection:'column', alignItems:'center', gap:12 }}>
-            <div style={{ width:30, height:30, borderRadius:'50%', border:`3px solid rgba(255,255,255,.1)`, borderTopColor:T.accent, animation:'spin .8s linear infinite' }}/>
-            <div style={{ color:'rgba(255,255,255,.4)', fontSize:12, fontFamily:'system-ui' }}>Laddar PDF…</div>
+          <div style={{ width:'85%', maxWidth:340 }}>
+            <style>{`@keyframes skshimmer{0%,100%{opacity:.35}50%{opacity:.65}}`}</style>
+            {/* Simulera boksidor med skeleton */}
+            <div style={{ background: T.isDark ? '#1a1a1a' : '#e8e8e8', borderRadius:8, padding:'24px 20px', animation:'skshimmer 1.4s ease-in-out infinite' }}>
+              {[100,80,100,65,100,90,100,55,100,75].map((w,i) => (
+                <div key={i} style={{ height:10, borderRadius:4, marginBottom:10,
+                  background: T.isDark ? '#333' : '#ccc',
+                  width:`${w}%`, opacity: i % 3 === 2 ? 0.5 : 1 }}/>
+              ))}
+              <div style={{ height:10, borderRadius:4, width:'40%', background: T.isDark ? '#333' : '#ccc', marginTop:24 }}/>
+            </div>
+            <div style={{ textAlign:'center', marginTop:16, color:T.textMuted, fontSize:12, fontFamily:'system-ui' }}>
+              Laddar sida {page}…
+            </div>
           </div>
         )}
 
