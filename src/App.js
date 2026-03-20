@@ -87,7 +87,7 @@ function Shell() {
   const [nudging, setNudging] = useState(false);
   const { visible: tabBarScrollVisible, onScroll: onShellScroll, show: showTabBar } = useScrollHide({ threshold: 40 });
   const { isLive, isUpcoming, stream } = useYoutubeLive();
-  const { totalUnread, visitorUnread, adminUnread, adminPendingCount, cancelledUnread, cancelledBookingIds, markVisitorSeen, markAdminSeen, activateForDevice, registerAdminDevice, dismissAdminDevice, adminPendingNotif, refresh: refreshNotifications } = useBookingNotifications();
+  const { totalUnread, visitorUnread, adminUnread, adminPendingCount, cancelledUnread, cancelledBookingIds, pendingBookingIds, markVisitorSeen, markAdminSeen, activateForDevice, registerAdminDevice, dismissAdminDevice, adminPendingNotif, refresh: refreshNotifications } = useBookingNotifications();
 
   // Effective tab bar visibility: hidden by child (BookingScreen etc) OR hidden by scroll
   // Tab 'prayer' (Bönetider) undantas från auto-hide — tab-baren är alltid synlig där.
@@ -270,7 +270,6 @@ function Shell() {
   };
 
   const handleGoToPendingBookings = () => {
-    // Hämta första pending-bokningens ID för highlight
     setAdminHighlightFilter(null);
     setAdminHighlightId(null);
     setAdminInitialFilter(null);
@@ -278,7 +277,7 @@ function Shell() {
     setTimeout(() => {
       setAdminInitialFilter('pending');
       setAdminHighlightFilter('pending');
-      // adminHighlightId sätts inte för pending — vi vill bara filtrera, inte highlighta ett specifikt
+      setAdminHighlightId(pendingBookingIds[0] || null);
       setBookingStartView('admin');
     }, 0);
     setTab('booking');
@@ -291,7 +290,7 @@ function Shell() {
       case 'home':     return <NewHomeScreen stream={stream} onGoToAdminLogin={handleGoToAdminLogin} onGoToMyBookings={handleGoToMyBookings} onGoToCancelledBookings={handleGoToCancelledBookings} onGoToPendingBookings={handleGoToPendingBookings} />;
       case 'prayer':   return <PrayerScreen onMonthlyPress={() => setShowMonthly(true)} />;
       case 'qibla':    return <QiblaScreen />;
-      case 'booking':  return <BookingScreen highlightBookingId={highlightBookingId} highlightFilter={highlightFilter} adminHighlightId={adminHighlightId} adminHighlightFilter={adminHighlightFilter} adminInitialFilter={adminInitialFilter} startAtAdmin={bookingStartView==='admin'} cancelledBookingIds={cancelledBookingIds} visitorUnread={visitorUnread} onTabBarHide={() => { setTabBarHiddenByChild(true); setTabBarVisible(false); setScrollLocked(true); }} onTabBarShow={() => { setTabBarHiddenByChild(false); setTabBarVisible(true); setScrollLocked(false); }} activateForDevice={activateForDevice} registerAdminDevice={registerAdminDevice} dismissAdminDevice={dismissAdminDevice} onRefreshNotifications={refreshNotifications} markVisitorSeen={markVisitorSeen} onMarkAdminSeen={markAdminSeen} />;
+      case 'booking':  return <BookingScreen highlightBookingId={highlightBookingId} highlightFilter={highlightFilter} adminHighlightId={adminHighlightId} adminHighlightFilter={adminHighlightFilter} adminInitialFilter={adminInitialFilter} startAtAdmin={bookingStartView==='admin'} cancelledBookingIds={cancelledBookingIds} pendingBookingIds={pendingBookingIds} visitorUnread={visitorUnread} onTabBarHide={() => { setTabBarHiddenByChild(true); setTabBarVisible(false); setScrollLocked(true); }} onTabBarShow={() => { setTabBarHiddenByChild(false); setTabBarVisible(true); setScrollLocked(false); }} activateForDevice={activateForDevice} registerAdminDevice={registerAdminDevice} dismissAdminDevice={dismissAdminDevice} onRefreshNotifications={refreshNotifications} markVisitorSeen={markVisitorSeen} onMarkAdminSeen={markAdminSeen} />;
       case 'ebooks':   return <EbooksScreen key={ebooksReset} onTabBarHide={() => { setTabBarHiddenByChild(true); setTabBarVisible(false); setScrollLocked(true); }} onTabBarShow={() => { setTabBarHiddenByChild(false); setTabBarVisible(true); setScrollLocked(false); }} onReaderOpen={() => {}} onReaderClose={() => {}} resetToLibrary={false} />;
       case 'more':     return <MoreScreen key={moreResetKey} onTabBarHide={() => { setTabBarHiddenByChild(true); setTabBarVisible(false); setScrollLocked(true); }} onTabBarShow={() => { setTabBarHiddenByChild(false); setTabBarVisible(true); setScrollLocked(false); }} initialView={moreInitialView} markVisitorSeen={markVisitorSeen} markAdminSeen={markAdminSeen} activateForDevice={activateForDevice} registerAdminDevice={registerAdminDevice} dismissAdminDevice={dismissAdminDevice} bookingBadge={totalUnread} visitorBadge={visitorUnread} adminBadge={adminPendingCount} onRefreshNotifications={refreshNotifications} />;
       default:         return <NewHomeScreen />;

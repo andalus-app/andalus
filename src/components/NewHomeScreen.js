@@ -634,7 +634,7 @@ export default function NewHomeScreen({ stream, onGoToAdminLogin, onGoToMyBookin
 
         {/* Admin-kort: synligt när inloggad som admin och det finns ohanterade pending */}
         {isAdmin && adminPendingCount > 0 && (
-          <div onClick={() => onGoToAdminLogin?.()} style={{
+          <div onClick={() => onGoToPendingBookings?.()} style={{
             background: T.card, border: `2px solid #f59e0b66`,
             borderLeft: `4px solid #f59e0b`,
             borderRadius: 14, padding: '13px 14px',

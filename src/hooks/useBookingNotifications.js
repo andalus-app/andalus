@@ -47,6 +47,7 @@ export function useBookingNotifications() {
   const [adminPendingCount, setAdminPendingCount] = useState(0);
   const [cancelledUnread,   setCancelledUnread]   = useState(0);
   const [cancelledBookingIds, setCancelledBookingIds] = useState([]);
+  const [pendingBookingIds,   setPendingBookingIds]   = useState([]);
   const [bellNotifs,        setBellNotifs]        = useState([]);
   const [active,            setActive]            = useState(false);
   // Track admin state as React state so badge re-renders immediately on login/logout
@@ -103,6 +104,7 @@ export function useBookingNotifications() {
         if (pendingData) {
           setAdminPendingCount(pendingData.length);
           setAdminUnread(pendingData.length);
+          setPendingBookingIds(pendingData.map(b => b.id));
         }
         // Avbokningar av godkända bokningar (blå badge) — nya sedan senast sedd
         // Använd adminSeenAt eller fallback till 30 dagar sedan för att undvika gt(0)-fel
@@ -335,6 +337,7 @@ export function useBookingNotifications() {
     adminPendingCount,
     cancelledUnread,
     cancelledBookingIds,
+    pendingBookingIds,
     adminPendingNotif,
     totalUnread,
     bellNotifs,

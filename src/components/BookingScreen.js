@@ -1204,7 +1204,7 @@ function MyBookings({ bookings, exceptions, loading, onBack, onCancel, onCancelF
 
 // ── AdminPanel ────────────────────────────────────────────────────────────────
 
-function AdminPanel({ bookings, exceptions, onBack, onApprove, onReject, onDelete, onDeleteSeries, onDeleteFromDate, onAdminAddRecurring, onRefreshNotifications, onMarkAdminSeen, onManageUsers, adminInitialFilter, adminHighlightId = null, adminHighlightFilter = null, cancelledBookingIds = [], T }) {
+function AdminPanel({ bookings, exceptions, onBack, onApprove, onReject, onDelete, onDeleteSeries, onDeleteFromDate, onAdminAddRecurring, onRefreshNotifications, onMarkAdminSeen, onManageUsers, adminInitialFilter, adminHighlightId = null, adminHighlightFilter = null, cancelledBookingIds = [], pendingBookingIds = [], T }) {
   const [filter, setFilter] = useState(adminHighlightFilter || adminInitialFilter || 'all');
   const [selected, setSelected] = useState(null);
   const [actionLoading, setActionLoading] = useState(false);
@@ -1398,12 +1398,21 @@ function AdminPanel({ bookings, exceptions, onBack, onApprove, onReject, onDelet
             <div key={b.id}
               ref={b.id === adminHighlightId ? highlightRef : null}
               onClick={()=>{setSelected(b);setComment('');}}
-              style={{background:T.card,
-                border:`1px solid ${b.id===adminHighlightId?'#3b82f6':b.status==='pending'||b.status==='edit_pending'?'#f59e0b44':T.border}`,
-                borderRadius:14,padding:'14px 16px',cursor:'pointer',
-                boxShadow:b.id===adminHighlightId?'0 0 0 3px #3b82f633':b.status==='pending'||b.status==='edit_pending'?'0 0 0 0 rgba(245,158,11,0)':'none',
-                animation:b.id===adminHighlightId?'highlightPulse 1.2s ease-in-out 3, vibrate 0.4s 0.35s ease':b.status==='pending'||b.status==='edit_pending'?'cardPulse 2s ease-in-out infinite':'none',
-                '--hl':'#3b82f655'}}>
+              style={(() => {
+                const isCancelHL = b.id===adminHighlightId && adminHighlightFilter==='cancelled';
+                const isPendingHL = b.id===adminHighlightId && adminHighlightFilter==='pending';
+                const hlColor = isCancelHL ? '#3b82f6' : '#f59e0b';
+                const isHL = isCancelHL || isPendingHL;
+                const isPending = b.status==='pending'||b.status==='edit_pending';
+                return {
+                  background:T.card,
+                  border:`1px solid ${isHL?hlColor:isPending?'#f59e0b44':T.border}`,
+                  borderRadius:14,padding:'14px 16px',cursor:'pointer',
+                  boxShadow:isHL?`0 0 0 3px ${hlColor}33`:'none',
+                  animation:isHL?`highlightPulse 1.2s ease-in-out 3, vibrate 0.4s 0.35s ease`:isPending?'cardPulse 2s ease-in-out infinite':'none',
+                  '--hl':`${hlColor}55`,
+                };
+              })()}>
               <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:8}}>
                 <div style={{display:'flex',alignItems:'center',gap:8}}>
                   <Badge status={b.status}/>
@@ -1971,6 +1980,7 @@ export default function BookingScreen({
   adminHighlightId = null,
   adminHighlightFilter = null,
   cancelledBookingIds = [],
+  pendingBookingIds = [],
   visitorUnread = 0,
 }) {
   const { theme: T } = useTheme();
@@ -2498,6 +2508,7 @@ export default function BookingScreen({
           adminHighlightId={adminHighlightId}
           adminHighlightFilter={adminHighlightFilter}
           cancelledBookingIds={cancelledBookingIds}
+          pendingBookingIds={pendingBookingIds}
           onAdminAddRecurring={handleAdminAddRecurring}
           onRefreshNotifications={onRefreshNotifications}
           onMarkAdminSeen={onMarkAdminSeen}
