@@ -104,14 +104,19 @@ export function useBookingNotifications() {
           setAdminUnread(pendingData.length);
         }
         // Avbokningar av godkända bokningar (blå badge) — nya sedan senast sedd
+        // Använd adminSeenAt eller fallback till 30 dagar sedan för att undvika gt(0)-fel
+        const thirtyDaysAgo = Date.now() - 30 * 24 * 60 * 60 * 1000;
+        const cancelSince = adminSeenAt > 0 ? adminSeenAt : thirtyDaysAgo;
         const { data: cancelData } = await supabase
           .from('bookings')
           .select('id, status, resolved_at, admin_comment')
           .eq('status', 'cancelled')
-          .gt('resolved_at', adminSeenAt)
-          .ilike('admin_comment', 'Avbokad av %');
+          .gt('resolved_at', cancelSince);
         if (cancelData) {
-          setCancelledUnread(cancelData.length);
+          const filtered = cancelData.filter(b =>
+            b.admin_comment && b.admin_comment.startsWith('Avbokad av ')
+          );
+          setCancelledUnread(filtered.length);
         }
         return;
       }
