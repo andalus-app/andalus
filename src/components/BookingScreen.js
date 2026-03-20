@@ -1,2346 +1,2160 @@
 /**
- * BookingScreen.js — Ny arkitektur: 1 rad per bokning/serie
- *
- * Datamodell:
- *   bookings          — 1 rad per bokning eller återkommande serie
- *   booking_exceptions — undantag: hoppa över eller redigera enskilt tillfälle
- *
- * Recurrence expanderas dynamiskt i frontend — aldrig 260 rader per serie.
- * Stöd för oändliga serier (end_date = null), Outlook-stil delete this/series.
+ * BookingScreen.js — iOS Calendar-inspired booking UI
+ * Implements all 12 requirements:
+ * 1. iOS dark/light theme  2. Instant notification fix
+ * 3. Month view default + large iOS title  4. Year view full screen
+ * 5. Search in month view  6. Plus button
+ * 7. Heldag toggle + iOS drum picker  8. Recurrence dropdown
+ * 9. Notes field  10. Today chip (red filled circle)
+ * 11. Zoom animation year→month  12. Today chip always visible
  */
-
-import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import React, {
+  useState, useEffect, useCallback, useMemo, useRef
+} from 'react';
 import { useTheme } from '../context/ThemeContext';
-import { useScrollHide } from '../hooks/useScrollHide';
 import { supabase } from '../services/supabaseClient';
 
-const STORAGE_ADMIN   = 'islamnu_admin_mode';
-const STORAGE_DEVICE  = 'islamnu_device_id';
-const STORAGE_PHONE   = 'islamnu_user_phone';
-const STORAGE_USER_ID = 'islamnu_user_id';
+// ─── Storage keys ──────────────────────────────────────────────────────────────
+const STORAGE_ADMIN     = 'islamnu_admin_mode';
+const STORAGE_DEVICE    = 'islamnu_device_id';
+const STORAGE_PHONE     = 'islamnu_user_phone';
+const STORAGE_USER_ID   = 'islamnu_user_id';
 const STORAGE_USER_NAME = 'islamnu_user_name';
 const STORAGE_USER_ROLE = 'islamnu_user_role';
 
-function generateInviteCode() {
-  return String(Math.floor(100000 + Math.random() * 900000));
-}
-
+// ─── Constants ────────────────────────────────────────────────────────────────
 const OPEN_HOUR  = 8;
 const CLOSE_HOUR = 24;
-const NO_END = 'no_end';
-
-const ALL_HOURS = Array.from({ length: (CLOSE_HOUR - OPEN_HOUR) * 2 }, (_, i) => OPEN_HOUR + i * 0.5);
-const DAYS_SV   = ['Mån','Tis','Ons','Tor','Fre','Lör','Sön'];
+const VALID_HOURS   = Array.from({ length: CLOSE_HOUR - OPEN_HOUR }, (_, i) => OPEN_HOUR + i);
+const VALID_MINUTES = [0, 30];
+const DAYS_SV   = ['M','T','O','T','F','L','S'];
+const DAYS_FULL = ['Måndag','Tisdag','Onsdag','Torsdag','Fredag','Lördag','Söndag'];
 const MONTHS_SV = ['Januari','Februari','Mars','April','Maj','Juni','Juli','Augusti','September','Oktober','November','December'];
-const DURATION_OPTIONS = [0.5,1,1.5,2,2.5,3,3.5,4,4.5,5,5.5,6,6.5,7,7.5,8,8.5,9,9.5,10,10.5,11,11.5,12,12.5,13,13.5,14,14.5,15,15.5,16];
+
 const RECUR_OPTIONS = [
-  { value: 'none',    label: 'Ingen upprepning' },
-  { value: 'daily',   label: 'Varje dag' },
-  { value: 'weekly',  label: 'Veckovis' },
-  { value: 'monthly', label: 'Månadsvis' },
+  { value: 'none',     label: 'Ingen upprepning' },
+  { value: 'daily',    label: 'Varje dag' },
+  { value: 'weekly',   label: 'Varje vecka' },
+  { value: 'biweekly', label: 'Varannan vecka' },
+  { value: 'monthly',  label: 'Varje månad' },
+  { value: 'yearly',   label: 'Varje år' },
 ];
+function fmtRecur(r) { return RECUR_OPTIONS.find(o=>o.value===r)?.label||r; }
 
-// ── Helpers ──────────────────────────────────────────────────────────────────
-
+// ─── Helpers ──────────────────────────────────────────────────────────────────
 function toISO(d) {
-  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+  return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
 }
-function parseISO(s) {
-  const [y,m,d] = s.split('-').map(Number);
-  return new Date(y, m-1, d);
-}
+function parseISO(s) { const [y,m,d]=s.split('-').map(Number); return new Date(y,m-1,d); }
 function isoToDisplay(s) {
-  const d = parseISO(s);
-  return `${d.getDate()} ${MONTHS_SV[d.getMonth()]} ${d.getFullYear()}`;
+  const d=parseISO(s);
+  return d.getDate()+' '+MONTHS_SV[d.getMonth()]+' '+d.getFullYear();
 }
-function uid() { return Date.now().toString(36) + Math.random().toString(36).slice(2,7); }
-function fmtHour(h) { return h === 24 ? '00:00' : `${String(Math.floor(h)).padStart(2,'0')}:${h%1===0?'00':'30'}`; }
-function slotLabel(startH, dur) { return `${fmtHour(startH)}–${fmtHour(startH+dur)}`; }
-function parseSlotStart(timeSlot) {
-  const s = timeSlot.split('–')[0];
-  const [hh,mm] = s.split(':').map(Number);
-  return hh + (mm === 30 ? 0.5 : 0);
+function uid() { return Date.now().toString(36)+Math.random().toString(36).slice(2,7); }
+function fmtTime(h,m) { return String(h).padStart(2,'0')+':'+String(m).padStart(2,'0'); }
+function slotFromHM(sH,sM,eH,eM) { return fmtTime(sH,sM)+'–'+fmtTime(eH,eM); }
+function parseSlotParts(slot) {
+  const [s,e]=slot.split('–');
+  const p=t=>{const[h,m]=t.split(':').map(Number);return{h,m};};
+  const st=p(s); const en=p(e);
+  const sd=st.h+st.m/60; const ed=en.h===0?24:en.h+en.m/60;
+  return{startH:st.h,startM:st.m,endH:en.h===0?24:en.h,endM:en.m,startDecimal:sd,endDecimal:ed,duration:ed-sd};
 }
 function fmtDuration(h) {
-  return h === 0.5 ? '30 min' : h%1===0 ? `${h} tim` : `${Math.floor(h)} tim 30 min`;
+  if(h<1) return '30 min';
+  const f=Math.floor(h),half=h%1!==0;
+  return half?f+' tim 30 min':f+' tim';
 }
 function normalizePhone(p) {
-  let s = (p||'').replace(/[\s\-().]/g,'');
-  if (s.startsWith('+46')) s = '0' + s.slice(3);
+  let s=(p||'').replace(/[\s\-().]/g,'');
+  if(s.startsWith('+46')) s='0'+s.slice(3);
   return s;
 }
 async function sha256(text) {
-  const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(text));
+  const buf=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(text));
   return Array.from(new Uint8Array(buf)).map(b=>b.toString(16).padStart(2,'0')).join('');
 }
-function isHourPast(iso, startH) {
-  if (startH < OPEN_HOUR) return true;
-  const todayISO = toISO(new Date());
-  if (iso !== todayISO) return false;
-  const now = new Date();
-  const nowMin = now.getHours() * 60 + now.getMinutes();
-  const startMin = Math.floor(startH) * 60 + (startH%1===0 ? 0 : 30);
-  return nowMin >= startMin;
-}
-function getMonthGrid(year, month) {
-  const first = new Date(year, month, 1), last = new Date(year, month+1, 0);
-  const startPad = (first.getDay()+6)%7;
-  const cells = [];
-  for (let i = 0; i < startPad; i++) cells.push(null);
-  for (let d = 1; d <= last.getDate(); d++) cells.push(new Date(year, month, d));
-  while (cells.length%7 !== 0) cells.push(null);
-  const rows = [];
-  for (let i = 0; i < cells.length; i+=7) rows.push(cells.slice(i,i+7));
+function generateInviteCode() { return String(Math.floor(100000+Math.random()*900000)); }
+function getMonthGrid(year,month) {
+  const first=new Date(year,month,1);
+  const last=new Date(year,month+1,0);
+  const pad=(first.getDay()+6)%7;
+  const cells=[];
+  for(let i=0;i<pad;i++) cells.push(null);
+  for(let d=1;d<=last.getDate();d++) cells.push(new Date(year,month,d));
+  while(cells.length%7!==0) cells.push(null);
+  const rows=[];
+  for(let i=0;i<cells.length;i+=7) rows.push(cells.slice(i,i+7));
   return rows;
 }
-function getWeekDays(anchor) {
-  const d = new Date(anchor);
-  const day = (d.getDay()+6)%7;
-  d.setDate(d.getDate() - day);
-  return Array.from({length:7}, (_,i) => { const dd = new Date(d); dd.setDate(dd.getDate()+i); return dd; });
-}
 
-// ── Core recurrence engine ────────────────────────────────────────────────────
-// Expanderar en bokningsserie till alla ISO-datum som faller inom ett fönster.
-// end_date=null = oändlig serie (vi genererar tills windowEnd).
-
-function expandBooking(booking, windowStart, windowEnd, exceptions = []) {
-  const { start_date, end_date, recurrence } = booking;
-  const skipDates = new Set(
-    exceptions.filter(e => e.booking_id === booking.id && e.type === 'skip').map(e => e.exception_date)
-  );
-  const editMap = {};
-  exceptions.filter(e => e.booking_id === booking.id && e.type === 'edit').forEach(e => {
-    editMap[e.exception_date] = e;
-  });
-
-  const dates = [];
-  if (recurrence === 'none') {
-    if (start_date >= windowStart && start_date <= windowEnd) {
-      if (!skipDates.has(start_date)) {
-        dates.push(applyException(booking, start_date, editMap[start_date]));
-      }
-    }
+// ─── Recurrence engine ────────────────────────────────────────────────────────
+function expandBooking(booking, windowStart, windowEnd, exceptions=[]) {
+  const{start_date,end_date,recurrence}=booking;
+  const skipDates=new Set(exceptions.filter(e=>e.booking_id===booking.id&&e.type==='skip').map(e=>e.exception_date));
+  const editMap={};
+  exceptions.filter(e=>e.booking_id===booking.id&&e.type==='edit').forEach(e=>{editMap[e.exception_date]=e;});
+  const dates=[];
+  if(!recurrence||recurrence==='none') {
+    if(start_date>=windowStart&&start_date<=windowEnd&&!skipDates.has(start_date))
+      dates.push(applyException(booking,start_date,editMap[start_date]));
     return dates;
   }
-
-  let current = parseISO(start_date);
-  const endD = end_date ? parseISO(end_date) : parseISO(windowEnd);
-  const winEnd = parseISO(windowEnd);
-  const effectiveEnd = endD < winEnd ? endD : winEnd;
-  const winStart = parseISO(windowStart);
-
-  let safety = 0;
-  while (current <= effectiveEnd && safety++ < 5000) {
-    const iso = toISO(current);
-    if (current >= winStart && !skipDates.has(iso)) {
-      dates.push(applyException(booking, iso, editMap[iso]));
-    }
-    if (recurrence === 'daily') {
-      current = new Date(current);
-      current.setDate(current.getDate() + 1);
-    } else if (recurrence === 'weekly') {
-      current = new Date(current);
-      current.setDate(current.getDate() + 7);
-    } else if (recurrence === 'monthly') {
-      current = new Date(current);
-      current.setMonth(current.getMonth() + 1);
-    } else break;
+  let current=parseISO(start_date);
+  const endD=end_date?parseISO(end_date):parseISO(windowEnd);
+  const winEnd=parseISO(windowEnd);
+  const effectiveEnd=endD<winEnd?endD:winEnd;
+  const winStart=parseISO(windowStart);
+  let safety=0;
+  while(current<=effectiveEnd&&safety++<5000) {
+    const iso=toISO(current);
+    if(current>=winStart&&!skipDates.has(iso)) dates.push(applyException(booking,iso,editMap[iso]));
+    const next=new Date(current);
+    if(recurrence==='daily') next.setDate(next.getDate()+1);
+    else if(recurrence==='weekly') next.setDate(next.getDate()+7);
+    else if(recurrence==='biweekly') next.setDate(next.getDate()+14);
+    else if(recurrence==='monthly') next.setMonth(next.getMonth()+1);
+    else if(recurrence==='yearly') next.setFullYear(next.getFullYear()+1);
+    else break;
+    current=next;
   }
   return dates;
 }
-
-function applyException(booking, date, exc) {
-  if (!exc) return { ...booking, date, _exception: null };
-  return {
-    ...booking,
-    date,
-    time_slot: exc.new_time_slot || booking.time_slot,
-    duration_hours: exc.new_duration_hours || booking.duration_hours,
-    activity: exc.new_activity || booking.activity,
-    status: exc.new_status || booking.status,
-    admin_comment: exc.admin_comment || booking.admin_comment,
-    _exception: exc,
-    _exception_id: exc.id,
-  };
+function applyException(booking,date,exc) {
+  if(!exc) return{...booking,date,_exception:null};
+  return{...booking,date,time_slot:exc.new_time_slot||booking.time_slot,
+    duration_hours:exc.new_duration_hours||booking.duration_hours,
+    activity:exc.new_activity||booking.activity,status:exc.new_status||booking.status,
+    admin_comment:exc.admin_comment||booking.admin_comment,_exception:exc,_exception_id:exc.id};
 }
-
-// Expand all bookings for a given date range into flat occurrence list
-function expandAll(bookings, exceptions, windowStart, windowEnd) {
-  const result = [];
-  for (const b of bookings) {
-    if (b.status === 'cancelled' || b.status === 'rejected') continue;
-    const occurrences = expandBooking(b, windowStart, windowEnd, exceptions);
-    result.push(...occurrences);
+function expandAll(bookings,exceptions,windowStart,windowEnd) {
+  const result=[];
+  for(const b of bookings) {
+    if(b.status==='cancelled'||b.status==='rejected') continue;
+    result.push(...expandBooking(b,windowStart,windowEnd,exceptions));
   }
   return result;
 }
-
-// For a specific date, get all active occurrences
-function getOccurrencesForDate(bookings, exceptions, iso) {
-  return expandAll(bookings, exceptions, iso, iso);
-}
-
-// Conflict detection: get booked half-hour blocks for a date
-function getBookedBlocks(bookings, exceptions, iso, excludeBookingId = null) {
-  const occs = getOccurrencesForDate(bookings, exceptions, iso)
-    .filter(o => o.id !== excludeBookingId);
-  const blocks = new Set();
-  occs.forEach(o => {
-    const parts = o.time_slot.split('–');
-    const parseH = s => { const [hh,mm] = s.split(':').map(Number); const h = hh+(mm===30?0.5:0); return h===0?24:h; };
-    const startH = parseH(parts[0]);
-    const dur = o.duration_hours;
-    for (let i = 0; i < dur*2; i++) blocks.add(startH*2+i);
-  });
+function getOccurrencesForDate(bookings,exceptions,iso) { return expandAll(bookings,exceptions,iso,iso); }
+function getBookedBlocks(bookings,exceptions,iso,excludeId=null) {
+  const occs=getOccurrencesForDate(bookings,exceptions,iso).filter(o=>o.id!==excludeId);
+  const blocks=new Set();
+  occs.forEach(o=>{const p=parseSlotParts(o.time_slot);for(let i=0;i<p.duration*2;i++) blocks.add(p.startDecimal*2+i);});
   return blocks;
 }
+function hasBookingsOnDate(bookings,exceptions,iso) { return getOccurrencesForDate(bookings,exceptions,iso).length>0; }
 
-function getAvailableStarts(bookings, exceptions, iso, durationHours, excludeBookingId = null) {
-  const booked = getBookedBlocks(bookings, exceptions, iso, excludeBookingId);
-  const starts = [];
-  for (let h = OPEN_HOUR; h + durationHours <= CLOSE_HOUR; h += 0.5) {
-    if (isHourPast(iso, h)) continue;
-    let ok = true;
-    for (let i = 0; i < durationHours*2; i++) {
-      if (booked.has(h*2+i)) { ok = false; break; }
-    }
-    if (ok) starts.push(h);
-  }
-  return starts;
-}
-
-function hasAnyAvailable(bookings, exceptions, date, durationHours) {
-  return getAvailableStarts(bookings, exceptions, toISO(date), durationHours).length > 0;
-}
-
-function hasBookingsOnDate(bookings, exceptions, iso) {
-  return getOccurrencesForDate(bookings, exceptions, iso).length > 0;
-}
-
-// ── UI Primitives ─────────────────────────────────────────────────────────────
-
-function BackButton({ onBack, T }) {
+// ─── iOS Toggle ───────────────────────────────────────────────────────────────
+function IOSToggle({value,onChange,T}) {
   return (
-    <button onClick={onBack} style={{background:'none',border:'none',cursor:'pointer',display:'flex',alignItems:'center',gap:4,color:T.accent,fontFamily:'system-ui',fontSize:15,fontWeight:600,padding:'0 0 4px',WebkitTapHighlightColor:'transparent'}}>
-      <span style={{fontSize:22,fontWeight:300,lineHeight:1}}>‹</span>
-      Tillbaka
+    <div onClick={()=>onChange(!value)} style={{
+      width:51,height:31,borderRadius:16,cursor:'pointer',
+      background:value?T.toggleOn:T.toggleTrack,
+      position:'relative',transition:'background 0.3s',
+      flexShrink:0,WebkitTapHighlightColor:'transparent'}}>
+      <div style={{position:'absolute',top:2,left:value?22:2,
+        width:27,height:27,borderRadius:'50%',background:'#fff',
+        boxShadow:'0 2px 6px rgba(0,0,0,0.3)',
+        transition:'left 0.3s cubic-bezier(0.34,1.56,0.64,1)'}}/>
+    </div>
+  );
+}
+
+// ─── iOS Drum Picker ─────────────────────────────────────────────────────────
+function DrumPicker({options,value,onChange,formatFn,T,width=80}) {
+  const ITEM_H=44;
+  const listRef=useRef(null);
+  const velRef=useRef(0),lastY=useRef(0),lastT=useRef(0);
+  const rafRef=useRef(null),isDragging=useRef(false);
+  const startY=useRef(0),startST=useRef(0);
+  const clsId=useRef('dp_'+Math.random().toString(36).slice(2,8)).current;
+
+  const idx=useMemo(()=>{const i=options.indexOf(value);return i===-1?0:i;},[options,value]);
+
+  const scrollTo=useCallback((i,animate=false)=>{
+    if(!listRef.current) return;
+    listRef.current.style.scrollBehavior=animate?'smooth':'';
+    listRef.current.scrollTop=i*ITEM_H;
+    if(animate) setTimeout(()=>{if(listRef.current) listRef.current.style.scrollBehavior='';},350);
+  },[]);
+
+  useEffect(()=>{requestAnimationFrame(()=>scrollTo(idx,false));},[idx,scrollTo]);
+
+  const snap=useCallback(()=>{
+    if(!listRef.current) return;
+    const i=Math.max(0,Math.min(options.length-1,Math.round(listRef.current.scrollTop/ITEM_H)));
+    scrollTo(i,true);
+    onChange(options[i]);
+  },[options,onChange,scrollTo]);
+
+  const runMomentum=useCallback(()=>{
+    if(!listRef.current) return;
+    velRef.current*=0.92;
+    listRef.current.scrollTop+=velRef.current;
+    if(Math.abs(velRef.current)>0.4) rafRef.current=requestAnimationFrame(runMomentum);
+    else snap();
+  },[snap]);
+
+  const onTouchStart=useCallback(e=>{
+    isDragging.current=true;
+    startY.current=e.touches[0].clientY;
+    startST.current=listRef.current.scrollTop;
+    lastY.current=e.touches[0].clientY;lastT.current=Date.now();
+    velRef.current=0;cancelAnimationFrame(rafRef.current);
+    e.stopPropagation();
+  },[]);
+  const onTouchMove=useCallback(e=>{
+    if(!isDragging.current) return;
+    listRef.current.scrollTop=startST.current+(startY.current-e.touches[0].clientY);
+    const dt=Date.now()-lastT.current||1;
+    velRef.current=(lastY.current-e.touches[0].clientY)/dt*16;
+    lastY.current=e.touches[0].clientY;lastT.current=Date.now();
+    e.preventDefault();e.stopPropagation();
+  },[]);
+  const onTouchEnd=useCallback(e=>{
+    isDragging.current=false;e.stopPropagation();
+    if(Math.abs(velRef.current)>1) rafRef.current=requestAnimationFrame(runMomentum);
+    else snap();
+  },[runMomentum,snap]);
+  const onMouseDown=useCallback(e=>{
+    isDragging.current=true;startY.current=e.clientY;
+    startST.current=listRef.current.scrollTop;
+    lastY.current=e.clientY;lastT.current=Date.now();
+    velRef.current=0;cancelAnimationFrame(rafRef.current);
+  },[]);
+  const onMouseMove=useCallback(e=>{
+    if(!isDragging.current) return;
+    listRef.current.scrollTop=startST.current+(startY.current-e.clientY);
+    const dt=Date.now()-lastT.current||1;
+    velRef.current=(lastY.current-e.clientY)/dt*16;
+    lastY.current=e.clientY;lastT.current=Date.now();
+  },[]);
+  const onMouseUp=useCallback(()=>{
+    if(!isDragging.current) return;
+    isDragging.current=false;
+    if(Math.abs(velRef.current)>1) rafRef.current=requestAnimationFrame(runMomentum);
+    else snap();
+  },[runMomentum,snap]);
+
+  useEffect(()=>()=>cancelAnimationFrame(rafRef.current),[]);
+
+  return (
+    <div style={{position:'relative',height:ITEM_H*3,width,overflow:'hidden',userSelect:'none',WebkitUserSelect:'none'}}>
+      <div style={{position:'absolute',top:0,left:0,right:0,height:ITEM_H,
+        background:`linear-gradient(to bottom,${T.card}f0 0%,${T.card}00 100%)`,
+        zIndex:2,pointerEvents:'none'}}/>
+      <div style={{position:'absolute',bottom:0,left:0,right:0,height:ITEM_H,
+        background:`linear-gradient(to top,${T.card}f0 0%,${T.card}00 100%)`,
+        zIndex:2,pointerEvents:'none'}}/>
+      <div style={{position:'absolute',top:'50%',left:0,right:0,height:ITEM_H,
+        transform:'translateY(-50%)',background:T.pickerHighlight,
+        borderTop:`0.5px solid ${T.accent}55`,borderBottom:`0.5px solid ${T.accent}55`,
+        zIndex:1,pointerEvents:'none'}}/>
+      <style>{`.${clsId}::-webkit-scrollbar{display:none}`}</style>
+      <div ref={listRef} className={clsId}
+        onTouchStart={onTouchStart} onTouchMove={onTouchMove} onTouchEnd={onTouchEnd}
+        onMouseDown={onMouseDown} onMouseMove={onMouseMove} onMouseUp={onMouseUp} onMouseLeave={onMouseUp}
+        style={{height:'100%',overflowY:'scroll',scrollbarWidth:'none',
+          msOverflowStyle:'none',WebkitOverflowScrolling:'touch',cursor:'grab'}}>
+        <div style={{height:ITEM_H}}/>
+        {options.map((opt,i)=>(
+          <div key={String(opt)} onClick={()=>{scrollTo(i,true);onChange(opt);}}
+            style={{height:ITEM_H,display:'flex',alignItems:'center',
+              justifyContent:'center',cursor:'pointer',WebkitTapHighlightColor:'transparent'}}>
+            <span style={{
+              fontSize:opt===value?20:16,fontWeight:opt===value?700:400,
+              color:opt===value?T.text:T.textMuted,fontFamily:'system-ui',
+              transition:'font-size 0.12s,color 0.12s'}}>
+              {formatFn?formatFn(opt):String(opt)}
+            </span>
+          </div>
+        ))}
+        <div style={{height:ITEM_H}}/>
+      </div>
+    </div>
+  );
+}
+
+// ─── Time Accordion ──────────────────────────────────────────────────────────
+function TimeAccordion({label,hour,minute,onConfirm,bookedBlocks,isStart,pairedHour,pairedMinute,T}) {
+  const [open,setOpen]=useState(false);
+  const [pendingH,setPendingH]=useState(hour);
+  const [pendingM,setPendingM]=useState(minute);
+
+  const validHours=useMemo(()=>VALID_HOURS.filter(h=>{
+    if(isStart) return true;
+    const sd=pairedHour+pairedMinute/60;
+    return h>sd&&h<=CLOSE_HOUR;
+  }),[isStart,pairedHour,pairedMinute]);
+
+  const isOccupied=useCallback((h,m)=>bookedBlocks.has((h+m/60)*2),[bookedBlocks]);
+
+  useEffect(()=>{if(open){setPendingH(hour);setPendingM(minute);}},[open,hour,minute]);
+
+  const handleConfirm=()=>{onConfirm(pendingH,pendingM);setOpen(false);};
+  const displayTime=String(hour).padStart(2,'0')+':'+String(minute).padStart(2,'0');
+  const occ=isOccupied(pendingH,pendingM);
+
+  return (
+    <div style={{background:T.card,border:`0.5px solid ${T.border}`,borderRadius:12,overflow:'hidden'}}>
+      <div onClick={()=>setOpen(v=>!v)} style={{
+        display:'flex',alignItems:'center',justifyContent:'space-between',
+        padding:'13px 16px',cursor:'pointer',WebkitTapHighlightColor:'transparent'}}>
+        <span style={{fontSize:16,color:T.text,fontFamily:'system-ui'}}>{label}</span>
+        <div style={{display:'flex',alignItems:'center',gap:8}}>
+          <div style={{background:open?T.accent:`${T.accent}22`,color:open?'#fff':T.accent,
+            borderRadius:8,padding:'4px 10px',fontSize:15,fontWeight:600,transition:'all 0.2s'}}>
+            {displayTime}
+          </div>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none"
+            stroke={T.textMuted} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
+            style={{transform:open?'rotate(180deg)':'none',transition:'transform 0.25s'}}>
+            <polyline points="6 9 12 15 18 9"/>
+          </svg>
+        </div>
+      </div>
+      <div style={{maxHeight:open?220:0,overflow:'hidden',
+        transition:'max-height 0.35s cubic-bezier(0.4,0,0.2,1)'}}>
+        <div style={{borderTop:`0.5px solid ${T.separator}`,padding:'12px 16px 16px'}}>
+          <div style={{display:'flex',alignItems:'center',justifyContent:'center',gap:0}}>
+            <DrumPicker options={validHours} value={pendingH}
+              onChange={h=>{setPendingH(h);setPendingM(0);}} formatFn={h=>String(h).padStart(2,'0')} T={T} width={80}/>
+            <span style={{fontSize:22,fontWeight:700,color:T.text,margin:'0 4px',paddingBottom:2}}>:</span>
+            <DrumPicker options={VALID_MINUTES} value={pendingM}
+              onChange={m=>setPendingM(m)} formatFn={m=>String(m).padStart(2,'0')} T={T} width={80}/>
+          </div>
+          {occ && <div style={{textAlign:'center',fontSize:12,color:T.error,marginTop:8}}>Denna tid är upptagen</div>}
+          <button onClick={handleConfirm} disabled={occ} style={{
+            display:'block',width:'100%',marginTop:12,
+            background:occ?T.textTertiary:T.accent,color:'#fff',
+            border:'none',borderRadius:10,padding:'11px',fontSize:15,fontWeight:700,
+            cursor:occ?'not-allowed':'pointer',fontFamily:'system-ui',
+            WebkitTapHighlightColor:'transparent'}}>
+            Bekräfta {String(pendingH).padStart(2,'0')}:{String(pendingM).padStart(2,'0')}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Primitives ───────────────────────────────────────────────────────────────
+function BackButton({onBack,label='Tillbaka',T}) {
+  return (
+    <button onClick={onBack} style={{background:'none',border:'none',cursor:'pointer',
+      display:'flex',alignItems:'center',gap:4,
+      color:T.accent,fontFamily:'system-ui',fontSize:17,fontWeight:400,
+      padding:'0 0 4px',WebkitTapHighlightColor:'transparent'}}>
+      <svg width="10" height="17" viewBox="0 0 10 17" fill="none">
+        <path d="M9 1L1 8.5L9 16" stroke={T.accent} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+      </svg>
+      <span>{label}</span>
     </button>
   );
 }
-
-function Badge({ status }) {
-  const m = {
-    pending:      { label:'Väntar',        bg:'#f59e0b22', color:'#f59e0b' },
-    edit_pending: { label:'Ändr. väntar',  bg:'#f9731622', color:'#f97316' },
-    approved:     { label:'Godkänd',       bg:'#22c55e22', color:'#22c55e' },
-    rejected:     { label:'Avböjd',        bg:'#ef444422', color:'#ef4444' },
-    cancelled:    { label:'Inställd',      bg:'#64748b22', color:'#64748b' },
-    edited:       { label:'Ändrad',        bg:'#3b82f622', color:'#3b82f6' },
+function Badge({status}) {
+  const m={
+    pending:{label:'Väntar',bg:'#FF9F0A22',color:'#FF9F0A'},
+    edit_pending:{label:'Ändr. väntar',bg:'#FF6B2222',color:'#FF6B22'},
+    approved:{label:'Godkänd',bg:'#34C75922',color:'#34C759'},
+    rejected:{label:'Avböjd',bg:'#FF3B3022',color:'#FF3B30'},
+    cancelled:{label:'Inställd',bg:'#8E8E9322',color:'#8E8E93'},
+    edited:{label:'Ändrad',bg:'#0A84FF22',color:'#0A84FF'},
   };
-  const s = m[status] || { label: status, bg:'#88888822', color:'#888' };
-  return <span style={{background:s.bg,color:s.color,borderRadius:8,fontSize:11,fontWeight:700,padding:'3px 8px',letterSpacing:'.3px',fontFamily:'system-ui'}}>{s.label}</span>;
+  const s=m[status]||{label:status,bg:'#88888822',color:'#888'};
+  return <span style={{background:s.bg,color:s.color,borderRadius:8,
+    fontSize:11,fontWeight:700,padding:'3px 8px',fontFamily:'system-ui'}}>{s.label}</span>;
 }
-
-function RecurBadge({ endDate }) {
-  const label = endDate ? 'Återkommande' : 'Återkommande · Ingen slutdatum';
-  return <span style={{background:'#8b5cf622',color:'#8b5cf6',borderRadius:8,fontSize:10,fontWeight:700,padding:'2px 7px',fontFamily:'system-ui'}}>{label}</span>;
+function RecurBadge({recurrence}) {
+  return <span style={{background:'#8b5cf622',color:'#8b5cf6',borderRadius:8,
+    fontSize:10,fontWeight:700,padding:'2px 7px',fontFamily:'system-ui'}}>{fmtRecur(recurrence)}</span>;
 }
-
-function Input({ label, value, onChange, type='text', placeholder, required, T }) {
+function Toast({message}) {
+  if(!message) return null;
+  return <div style={{position:'fixed',bottom:110,left:'50%',transform:'translateX(-50%)',
+    background:'rgba(28,28,30,0.92)',backdropFilter:'blur(20px)',
+    color:'#fff',padding:'12px 22px',borderRadius:14,fontSize:14,fontWeight:600,
+    fontFamily:'system-ui',boxShadow:'0 4px 24px rgba(0,0,0,0.35)',
+    zIndex:9999,whiteSpace:'nowrap',animation:'bsFadeInUp .25s ease'}}>{message}</div>;
+}
+function Spinner({T}) {
+  return <div style={{display:'flex',justifyContent:'center',padding:'40px 0'}}>
+    <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke={T.accent}
+      strokeWidth="2.5" strokeLinecap="round" style={{animation:'bsSpin 1s linear infinite'}}>
+      <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/>
+    </svg>
+  </div>;
+}
+function ConfirmDialog({title,message,confirmLabel,confirmColor='#FF3B30',onConfirm,onCancel,requireText,requirePlaceholder,T}) {
+  const[text,setText]=useState('');
+  const canConfirm=!requireText||text.trim().length>0;
   return (
-    <div style={{display:'flex',flexDirection:'column',gap:5}}>
-      <label style={{fontSize:12,fontWeight:600,color:T.textMuted,fontFamily:'system-ui',letterSpacing:'.3px'}}>{label}{required&&<span style={{color:'#ef4444'}}> *</span>}</label>
-      <input type={type} value={value} onChange={e=>onChange(e.target.value)} placeholder={placeholder}
-        style={{background:T.cardElevated,border:`1px solid ${T.border}`,borderRadius:10,padding:'11px 14px',fontSize:16,color:T.text,fontFamily:'system-ui',outline:'none',width:'100%',boxSizing:'border-box'}}/>
-    </div>
-  );
-}
-
-function Textarea({ label, value, onChange, placeholder, required, T }) {
-  return (
-    <div style={{display:'flex',flexDirection:'column',gap:5}}>
-      <label style={{fontSize:12,fontWeight:600,color:T.textMuted,fontFamily:'system-ui',letterSpacing:'.3px'}}>{label}{required&&<span style={{color:'#ef4444'}}> *</span>}</label>
-      <textarea value={value} onChange={e=>onChange(e.target.value)} placeholder={placeholder} rows={3}
-        style={{background:T.cardElevated,border:`1px solid ${T.border}`,borderRadius:10,padding:'11px 14px',fontSize:16,color:T.text,fontFamily:'system-ui',outline:'none',width:'100%',boxSizing:'border-box',resize:'vertical'}}/>
-    </div>
-  );
-}
-
-function Toast({ message, T }) {
-  if (!message) return null;
-  return (
-    <div style={{position:'fixed',bottom:110,left:'50%',transform:'translateX(-50%)',background:T.accent,color:'#fff',padding:'12px 22px',borderRadius:14,fontSize:14,fontWeight:600,fontFamily:'system-ui',boxShadow:'0 4px 20px rgba(0,0,0,0.25)',zIndex:9999,whiteSpace:'nowrap',animation:'fadeInUp .25s ease'}}>
-      {message}
-    </div>
-  );
-}
-
-function Spinner({ T }) {
-  return (
-    <div style={{display:'flex',justifyContent:'center',padding:'40px 0'}}>
-      <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke={T.accent} strokeWidth="2.5" strokeLinecap="round" style={{animation:'spin 1s linear infinite'}}>
-        <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/>
-      </svg>
-    </div>
-  );
-}
-
-function ConfirmDialog({ title, message, confirmLabel, confirmColor='#ef4444', onConfirm, onCancel, requireText, requirePlaceholder, T }) {
-  const [text, setText] = useState('');
-  const canConfirm = !requireText || text.trim().length > 0;
-  return (
-    <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.5)',zIndex:1000,display:'flex',alignItems:'flex-end',justifyContent:'center'}} onClick={onCancel}>
-      <div onClick={e=>e.stopPropagation()} style={{background:T.card,borderRadius:'20px 20px 0 0',padding:'24px 20px 36px',width:'100%',maxWidth:500,boxSizing:'border-box',animation:'slideUp .25s cubic-bezier(0.32,0.72,0,1)'}}>
-        <div style={{fontSize:18,fontWeight:800,color:T.text,marginBottom:8,fontFamily:'system-ui'}}>{title}</div>
+    <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.55)',zIndex:2000,
+      display:'flex',alignItems:'flex-end',justifyContent:'center'}} onClick={onCancel}>
+      <div onClick={e=>e.stopPropagation()} style={{background:T.sheetBg,borderRadius:'20px 20px 0 0',
+        padding:'24px 20px 36px',width:'100%',maxWidth:500,boxSizing:'border-box',
+        animation:'bsSlideUp .28s cubic-bezier(0.32,0.72,0,1)'}}>
+        <div style={{fontSize:18,fontWeight:700,color:T.text,marginBottom:8,fontFamily:'system-ui'}}>{title}</div>
         <div style={{fontSize:14,color:T.textMuted,marginBottom:16,fontFamily:'system-ui',lineHeight:1.5}}>{message}</div>
-        {requireText&&<div style={{marginBottom:14}}><Textarea label={requireText} value={text} onChange={setText} placeholder={requirePlaceholder||'Skriv förklaring...'} required T={T}/></div>}
+        {requireText&&<textarea value={text} onChange={e=>setText(e.target.value)}
+          placeholder={requirePlaceholder||'Skriv förklaring...'} rows={3}
+          style={{width:'100%',boxSizing:'border-box',background:T.cardElevated,
+            border:`0.5px solid ${T.border}`,borderRadius:10,padding:'10px 12px',
+            fontSize:16,color:T.text,fontFamily:'system-ui',resize:'none',outline:'none',marginBottom:14}}/>}
         <div style={{display:'flex',gap:10}}>
-          <button onClick={onCancel} style={{flex:1,padding:'13px',borderRadius:12,border:`1px solid ${T.border}`,background:'none',color:T.text,fontSize:15,fontWeight:600,cursor:'pointer',fontFamily:'system-ui'}}>Avbryt</button>
-          <button onClick={()=>canConfirm&&onConfirm(text)} disabled={!canConfirm} style={{flex:1,padding:'13px',borderRadius:12,border:'none',background:canConfirm?confirmColor:'#ccc',color:'#fff',fontSize:15,fontWeight:700,cursor:canConfirm?'pointer':'default',fontFamily:'system-ui'}}>{confirmLabel}</button>
+          <button onClick={onCancel} style={{flex:1,padding:'13px',borderRadius:12,
+            border:`0.5px solid ${T.border}`,background:'none',color:T.text,
+            fontSize:15,fontWeight:600,cursor:'pointer',fontFamily:'system-ui'}}>Avbryt</button>
+          <button onClick={()=>canConfirm&&onConfirm(text)} disabled={!canConfirm} style={{flex:1,
+            padding:'13px',borderRadius:12,border:'none',
+            background:canConfirm?confirmColor:T.textTertiary,color:'#fff',
+            fontSize:15,fontWeight:700,cursor:canConfirm?'pointer':'default',
+            fontFamily:'system-ui'}}>{confirmLabel}</button>
         </div>
       </div>
     </div>
   );
 }
+function Input({label,value,onChange,type='text',placeholder,required,T}) {
+  return <div style={{display:'flex',flexDirection:'column',gap:5}}>
+    <label style={{fontSize:12,fontWeight:600,color:T.textMuted,fontFamily:'system-ui',letterSpacing:'.3px'}}>
+      {label}{required&&<span style={{color:T.error}}> *</span>}
+    </label>
+    <input type={type} value={value} onChange={e=>onChange(e.target.value)} placeholder={placeholder}
+      style={{background:T.card,border:`0.5px solid ${T.border}`,borderRadius:10,
+        padding:'11px 14px',fontSize:16,color:T.text,fontFamily:'system-ui',
+        outline:'none',width:'100%',boxSizing:'border-box'}}/>
+  </div>;
+}
+function Textarea({label,value,onChange,placeholder,T}) {
+  return <div style={{display:'flex',flexDirection:'column',gap:5}}>
+    <label style={{fontSize:12,fontWeight:600,color:T.textMuted,fontFamily:'system-ui',letterSpacing:'.3px'}}>{label}</label>
+    <textarea value={value} onChange={e=>onChange(e.target.value)} placeholder={placeholder} rows={3}
+      style={{background:T.card,border:`0.5px solid ${T.border}`,borderRadius:10,
+        padding:'11px 14px',fontSize:16,color:T.text,fontFamily:'system-ui',
+        outline:'none',width:'100%',boxSizing:'border-box',resize:'vertical'}}/>
+  </div>;
+}
 
-// ── iOS-style scroll picker ───────────────────────────────────────────────────
+// ─── Today Chip ─────────────────────────────────────────────────────────────
+function TodayChip({onPress,T}) {
+  return <button onClick={onPress} style={{
+    background:T.accentRed,color:'#fff',border:'none',borderRadius:20,
+    padding:'6px 14px',fontSize:13,fontWeight:700,cursor:'pointer',
+    fontFamily:'system-ui',WebkitTapHighlightColor:'transparent',
+    boxShadow:'0 2px 8px rgba(255,59,48,0.35)',
+    display:'flex',alignItems:'center',gap:5}}>
+    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      strokeWidth="2.5" strokeLinecap="round">
+      <rect x="3" y="4" width="18" height="18" rx="2"/>
+      <line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/>
+      <line x1="3" y1="10" x2="21" y2="10"/>
+    </svg>
+    Idag
+  </button>;
+}
 
-function ScrollPicker({ options, value, onChange, label, formatFn, T }) {
-  const ITEM_H = 44;
-  const listRef = useRef(null);
-  const velRef = useRef(0);
-  const lastY = useRef(0);
-  const lastT = useRef(0);
-  const rafRef = useRef(null);
-  const isDragging = useRef(false);
-  const startY = useRef(0);
-  const startST = useRef(0);
+// ─── Recurrence Picker (dropdown) ────────────────────────────────────────────
+function RecurrencePicker({recurrence,onChange,endDate,onEndDateChange,T}) {
+  const[showDP,setShowDP]=useState(false);
+  const[pAnchor,setPAnchor]=useState(()=>endDate?parseISO(endDate):new Date());
+  const today=new Date();today.setHours(0,0,0,0);
+  const mg=useMemo(()=>getMonthGrid(pAnchor.getFullYear(),pAnchor.getMonth()),[pAnchor]);
 
-  const selectedIdx = useMemo(() => {
-    const i = options.indexOf(value);
-    return i === -1 ? 0 : i;
-  }, [options, value]);
-
-  const scrollTo = useCallback((idx, animate=false) => {
-    if (!listRef.current) return;
-    const target = idx * ITEM_H;
-    if (animate) {
-      listRef.current.style.scrollBehavior = 'smooth';
-      listRef.current.scrollTop = target;
-      setTimeout(() => { if (listRef.current) listRef.current.style.scrollBehavior = ''; }, 300);
-    } else {
-      listRef.current.style.scrollBehavior = '';
-      listRef.current.scrollTop = target;
-    }
-  }, [ITEM_H]);
-
-  useEffect(() => { requestAnimationFrame(() => scrollTo(selectedIdx, false)); }, [selectedIdx, scrollTo]);
-
-  const snapNearest = useCallback(() => {
-    if (!listRef.current) return;
-    const idx = Math.round(listRef.current.scrollTop / ITEM_H);
-    const clamped = Math.max(0, Math.min(options.length - 1, idx));
-    scrollTo(clamped, true);
-    onChange(options[clamped]);
-  }, [ITEM_H, options, onChange, scrollTo]);
-
-  const runMomentum = useCallback(() => {
-    if (!listRef.current) return;
-    velRef.current *= 0.93;
-    listRef.current.scrollTop += velRef.current;
-    if (Math.abs(velRef.current) > 0.5) {
-      rafRef.current = requestAnimationFrame(runMomentum);
-    } else snapNearest();
-  }, [snapNearest]);
-
-  const onTouchStart = useCallback((e) => {
-    isDragging.current = true;
-    startY.current = e.touches[0].clientY;
-    startST.current = listRef.current.scrollTop;
-    lastY.current = e.touches[0].clientY;
-    lastT.current = Date.now();
-    velRef.current = 0;
-    cancelAnimationFrame(rafRef.current);
-  }, []);
-  const onTouchMove = useCallback((e) => {
-    if (!isDragging.current) return;
-    const dy = startY.current - e.touches[0].clientY;
-    listRef.current.scrollTop = startST.current + dy;
-    const now = Date.now(); const dt = now - lastT.current || 1;
-    velRef.current = (lastY.current - e.touches[0].clientY) / dt * 16;
-    lastY.current = e.touches[0].clientY; lastT.current = now;
-  }, []);
-  const onTouchEnd = useCallback(() => {
-    isDragging.current = false;
-    if (Math.abs(velRef.current) > 1) { rafRef.current = requestAnimationFrame(runMomentum); }
-    else snapNearest();
-  }, [runMomentum, snapNearest]);
-  const onMouseDown = useCallback((e) => {
-    isDragging.current = true; startY.current = e.clientY;
-    startST.current = listRef.current.scrollTop; lastY.current = e.clientY;
-    lastT.current = Date.now(); velRef.current = 0; cancelAnimationFrame(rafRef.current);
-  }, []);
-  const onMouseMove = useCallback((e) => {
-    if (!isDragging.current) return;
-    const dy = startY.current - e.clientY; listRef.current.scrollTop = startST.current + dy;
-    const now = Date.now(); const dt = now - lastT.current || 1;
-    velRef.current = (lastY.current - e.clientY) / dt * 16;
-    lastY.current = e.clientY; lastT.current = now;
-  }, []);
-  const onMouseUp = useCallback(() => {
-    if (!isDragging.current) return; isDragging.current = false;
-    if (Math.abs(velRef.current) > 1) { rafRef.current = requestAnimationFrame(runMomentum); }
-    else snapNearest();
-  }, [runMomentum, snapNearest]);
-
-  useEffect(() => () => cancelAnimationFrame(rafRef.current), []);
-
-  const cls = `sp-${(label||'x').replace(/\s/g,'')}`;
-  return (
-    <div style={{display:'flex',flexDirection:'column',gap:8}}>
-      {label&&<label style={{fontSize:12,fontWeight:600,color:T.textMuted,fontFamily:'system-ui',letterSpacing:'.3px'}}>{label}</label>}
-      <div style={{position:'relative',height:ITEM_H*3,borderRadius:14,overflow:'hidden',border:`1px solid ${T.border}`,background:T.cardElevated,userSelect:'none',WebkitUserSelect:'none'}}>
-        <div style={{position:'absolute',top:0,left:0,right:0,height:ITEM_H,background:`linear-gradient(to bottom,${T.cardElevated},transparent)`,zIndex:2,pointerEvents:'none'}}/>
-        <div style={{position:'absolute',bottom:0,left:0,right:0,height:ITEM_H,background:`linear-gradient(to top,${T.cardElevated},transparent)`,zIndex:2,pointerEvents:'none'}}/>
-        <div style={{position:'absolute',top:'50%',left:0,right:0,height:ITEM_H,transform:'translateY(-50%)',background:`${T.accent}18`,borderTop:`1.5px solid ${T.accent}44`,borderBottom:`1.5px solid ${T.accent}44`,zIndex:1,pointerEvents:'none'}}/>
-        <style>{`.${cls}::-webkit-scrollbar{display:none}`}</style>
-        <div ref={listRef} className={cls}
-          onTouchStart={onTouchStart} onTouchMove={onTouchMove} onTouchEnd={onTouchEnd}
-          onMouseDown={onMouseDown} onMouseMove={onMouseMove} onMouseUp={onMouseUp} onMouseLeave={onMouseUp}
-          style={{height:'100%',overflowY:'scroll',scrollbarWidth:'none',msOverflowStyle:'none',WebkitOverflowScrolling:'touch',cursor:'grab'}}>
-          <div style={{height:ITEM_H}}/>
-          {options.map((opt, i) => (
-            <div key={String(opt)} onClick={()=>{scrollTo(i,true);onChange(opt);}}
-              style={{height:ITEM_H,display:'flex',alignItems:'center',justifyContent:'center',cursor:'pointer',WebkitTapHighlightColor:'transparent'}}>
-              <span style={{fontSize:opt===value?18:15,fontWeight:opt===value?800:400,color:opt===value?T.accent:T.textMuted,fontFamily:'system-ui',transition:'color .15s, font-size .15s',letterSpacing:opt===value?'-.3px':'0'}}>
-                {formatFn ? formatFn(opt) : String(opt)}
-              </span>
-            </div>
-          ))}
-          <div style={{height:ITEM_H}}/>
+  return <div style={{display:'flex',flexDirection:'column',gap:12}}>
+    <div style={{display:'flex',flexDirection:'column',gap:6}}>
+      <label style={{fontSize:12,fontWeight:600,color:T.textMuted,fontFamily:'system-ui',letterSpacing:'.3px'}}>UPPREPNING</label>
+      <div style={{position:'relative'}}>
+        <select value={recurrence} onChange={e=>{onChange(e.target.value);onEndDateChange(null);}}
+          style={{width:'100%',padding:'11px 40px 11px 14px',background:T.card,
+            border:`0.5px solid ${T.border}`,borderRadius:10,fontSize:16,color:T.text,
+            fontFamily:'system-ui',appearance:'none',WebkitAppearance:'none',
+            outline:'none',cursor:'pointer'}}>
+          {RECUR_OPTIONS.map(o=><option key={o.value} value={o.value}>{o.label}</option>)}
+        </select>
+        <div style={{position:'absolute',right:12,top:'50%',transform:'translateY(-50%)',
+          pointerEvents:'none',color:T.textMuted}}>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none"
+            stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+            <polyline points="6 9 12 15 18 9"/>
+          </svg>
         </div>
       </div>
     </div>
-  );
-}
-
-function DurationPicker({ value, onChange, T }) {
-  return <ScrollPicker options={DURATION_OPTIONS} value={value} onChange={onChange} label="BOKNINGSLÄNGD" formatFn={fmtDuration} T={T}/>;
-}
-
-// ── RecurrencePicker — välj upprepning + valfritt slutdatum ───────────────────
-
-function RecurrencePicker({ recurrence, onChange, endDate, onEndDateChange, T }) {
-  const [showDatePicker, setShowDatePicker] = useState(false);
-  const [pickerAnchor, setPickerAnchor] = useState(() => endDate ? parseISO(endDate) : new Date());
-  const today = new Date(); today.setHours(0,0,0,0);
-  const monthGrid = useMemo(() => getMonthGrid(pickerAnchor.getFullYear(), pickerAnchor.getMonth()), [pickerAnchor]);
-
-  return (
-    <div style={{display:'flex',flexDirection:'column',gap:12}}>
-      <div style={{display:'flex',flexDirection:'column',gap:8}}>
-        <label style={{fontSize:12,fontWeight:600,color:T.textMuted,fontFamily:'system-ui',letterSpacing:'.3px'}}>UPPREPNING</label>
-        <div style={{display:'flex',gap:6,flexWrap:'wrap'}}>
-          {RECUR_OPTIONS.map(o => (
-            <button key={o.value} onClick={()=>onChange(o.value)}
-              style={{padding:'7px 14px',borderRadius:20,border:`1px solid ${recurrence===o.value?T.accent:T.border}`,background:recurrence===o.value?`${T.accent}22`:'none',color:recurrence===o.value?T.accent:T.textMuted,fontSize:12,fontWeight:600,cursor:'pointer',fontFamily:'system-ui',WebkitTapHighlightColor:'transparent'}}>
-              {o.label}
-            </button>
-          ))}
-        </div>
+    {recurrence!=='none'&&<div style={{display:'flex',flexDirection:'column',gap:8}}>
+      <label style={{fontSize:12,fontWeight:600,color:T.textMuted,fontFamily:'system-ui',letterSpacing:'.3px'}}>SLUTDATUM (valfritt)</label>
+      <div style={{display:'flex',gap:8}}>
+        <button onClick={()=>{onEndDateChange(null);setShowDP(false);}}
+          style={{padding:'7px 14px',borderRadius:20,
+            border:`1px solid ${!endDate?T.accent:T.border}`,
+            background:!endDate?`${T.accent}22`:'none',
+            color:!endDate?T.accent:T.textMuted,
+            fontSize:12,fontWeight:600,cursor:'pointer',WebkitTapHighlightColor:'transparent'}}>
+          Inget slutdatum
+        </button>
+        <button onClick={()=>setShowDP(v=>!v)}
+          style={{padding:'7px 14px',borderRadius:20,
+            border:`1px solid ${endDate?T.accent:T.border}`,
+            background:endDate?`${T.accent}22`:'none',
+            color:endDate?T.accent:T.textMuted,
+            fontSize:12,fontWeight:600,cursor:'pointer',WebkitTapHighlightColor:'transparent'}}>
+          {endDate?isoToDisplay(endDate):'Välj datum'}
+        </button>
       </div>
-
-      {recurrence !== 'none' && (
-        <div style={{display:'flex',flexDirection:'column',gap:8}}>
-          <label style={{fontSize:12,fontWeight:600,color:T.textMuted,fontFamily:'system-ui',letterSpacing:'.3px'}}>SLUTDATUM (valfritt)</label>
-          <div style={{display:'flex',gap:8,alignItems:'center'}}>
-            <button onClick={()=>{onEndDateChange(null);setShowDatePicker(false);}}
-              style={{padding:'7px 14px',borderRadius:20,border:`1px solid ${!endDate?T.accent:T.border}`,background:!endDate?`${T.accent}22`:'none',color:!endDate?T.accent:T.textMuted,fontSize:12,fontWeight:600,cursor:'pointer',fontFamily:'system-ui',WebkitTapHighlightColor:'transparent'}}>
-              Ingen slutdatum
-            </button>
-            <button onClick={()=>setShowDatePicker(v=>!v)}
-              style={{padding:'7px 14px',borderRadius:20,border:`1px solid ${endDate?T.accent:T.border}`,background:endDate?`${T.accent}22`:'none',color:endDate?T.accent:T.textMuted,fontSize:12,fontWeight:600,cursor:'pointer',fontFamily:'system-ui',WebkitTapHighlightColor:'transparent'}}>
-              {endDate ? isoToDisplay(endDate) : 'Välj slutdatum'}
-            </button>
-          </div>
-
-          {showDatePicker && (
-            <div style={{background:T.card,border:`1px solid ${T.border}`,borderRadius:14,padding:'14px'}}>
-              <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:10}}>
-                <button onClick={()=>{const d=new Date(pickerAnchor);d.setMonth(d.getMonth()-1);setPickerAnchor(d);}}
-                  style={{width:32,height:32,borderRadius:8,border:`1px solid ${T.border}`,background:T.card,display:'flex',alignItems:'center',justifyContent:'center',cursor:'pointer',color:T.text}}>
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
-                </button>
-                <span style={{fontSize:13,fontWeight:700,color:T.text}}>{MONTHS_SV[pickerAnchor.getMonth()]} {pickerAnchor.getFullYear()}</span>
-                <button onClick={()=>{const d=new Date(pickerAnchor);d.setMonth(d.getMonth()+1);setPickerAnchor(d);}}
-                  style={{width:32,height:32,borderRadius:8,border:`1px solid ${T.border}`,background:T.card,display:'flex',alignItems:'center',justifyContent:'center',cursor:'pointer',color:T.text}}>
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
-                </button>
-              </div>
-              <div style={{display:'grid',gridTemplateColumns:'repeat(7,1fr)',gap:2,marginBottom:4}}>
-                {DAYS_SV.map(d=><div key={d} style={{textAlign:'center',fontSize:9,fontWeight:700,color:T.textMuted}}>{d}</div>)}
-              </div>
-              {monthGrid.map((row,ri) => (
-                <div key={ri} style={{display:'grid',gridTemplateColumns:'repeat(7,1fr)',gap:2,marginBottom:2}}>
-                  {row.map((d,ci) => {
-                    if (!d) return <div key={ci}/>;
-                    const past = d < today;
-                    const isSel = endDate && toISO(d) === endDate;
-                    return (
-                      <button key={ci} onClick={()=>{ if(past) return; onEndDateChange(toISO(d)); setShowDatePicker(false); }}
-                        style={{borderRadius:8,border:isSel?`2px solid ${T.accent}`:'1px solid transparent',background:isSel?`${T.accent}22`:'none',padding:'6px 2px',cursor:past?'default':'pointer',opacity:past?0.35:1,display:'flex',alignItems:'center',justifyContent:'center',WebkitTapHighlightColor:'transparent'}}>
-                        <span style={{fontSize:13,fontWeight:isSel?800:400,color:isSel?T.accent:T.text}}>{d.getDate()}</span>
-                      </button>
-                    );
-                  })}
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      )}
-    </div>
-  );
-}
-
-// ── TimeSlotPanel — Starttid/Sluttid-väljare ─────────────────────────────────
-
-function TimeSlotPanel({ bookings, exceptions, date, isAdmin, durationHours, onSelectSlot, onClose, T }) {
-  const iso = toISO(date);
-  const booked = useMemo(() => getBookedBlocks(bookings, exceptions, iso), [bookings, exceptions, iso]);
-
-  // Alla möjliga starttider (ej passerade, ej bokade)
-  const availableStarts = useMemo(() => {
-    const starts = [];
-    for (let h = OPEN_HOUR; h < CLOSE_HOUR; h += 0.5) {
-      if (isHourPast(iso, h)) continue;
-      if (!booked.has(h * 2)) starts.push(h);
-    }
-    return starts;
-  }, [booked, iso]);
-
-  const [selectedStart, setSelectedStart] = useState(null);
-
-  // Giltiga sluttider baserat på vald starttid — stopp vid nästa bokad block
-  const availableEnds = useMemo(() => {
-    if (selectedStart === null) return [];
-    const ends = [];
-    for (let h = selectedStart + 0.5; h <= CLOSE_HOUR; h += 0.5) {
-      // Kolla om blocket [selectedStart, h) är fritt
-      let ok = true;
-      for (let b = selectedStart; b < h; b += 0.5) {
-        if (booked.has(b * 2)) { ok = false; break; }
-      }
-      if (!ok) break;
-      ends.push(h);
-    }
-    return ends;
-  }, [selectedStart, booked]);
-
-  const handleStartSelect = (h) => {
-    setSelectedStart(h);
-  };
-
-  const handleEndSelect = (endH) => {
-    const dur = endH - selectedStart;
-    const label = slotLabel(selectedStart, dur);
-    onSelectSlot(date, label, selectedStart, dur);
-  };
-
-  const occs = useMemo(() => getOccurrencesForDate(bookings, exceptions, iso), [bookings, exceptions, iso]);
-
-  return (
-    <div style={{marginTop:16,background:T.card,border:`1px solid ${T.border}`,borderRadius:16,overflow:'hidden'}}>
-      {/* Header */}
-      <div style={{padding:'14px 16px 12px',borderBottom:`1px solid ${T.border}`,display:'flex',alignItems:'center',justifyContent:'space-between'}}>
-        <div>
-          <div style={{fontSize:13,fontWeight:700,color:T.text,fontFamily:'system-ui'}}>
-            {selectedStart === null ? 'Välj starttid' : `Välj sluttid · från ${fmtHour(selectedStart)}`}
-          </div>
-          <div style={{fontSize:11,color:T.textMuted,fontFamily:'system-ui',marginTop:2}}>{isoToDisplay(iso)}</div>
-        </div>
-        <div style={{display:'flex',alignItems:'center',gap:6}}>
-          {selectedStart !== null && (
-            <button onClick={()=>setSelectedStart(null)}
-              style={{padding:'4px 10px',borderRadius:20,border:`1px solid ${T.border}`,background:'none',color:T.accent,fontSize:11,fontWeight:600,cursor:'pointer',fontFamily:'system-ui',WebkitTapHighlightColor:'transparent'}}>
-              ← Byt start
-            </button>
-          )}
-          <button onClick={onClose} style={{background:'none',border:'none',cursor:'pointer',color:T.textMuted,padding:4}}>
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      {showDP&&<div style={{background:T.card,border:`0.5px solid ${T.border}`,borderRadius:14,padding:14}}>
+        <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:10}}>
+          <button onClick={()=>{const d=new Date(pAnchor);d.setMonth(d.getMonth()-1);setPAnchor(d);}}
+            style={{width:32,height:32,borderRadius:8,border:`0.5px solid ${T.border}`,
+              background:T.card,display:'flex',alignItems:'center',justifyContent:'center',
+              cursor:'pointer',color:T.text}}>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none"
+              stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <polyline points="15 18 9 12 15 6"/>
+            </svg>
+          </button>
+          <span style={{fontSize:13,fontWeight:700,color:T.text}}>{MONTHS_SV[pAnchor.getMonth()]} {pAnchor.getFullYear()}</span>
+          <button onClick={()=>{const d=new Date(pAnchor);d.setMonth(d.getMonth()+1);setPAnchor(d);}}
+            style={{width:32,height:32,borderRadius:8,border:`0.5px solid ${T.border}`,
+              background:T.card,display:'flex',alignItems:'center',justifyContent:'center',
+              cursor:'pointer',color:T.text}}>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none"
+              stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <polyline points="9 18 15 12 9 6"/>
+            </svg>
           </button>
         </div>
-      </div>
+        <div style={{display:'grid',gridTemplateColumns:'repeat(7,1fr)',gap:2,marginBottom:4}}>
+          {DAYS_SV.map(d=><div key={d} style={{textAlign:'center',fontSize:9,fontWeight:700,color:T.textMuted}}>{d}</div>)}
+        </div>
+        {mg.map((row,ri)=>(<div key={ri} style={{display:'grid',gridTemplateColumns:'repeat(7,1fr)',gap:2,marginBottom:2}}>
+          {row.map((d,ci)=>{
+            if(!d) return <div key={ci}/>;
+            const past=d<today,isSel=endDate&&toISO(d)===endDate;
+            return <button key={ci} onClick={()=>{if(past)return;onEndDateChange(toISO(d));setShowDP(false);}}
+              style={{borderRadius:8,border:isSel?`2px solid ${T.accent}`:'1px solid transparent',
+                background:isSel?`${T.accent}22`:'none',padding:'6px 2px',
+                cursor:past?'default':'pointer',opacity:past?0.3:1,
+                display:'flex',alignItems:'center',justifyContent:'center',
+                WebkitTapHighlightColor:'transparent'}}>
+              <span style={{fontSize:13,fontWeight:isSel?700:400,color:isSel?T.accent:T.text}}>{d.getDate()}</span>
+            </button>;
+          })}
+        </div>))}
+      </div>}
+    </div>}
+  </div>;
+}
 
-      {/* Bokade block — klickbara för admin */}
-      {occs.length > 0 && (
-        <div style={{padding:'8px 12px 0',display:'flex',flexWrap:'wrap',gap:4}}>
-          {occs.map(o => {
-            const color = ['pending','edit_pending'].includes(o.status) ? '#f59e0b' : o.status==='cancelled'?'#64748b':'#ef4444';
-            return isAdmin ? (
-              <button key={o.id} onClick={()=>onSelectSlot(iso,o.time_slot,null,null,o)}
-                style={{padding:'4px 10px',borderRadius:8,background:`${color}18`,border:`1px solid ${color}44`,fontSize:11,fontWeight:600,color,fontFamily:'system-ui',cursor:'pointer',WebkitTapHighlightColor:'transparent',display:'flex',alignItems:'center',gap:4}}>
-                {o.time_slot} · {o.name}
-                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
-              </button>
-            ) : (
-              <div key={o.id} style={{padding:'3px 8px',borderRadius:8,background:`${color}18`,border:`1px solid ${color}44`,fontSize:11,fontWeight:600,color,fontFamily:'system-ui'}}>
-                {o.time_slot}
+// ─── Year View ───────────────────────────────────────────────────────────────
+function YearView({year,onSelectMonth,bookings,exceptions,T,onBack}) {
+  const today=new Date();
+  const scrollRef=useRef(null);
+
+  useEffect(()=>{
+    if(!scrollRef.current) return;
+    const el=scrollRef.current.querySelector('[data-todaymonth="true"]');
+    if(el) setTimeout(()=>el.scrollIntoView({behavior:'smooth',block:'center'}),200);
+  },[]);
+
+  const years=[year,year+1];
+
+  return <div style={{position:'fixed',inset:0,background:T.bg,zIndex:100,
+    display:'flex',flexDirection:'column',
+    animation:'bsYearIn 0.38s cubic-bezier(0.4,0,0.2,1)'}}>
+    <div style={{paddingTop:'max(20px,env(safe-area-inset-top,0px))',
+      padding:'max(20px,env(safe-area-inset-top,0px)) 20px 16px',
+      background:T.bg,borderBottom:`0.5px solid ${T.separator}`,
+      display:'flex',alignItems:'center',justifyContent:'space-between',flexShrink:0}}>
+      <button onClick={onBack} style={{background:'none',border:'none',cursor:'pointer',
+        color:T.accent,fontSize:17,fontFamily:'system-ui',padding:0,
+        WebkitTapHighlightColor:'transparent'}}>Stäng</button>
+      <span style={{fontSize:17,fontWeight:700,color:T.text,fontFamily:'system-ui'}}>{year}</span>
+      <TodayChip onPress={()=>{
+        const el=scrollRef.current?.querySelector('[data-todaymonth="true"]');
+        if(el) el.scrollIntoView({behavior:'smooth',block:'center'});
+        onSelectMonth(today.getFullYear(),today.getMonth());
+      }} T={T}/>
+    </div>
+    <div ref={scrollRef} style={{flex:1,overflowY:'auto',padding:'0 16px 40px',WebkitOverflowScrolling:'touch'}}>
+      <div style={{position:'sticky',top:0,height:28,zIndex:5,
+        background:`linear-gradient(to bottom,${T.bg}ff 0%,${T.bg}00 100%)`,
+        marginBottom:-28,pointerEvents:'none'}}/>
+      {years.map(yr=>(
+        <div key={yr}>
+          <div style={{fontSize:28,fontWeight:700,color:T.text,fontFamily:'system-ui',
+            letterSpacing:'-.5px',paddingTop:24,paddingBottom:12}}>{yr}</div>
+          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:20}}>
+            {Array.from({length:12},(_,m)=>{
+              const isCurrent=yr===today.getFullYear()&&m===today.getMonth();
+              const grid=getMonthGrid(yr,m);
+              const bookedDays=new Set();
+              const wS=`${yr}-${String(m+1).padStart(2,'0')}-01`;
+              const lastD=new Date(yr,m+1,0).getDate();
+              const wE=`${yr}-${String(m+1).padStart(2,'0')}-${String(lastD).padStart(2,'0')}`;
+              expandAll(bookings,exceptions,wS,wE).forEach(o=>{bookedDays.add(parseInt(o.date.split('-')[2]));});
+              return <div key={m} data-todaymonth={isCurrent?'true':undefined}
+                onClick={()=>onSelectMonth(yr,m)}
+                style={{cursor:'pointer',WebkitTapHighlightColor:'transparent'}}>
+                <div style={{fontSize:14,fontWeight:700,
+                  color:isCurrent?T.accentRed:T.text,
+                  fontFamily:'system-ui',marginBottom:6,letterSpacing:'-.2px'}}>
+                  {MONTHS_SV[m]}
+                </div>
+                <div style={{display:'grid',gridTemplateColumns:'repeat(7,1fr)',marginBottom:2}}>
+                  {DAYS_SV.map(d=><div key={d} style={{textAlign:'center',fontSize:8,
+                    fontWeight:600,color:T.textMuted,fontFamily:'system-ui'}}>{d}</div>)}
+                </div>
+                {grid.map((row,ri)=>(<div key={ri} style={{display:'grid',gridTemplateColumns:'repeat(7,1fr)'}}>
+                  {row.map((d,ci)=>{
+                    if(!d) return <div key={ci}/>;
+                    const isT=d.getFullYear()===today.getFullYear()&&d.getMonth()===today.getMonth()&&d.getDate()===today.getDate();
+                    const hasB=bookedDays.has(d.getDate());
+                    return <div key={ci} style={{textAlign:'center',position:'relative',padding:'1px 0'}}>
+                      <span style={{display:'inline-flex',alignItems:'center',justifyContent:'center',
+                        width:20,height:20,borderRadius:'50%',
+                        background:isT?T.accentRed:'none',
+                        fontSize:10,fontWeight:isT?700:400,
+                        color:isT?'#fff':T.text,fontFamily:'system-ui'}}>{d.getDate()}</span>
+                      {hasB&&<div style={{width:3,height:3,borderRadius:'50%',
+                        background:T.accent,margin:'0 auto',marginTop:-1}}/>}
+                    </div>;
+                  })}
+                </div>))}
+              </div>;
+            })}
+          </div>
+        </div>
+      ))}
+      <div style={{position:'sticky',bottom:0,height:40,pointerEvents:'none',
+        background:`linear-gradient(to top,${T.bg}ff 0%,${T.bg}00 100%)`}}/>
+    </div>
+  </div>;
+}
+
+// ─── Calendar View ────────────────────────────────────────────────────────────
+function CalendarView({bookings,exceptions,onSelectDate,isAdmin,selectedDate,T,onYearViewOpen}) {
+  const today=new Date();today.setHours(0,0,0,0);
+  const[anchor,setAnchor]=useState(()=>{
+    if(selectedDate){const d=new Date(selectedDate);return new Date(d.getFullYear(),d.getMonth(),1);}
+    return new Date(today.getFullYear(),today.getMonth(),1);
+  });
+  const[slideDir,setSlideDir]=useState(null);
+  const swipeRef=useRef(null);
+
+  useEffect(()=>{
+    if(selectedDate) setAnchor(new Date(selectedDate.getFullYear(),selectedDate.getMonth(),1));
+  },[selectedDate]);
+
+  const navigate=dir=>{
+    setSlideDir(dir);
+    setTimeout(()=>{
+      const d=new Date(anchor);
+      dir==='next'?d.setMonth(d.getMonth()+1):d.setMonth(d.getMonth()-1);
+      setAnchor(d);setSlideDir(null);
+    },200);
+  };
+  const handleSwipeStart=e=>{swipeRef.current={x:e.touches[0].clientX,y:e.touches[0].clientY};};
+  const handleSwipeEnd=e=>{
+    if(!swipeRef.current) return;
+    const dx=e.changedTouches[0].clientX-swipeRef.current.x;
+    const dy=Math.abs(e.changedTouches[0].clientY-swipeRef.current.y);
+    swipeRef.current=null;
+    if(Math.abs(dx)<40||dy>60) return;
+    if(dx<0) navigate('next'); else navigate('prev');
+  };
+
+  const monthGrid=useMemo(()=>getMonthGrid(anchor.getFullYear(),anchor.getMonth()),[anchor]);
+  const isToday=d=>{if(!d)return false;const c=new Date(d);c.setHours(0,0,0,0);return c.getTime()===today.getTime();};
+  const isSel=d=>{
+    if(!d||!selectedDate) return false;
+    const s=new Date(selectedDate);s.setHours(0,0,0,0);
+    const c=new Date(d);c.setHours(0,0,0,0);
+    return s.getTime()===c.getTime();
+  };
+  const isPast=d=>{if(!d)return false;const c=new Date(d);c.setHours(0,0,0,0);return c<today;};
+  const hasB=d=>d&&hasBookingsOnDate(bookings,exceptions,toISO(d));
+
+  return <div>
+    <div style={{paddingLeft:20,paddingRight:20,paddingBottom:8}}>
+      <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:4}}>
+        <button onClick={onYearViewOpen} style={{background:'none',border:'none',cursor:'pointer',
+          display:'flex',alignItems:'center',gap:5,color:T.textMuted,
+          fontFamily:'system-ui',padding:0,WebkitTapHighlightColor:'transparent'}}>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none"
+            stroke={T.textMuted} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <polyline points="15 18 9 12 15 6"/>
+          </svg>
+          <span style={{fontSize:16,fontWeight:500}}>{anchor.getFullYear()}</span>
+        </button>
+        <div style={{display:'flex',gap:8}}>
+          {['prev','next'].map(dir=>(
+            <button key={dir} onClick={()=>navigate(dir)}
+              style={{width:32,height:32,borderRadius:'50%',border:'none',
+                background:T.cardElevated,display:'flex',alignItems:'center',
+                justifyContent:'center',cursor:'pointer',color:T.text,
+                WebkitTapHighlightColor:'transparent'}}>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none"
+                stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                {dir==='prev'?<polyline points="15 18 9 12 15 6"/>:<polyline points="9 18 15 12 9 6"/>}
+              </svg>
+            </button>
+          ))}
+        </div>
+      </div>
+      <div style={{fontSize:32,fontWeight:700,color:T.text,fontFamily:'system-ui',
+        letterSpacing:'-.8px',lineHeight:1,marginBottom:16}}>
+        {MONTHS_SV[anchor.getMonth()]}
+      </div>
+      <div style={{display:'grid',gridTemplateColumns:'repeat(7,1fr)',marginBottom:4}}>
+        {DAYS_SV.map(d=><div key={d} style={{textAlign:'center',fontSize:12,fontWeight:600,
+          color:T.textMuted,fontFamily:'system-ui',letterSpacing:'.5px'}}>{d}</div>)}
+      </div>
+    </div>
+    <div onTouchStart={handleSwipeStart} onTouchEnd={handleSwipeEnd}
+      style={{paddingLeft:8,paddingRight:8,
+        animation:slideDir?`bsSlide${slideDir==='next'?'Left':'Right'} 0.2s ease`:'none'}}>
+      {monthGrid.map((row,ri)=>(
+        <div key={ri} style={{display:'grid',gridTemplateColumns:'repeat(7,1fr)',gap:2,marginBottom:2}}>
+          {row.map((d,ci)=>{
+            if(!d) return <div key={ci}/>;
+            const tod=isToday(d),sel=isSel(d),past=isPast(d),hb=hasB(d);
+            return <button key={ci}
+              onClick={()=>{if(past)return;const c=new Date(d);c.setHours(0,0,0,0);onSelectDate(c);}}
+              style={{borderRadius:10,border:'none',
+                background:sel?T.calSelected:'none',
+                padding:'6px 2px 5px',cursor:past?'default':'pointer',opacity:past?0.3:1,
+                display:'flex',flexDirection:'column',alignItems:'center',gap:2,
+                WebkitTapHighlightColor:'transparent',transition:'background 0.15s'}}>
+              <div style={{width:32,height:32,borderRadius:'50%',
+                background:tod&&!sel?T.calToday:'none',
+                display:'flex',alignItems:'center',justifyContent:'center'}}>
+                <span style={{fontSize:16,fontWeight:tod?700:400,
+                  color:sel?'#fff':tod?'#fff':T.text,fontFamily:'system-ui'}}>{d.getDate()}</span>
               </div>
-            );
+              {hb&&<div style={{width:5,height:5,borderRadius:'50%',background:sel?'#fff':T.accent}}/>}
+            </button>;
           })}
         </div>
-      )}
-
-      {/* Starttid-väljare */}
-      {selectedStart === null && (
-        <div style={{padding:'10px 10px 12px'}}>
-          {availableStarts.length === 0 ? (
-            <div style={{padding:'16px',textAlign:'center',color:T.textMuted,fontSize:13,fontFamily:'system-ui'}}>Inga lediga tider detta datum.</div>
-          ) : (
-            <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:6}}>
-              {availableStarts.map(h => (
-                <button key={h} onClick={()=>handleStartSelect(h)}
-                  style={{padding:'10px 4px',borderRadius:10,border:`1px solid ${T.accent}44`,background:`${T.accent}11`,color:T.accent,fontSize:13,fontWeight:700,cursor:'pointer',fontFamily:'system-ui',WebkitTapHighlightColor:'transparent',textAlign:'center'}}>
-                  {fmtHour(h)}
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* Sluttid-väljare */}
-      {selectedStart !== null && (
-        <div style={{padding:'10px 10px 12px'}}>
-          {availableEnds.length === 0 ? (
-            <div style={{padding:'16px',textAlign:'center',color:T.textMuted,fontSize:13,fontFamily:'system-ui'}}>Ingen tid tillgänglig efter {fmtHour(selectedStart)}.</div>
-          ) : (
-            <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:6}}>
-              {availableEnds.map(h => {
-                const dur = h - selectedStart;
-                return (
-                  <button key={h} onClick={()=>handleEndSelect(h)}
-                    style={{padding:'10px 4px',borderRadius:10,border:`1px solid #22c55e44`,background:'#22c55e11',color:'#22c55e',fontSize:13,fontWeight:700,cursor:'pointer',fontFamily:'system-ui',WebkitTapHighlightColor:'transparent',textAlign:'center',display:'flex',flexDirection:'column',alignItems:'center',gap:1}}>
-                    <span>{fmtHour(h)}</span>
-                    <span style={{fontSize:10,fontWeight:500,opacity:0.8}}>{fmtDuration(dur)}</span>
-                  </button>
-                );
-              })}
-            </div>
-          )}
-        </div>
-      )}
+      ))}
     </div>
-  );
-}
-
-// ── CalendarView ──────────────────────────────────────────────────────────────
-
-function CalendarView({ bookings, exceptions, onSelectSlot, isAdmin, T }) {
-  const today = new Date(); today.setHours(0,0,0,0);
-  const [viewMode, setViewMode] = useState('week');
-  const [anchor, setAnchor] = useState(today);
-  const [selectedDate, setSelectedDate] = useState(today);
-  const [showSlots, setShowSlots] = useState(true);
-  const [slideDir, setSlideDir] = useState(null); // 'left' | 'right' | null
-  const [adminDetailBooking, setAdminDetailBooking] = useState(null);
-  const durationHours = 0.5;
-  const swipeRef = useRef(null);
-
-  const weekDays = useMemo(() => getWeekDays(anchor), [anchor]);
-  const monthGrid = useMemo(() => getMonthGrid(anchor.getFullYear(), anchor.getMonth()), [anchor]);
-
-  const navigate = (dir) => {
-    setSlideDir(dir);
-    setTimeout(() => {
-      const d = new Date(anchor);
-      if (dir === 'next') viewMode==='week' ? d.setDate(d.getDate()+7) : d.setMonth(d.getMonth()+1);
-      else viewMode==='week' ? d.setDate(d.getDate()-7) : d.setMonth(d.getMonth()-1);
-      setAnchor(d);
-      setSlideDir(null);
-    }, 180);
-  };
-  const navPrev = () => navigate('prev');
-  const navNext = () => navigate('next');
-
-  const handleSwipeStart = (e) => {
-    const t = e.touches[0];
-    swipeRef.current = { x: t.clientX, y: t.clientY };
-  };
-  const handleSwipeEnd = (e) => {
-    if (!swipeRef.current) return;
-    const t = e.changedTouches[0];
-    const dx = t.clientX - swipeRef.current.x;
-    const dy = Math.abs(t.clientY - swipeRef.current.y);
-    swipeRef.current = null;
-    if (Math.abs(dx) < 40 || dy > 60) return;
-    if (dx < 0) navNext(); else navPrev();
-  };
-
-  const headerLabel = viewMode==='week'
-    ? `${weekDays[0].getDate()} – ${weekDays[6].getDate()} ${MONTHS_SV[weekDays[6].getMonth()]} ${weekDays[6].getFullYear()}`
-    : `${MONTHS_SV[anchor.getMonth()]} ${anchor.getFullYear()}`;
-
-  const hasB = (d) => d && hasBookingsOnDate(bookings, exceptions, toISO(d));
-  const isPast = (d) => { if(!d) return false; const x=new Date(d); x.setHours(0,0,0,0); return x<today; };
-  const isToday = (d) => { if(!d) return false; const x=new Date(d); x.setHours(0,0,0,0); return x.getTime()===today.getTime(); };
-  const isSel = (d) => { if(!d||!selectedDate) return false; const x=new Date(d); x.setHours(0,0,0,0); return x.getTime()===selectedDate.getTime(); };
-
-  const DayBtn = ({ date, small=false }) => {
-    if (!date) return <div/>;
-    const past=isPast(date), tod=isToday(date), sel=isSel(date), hb=hasB(date);
-    const avail = !past && hasAnyAvailable(bookings, exceptions, date, durationHours);
-    return (
-      <button onClick={()=>{ if(past) return; const c=new Date(date); c.setHours(0,0,0,0); setSelectedDate(c); setShowSlots(true); }}
-        style={{borderRadius:small?10:12,border:sel?`2px solid ${T.accent}`:`1px solid ${small?'transparent':T.border}`,background:sel?`${T.accent}22`:tod?`${T.accent}11`:small?'none':T.card,padding:small?'6px 2px':'8px 4px 6px',cursor:past?'default':'pointer',opacity:past?0.35:1,display:'flex',flexDirection:'column',alignItems:'center',gap:small?2:4,WebkitTapHighlightColor:'transparent',transition:'all .12s'}}>
-        <span style={{fontSize:small?14:16,fontWeight:tod?800:small?500:600,color:sel?T.accent:T.text,fontFamily:'system-ui'}}>{date.getDate()}</span>
-        {!small&&<span style={{fontSize:9,color:T.textMuted,fontFamily:'system-ui'}}>{MONTHS_SV[date.getMonth()].slice(0,3)}</span>}
-        {hb&&<div style={{width:small?4:5,height:small?4:5,borderRadius:'50%',background:avail?T.accent:'#ef4444'}}/>}
-      </button>
-    );
-  };
-
-  return (
-    <div>
-      <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:14}}>
-        <div style={{display:'flex',gap:6}}>
-          {['week','month'].map(m => (
-            <button key={m} onClick={()=>setViewMode(m)}
-              style={{padding:'5px 14px',borderRadius:20,border:`1px solid ${viewMode===m?T.accent:T.border}`,background:viewMode===m?`${T.accent}22`:'none',color:viewMode===m?T.accent:T.textMuted,fontSize:12,fontWeight:600,cursor:'pointer',fontFamily:'system-ui',WebkitTapHighlightColor:'transparent'}}>
-              {m==='week'?'Vecka':'Månad'}
-            </button>
-          ))}
-        </div>
-        <div style={{display:'flex',alignItems:'center',gap:8}}>
-          <button onClick={navPrev} style={{width:28,height:28,borderRadius:8,border:`1px solid ${T.border}`,background:T.card,display:'flex',alignItems:'center',justifyContent:'center',cursor:'pointer',color:T.text,WebkitTapHighlightColor:'transparent'}}>
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
-          </button>
-          <span style={{fontSize:11,fontWeight:700,color:T.text,fontFamily:'system-ui',minWidth:96,textAlign:'center'}}>{headerLabel}</span>
-          <button onClick={navNext} style={{width:28,height:28,borderRadius:8,border:`1px solid ${T.border}`,background:T.card,display:'flex',alignItems:'center',justifyContent:'center',cursor:'pointer',color:T.text,WebkitTapHighlightColor:'transparent'}}>
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
-          </button>
-        </div>
-      </div>
-      <div style={{display:'grid',gridTemplateColumns:'repeat(7,1fr)',gap:2,marginBottom:6}}>
-        {DAYS_SV.map(d=><div key={d} style={{textAlign:'center',fontSize:10,fontWeight:700,color:T.textMuted,fontFamily:'system-ui',letterSpacing:'.5px'}}>{d}</div>)}
-      </div>
-      <div onTouchStart={handleSwipeStart} onTouchEnd={handleSwipeEnd}
-        style={{userSelect:'none',overflow:'hidden',
-          animation: slideDir ? `calSlide${slideDir==='next'?'Left':'Right'} 0.18s ease` : 'none'}}>
-        {viewMode==='week' && <div style={{display:'grid',gridTemplateColumns:'repeat(7,1fr)',gap:4}}>{weekDays.map((d,i)=><DayBtn key={i} date={d}/>)}</div>}
-        {viewMode==='month' && <div>{monthGrid.map((row,ri)=><div key={ri} style={{display:'grid',gridTemplateColumns:'repeat(7,1fr)',gap:3,marginBottom:3}}>{row.map((d,ci)=><DayBtn key={ci} date={d} small/>)}</div>)}</div>}
-      </div>
-      <div style={{display:'flex',gap:14,marginTop:14,flexWrap:'wrap'}}>
-        {[['#22c55e','Ledig tid'],['#f59e0b','Väntar'],['#ef4444','Bokad/full']].map(([c,l])=>(
-          <div key={l} style={{display:'flex',alignItems:'center',gap:5}}>
-            <div style={{width:10,height:10,borderRadius:'50%',background:c}}/><span style={{fontSize:11,color:T.textMuted,fontFamily:'system-ui'}}>{l}</span>
+    <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',
+      paddingLeft:20,paddingRight:20,paddingTop:12,paddingBottom:4}}>
+      <div style={{display:'flex',gap:12}}>
+        {[[T.accent,'Bokad'],[T.calToday,'Idag']].map(([c,l])=>(
+          <div key={l} style={{display:'flex',alignItems:'center',gap:4}}>
+            <div style={{width:7,height:7,borderRadius:'50%',background:c}}/>
+            <span style={{fontSize:11,color:T.textMuted,fontFamily:'system-ui'}}>{l}</span>
           </div>
         ))}
       </div>
-      {showSlots && selectedDate && (
-        <TimeSlotPanel bookings={bookings} exceptions={exceptions} date={selectedDate} isAdmin={isAdmin}
-          durationHours={durationHours} onSelectSlot={onSelectSlot} onClose={()=>setShowSlots(false)} T={T}/>
-      )}
+      <TodayChip onPress={()=>{
+        const c=new Date(today);
+        setAnchor(new Date(today.getFullYear(),today.getMonth(),1));
+        onSelectDate(c);
+      }} T={T}/>
     </div>
-  );
+  </div>;
 }
 
-// ── BookingForm ───────────────────────────────────────────────────────────────
-
-function BookingForm({ date, slotLabel: slot, durationHours, onSubmit, onBack, loading, bookings, exceptions, T }) {
-  const userName  = localStorage.getItem(STORAGE_USER_NAME) || '';
-  const userPhone = localStorage.getItem(STORAGE_PHONE) || '';
-  const [form, setForm] = useState({ name:userName, phone:userPhone, activity:'' });
-  const [recurrence, setRecurrence] = useState('none');
-  const [endDate, setEndDate] = useState(null);
-  const [error, setError] = useState('');
-  const [conflicts, setConflicts] = useState(null);
-  const set = f => v => setForm(p=>({...p,[f]:v}));
-
-  // Räkna ut starttid från slot-strängen t.ex. "11:00–12:00"
-  const parseStartH = (s) => {
-    const part = s.split('–')[0];
-    const [hh,mm] = part.split(':').map(Number);
-    return hh + (mm === 30 ? 0.5 : 0);
-  };
-
-  const findConflicts = () => {
-    if (recurrence === 'none') return [];
-    const startH = parseStartH(slot);
-    const startISO = toISO(date);
-    const windowEnd = (() => {
-      if (endDate) return endDate;
-      const d = new Date(date); d.setFullYear(d.getFullYear() + 2); return toISO(d);
-    })();
-    const tempBooking = {
-      id: '__preview__', start_date: startISO, end_date: endDate || null,
-      recurrence, time_slot: slot, duration_hours: durationHours, status: 'pending',
-    };
-    const occurrences = expandBooking(tempBooking, startISO, windowEnd, []);
-    const found = [];
-    for (const occ of occurrences) {
-      const bookedBlocks = getBookedBlocks(bookings, exceptions, occ.date);
-      let hasConflict = false;
-      for (let i = 0; i < durationHours * 2; i++) {
-        if (bookedBlocks.has(startH * 2 + i)) { hasConflict = true; break; }
-      }
-      if (hasConflict) {
-        const occsOnDate = getOccurrencesForDate(bookings, exceptions, occ.date);
-        const clashing = occsOnDate.filter(o => {
-          const parts = o.time_slot.split('–');
-          const parseH = s => { const [hh,mm]=s.split(':').map(Number); const h=hh+(mm===30?0.5:0); return h===0?24:h; };
-          const oStart = parseH(parts[0]);
-          const oEnd = oStart + o.duration_hours;
-          return !(oEnd <= startH || oStart >= startH + durationHours);
-        });
-        found.push({ date: occ.date, time_slot: slot, clashing });
-      }
-    }
-    return found;
-  };
-
-  const handleSubmit = () => {
-    if (!form.activity.trim()) { setError('Beskriv aktiviteten.'); return; }
-    if (recurrence !== 'none') {
-      const found = findConflicts();
-      if (found.length > 0) { setConflicts(found); return; }
-    }
-    onSubmit({ ...form, date:toISO(date), time_slot:slot, duration_hours:durationHours, recurrence, end_date:endDate, skip_dates:[] });
-  };
-
-  const handleBookAvailable = () => {
-    if (!conflicts) return;
-    const skipDates = conflicts.map(c => c.date);
-    onSubmit({ ...form, date:toISO(date), time_slot:slot, duration_hours:durationHours, recurrence, end_date:endDate, skip_dates:skipDates });
-    setConflicts(null);
-  };
-
-  return (
-    <div style={{paddingTop:'max(20px, env(safe-area-inset-top, 0px))',paddingLeft:'16px',paddingRight:'16px',paddingBottom:'20px',fontFamily:'system-ui'}}>
-      {onBack && <BackButton onBack={onBack} T={T}/>}
-      <div style={{marginTop:16,marginBottom:20}}>
-        <div style={{fontSize:22,fontWeight:800,color:T.text,letterSpacing:'-.4px',marginBottom:8}}>Bokningsförfrågan</div>
-        <div style={{display:'inline-flex',alignItems:'center',gap:8,background:`${T.accent}18`,borderRadius:10,padding:'6px 12px'}}>
-          <span style={{fontSize:13,color:T.accent,fontWeight:600}}>{isoToDisplay(toISO(date))} · {slot} · {fmtDuration(durationHours)}</span>
+// ─── Day Panel ────────────────────────────────────────────────────────────────
+function DayPanel({date,bookings,exceptions,isAdmin,onSelectBooking,onNewBooking,T}) {
+  const iso=toISO(date);
+  const occs=useMemo(()=>getOccurrencesForDate(bookings,exceptions,iso),[bookings,exceptions,iso]);
+  const today=new Date();today.setHours(0,0,0,0);
+  const isToday=date.getTime()===today.getTime();
+  return <div style={{paddingLeft:20,paddingRight:20,paddingTop:8}}>
+    <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:12}}>
+      <div style={{display:'flex',alignItems:'center',gap:8}}>
+        <div style={{width:34,height:34,borderRadius:'50%',
+          background:isToday?T.calToday:'none',
+          display:'flex',alignItems:'center',justifyContent:'center'}}>
+          <span style={{fontSize:18,fontWeight:700,color:isToday?'#fff':T.text,fontFamily:'system-ui'}}>
+            {date.getDate()}
+          </span>
         </div>
-      </div>
-      <div style={{display:'flex',alignItems:'center',gap:10,background:T.card,border:`1px solid ${T.border}`,borderRadius:12,padding:'12px 14px',marginBottom:14}}>
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={T.accent} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
         <div>
-          <div style={{fontSize:14,fontWeight:700,color:T.text}}>{userName}</div>
-          <div style={{fontSize:12,color:T.textMuted}}>{userPhone}</div>
+          <div style={{fontSize:15,fontWeight:600,color:T.text,fontFamily:'system-ui'}}>
+            {DAYS_FULL[(date.getDay()+6)%7]}
+          </div>
+          <div style={{fontSize:12,color:T.textMuted,fontFamily:'system-ui'}}>
+            {MONTHS_SV[date.getMonth()]} {date.getFullYear()}
+          </div>
         </div>
       </div>
-      <div style={{display:'flex',flexDirection:'column',gap:14}}>
-        <Textarea label="AKTIVITET" value={form.activity} onChange={set('activity')} placeholder="Beskriv aktiviteten kort..." required T={T}/>
-        <div style={{background:T.card,border:`1px solid ${T.border}`,borderRadius:14,padding:'14px'}}>
-          <RecurrencePicker recurrence={recurrence} onChange={r=>{setRecurrence(r);setEndDate(null);}} endDate={endDate} onEndDateChange={setEndDate} T={T}/>
-          {recurrence !== 'none' && (
-            <div style={{marginTop:12,padding:'10px 12px',background:T.cardElevated,borderRadius:10,fontSize:12,color:T.textMuted,fontFamily:'system-ui'}}>
-              {endDate
-                ? `Återkommer ${recurrence==='daily'?'varje dag':recurrence==='weekly'?'varje vecka':'varje månad'} från ${isoToDisplay(toISO(date))} till ${isoToDisplay(endDate)}`
-                : `Återkommer ${recurrence==='daily'?'varje dag':recurrence==='weekly'?'varje vecka':'varje månad'} från ${isoToDisplay(toISO(date))} utan slutdatum`}
+      <button onClick={()=>onNewBooking(date)}
+        style={{width:36,height:36,borderRadius:'50%',border:'none',
+          background:T.accent,color:'#fff',
+          display:'flex',alignItems:'center',justifyContent:'center',
+          cursor:'pointer',WebkitTapHighlightColor:'transparent',
+          boxShadow:`0 2px 10px ${T.accentGlow}`}}>
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none"
+          stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+          <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+        </svg>
+      </button>
+    </div>
+    {occs.length===0?(
+      <div style={{textAlign:'center',paddingTop:32,paddingBottom:20,
+        fontSize:22,fontWeight:700,color:T.textMuted,fontFamily:'system-ui',
+        letterSpacing:'-.3px'}}>Inga aktiviteter</div>
+    ):(
+      <div style={{display:'flex',flexDirection:'column',gap:8}}>
+        {occs.map(o=>(
+          <div key={o.id+(o.date||'')} onClick={()=>onSelectBooking(o)}
+            style={{background:T.card,border:`0.5px solid ${T.border}`,
+              borderRadius:14,padding:'12px 14px',
+              cursor:'pointer',WebkitTapHighlightColor:'transparent',
+              display:'flex',alignItems:'flex-start',gap:12}}>
+            <div style={{width:4,borderRadius:2,alignSelf:'stretch',flexShrink:0,
+              background:o.status==='approved'||o.status==='edited'?T.accent:
+                o.status==='pending'||o.status==='edit_pending'?T.warning:T.textMuted}}/>
+            <div style={{flex:1,minWidth:0}}>
+              <div style={{fontSize:15,fontWeight:600,color:T.text,fontFamily:'system-ui',marginBottom:2}}>{o.activity}</div>
+              <div style={{fontSize:13,color:T.textMuted,fontFamily:'system-ui'}}>{o.time_slot} · {fmtDuration(o.duration_hours)}</div>
+              {isAdmin&&<div style={{fontSize:12,color:T.textMuted,fontFamily:'system-ui',marginTop:2}}>
+                {o.name}{o.phone?` · ${o.phone}`:''}
+              </div>}
+              {o.notes&&<div style={{fontSize:12,color:T.textMuted,fontFamily:'system-ui',marginTop:4,fontStyle:'italic'}}>{o.notes}</div>}
             </div>
-          )}
-        </div>
-        {error && <div style={{fontSize:13,color:'#ef4444',background:'#ef444418',padding:'10px 14px',borderRadius:8}}>{error}</div>}
-        <button onClick={handleSubmit} disabled={loading}
-          style={{background:loading?T.textMuted:T.accent,color:'#fff',border:'none',borderRadius:12,padding:'14px',fontSize:16,fontWeight:700,cursor:loading?'default':'pointer',marginTop:4,WebkitTapHighlightColor:'transparent',display:'flex',alignItems:'center',justifyContent:'center',gap:8}}>
-          {loading ? 'Skickar...' : <>Skicka bokningsförfrågan <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg></>}
-        </button>
-        <p style={{fontSize:11,color:T.textMuted,textAlign:'center',margin:0}}>Din förfrågan granskas av en administratör.</p>
-      </div>
-      {/* ── Konfliktdialog för besökare ── */}
-    {conflicts && (
-      <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.65)',zIndex:2000,display:'flex',alignItems:'flex-end',justifyContent:'center'}} onClick={()=>setConflicts(null)}>
-        <div onClick={e=>e.stopPropagation()} style={{background:T.card,borderRadius:'20px 20px 0 0',padding:'24px 20px 36px',width:'100%',maxWidth:500,boxSizing:'border-box',animation:'slideUp .25s cubic-bezier(0.32,0.72,0,1)',maxHeight:'80vh',overflowY:'auto'}}>
-          <div style={{display:'flex',alignItems:'center',gap:10,marginBottom:6}}>
-            <div style={{width:32,height:32,borderRadius:10,background:'#f59e0b22',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}>
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#f59e0b" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
-            </div>
-            <div style={{fontSize:17,fontWeight:800,color:T.text,fontFamily:'system-ui'}}>Tidskonflikter hittades</div>
+            <Badge status={o.status}/>
           </div>
-          <div style={{fontSize:13,color:T.textMuted,marginBottom:16,fontFamily:'system-ui'}}>
-            {conflicts.length} av dina tillfällen krockar med befintliga bokningar. Välj hur du vill fortsätta.
-          </div>
-
-          <div style={{display:'flex',flexDirection:'column',gap:6,marginBottom:20,maxHeight:220,overflowY:'auto'}}>
-            {conflicts.map((c,i) => (
-              <div key={i} style={{background:'#f59e0b11',border:'1px solid #f59e0b33',borderRadius:10,padding:'10px 12px'}}>
-                <div style={{fontSize:13,fontWeight:700,color:T.text,fontFamily:'system-ui',marginBottom:4}}>
-                  {isoToDisplay(c.date)} · {c.time_slot}
-                </div>
-                {c.clashing.map(b => (
-                  <div key={b.id} style={{fontSize:11,color:'#f59e0b',fontFamily:'system-ui'}}>
-                    ↳ Redan bokad
-                  </div>
-                ))}
-              </div>
-            ))}
-          </div>
-
-          <div style={{display:'flex',flexDirection:'column',gap:10}}>
-            <button onClick={()=>setConflicts(null)}
-              style={{padding:'13px',borderRadius:12,border:`1px solid ${T.accent}`,background:'none',color:T.accent,fontSize:14,fontWeight:700,cursor:'pointer',fontFamily:'system-ui',WebkitTapHighlightColor:'transparent'}}>
-              ← Ändra tid
-            </button>
-            <button onClick={handleBookAvailable} disabled={loading}
-              style={{padding:'13px',borderRadius:12,border:'none',background:T.accent,color:'#fff',fontSize:14,fontWeight:700,cursor:'pointer',fontFamily:'system-ui',WebkitTapHighlightColor:'transparent'}}>
-              {loading ? 'Skickar...' : `Skicka förfrågan för lediga tillfällen (hoppa över ${conflicts.length} st)`}
-            </button>
-          </div>
-        </div>
+        ))}
       </div>
     )}
-    </div>
-  );
+  </div>;
 }
 
-// ── MyBookings ────────────────────────────────────────────────────────────────
+// ─── Search Panel ─────────────────────────────────────────────────────────────
+function SearchPanel({bookings,exceptions,onSelectBooking,onClose,T}) {
+  const[query,setQuery]=useState('');
+  const inputRef=useRef(null);
+  useEffect(()=>{setTimeout(()=>inputRef.current?.focus(),100);},[]);
+  const todayISO=toISO(new Date());
+  const windowEnd=toISO(new Date(new Date().setFullYear(new Date().getFullYear()+2)));
+  const results=useMemo(()=>{
+    if(!query.trim()) return[];
+    const q=query.toLowerCase();
+    return expandAll(bookings,exceptions,todayISO,windowEnd)
+      .filter(o=>(o.name||'').toLowerCase().includes(q)||(o.activity||'').toLowerCase().includes(q)||
+        (o.notes||'').toLowerCase().includes(q)||(o.time_slot||'').toLowerCase().includes(q))
+      .slice(0,40);
+  },[query,bookings,exceptions,todayISO,windowEnd]);
 
-function MyBookings({ bookings, exceptions, loading, onBack, onCancel, onCancelFromDate, onCancelSeries, onRestore, highlightBookingId, highlightFilter, onLogout, T }) {
-  const [selectedId, setSelectedId] = useState(null);
-  const [deleteSheet, setDeleteSheet] = useState(null);
-  const [cancelReason, setCancelReason] = useState('');
-  const [cancelReasonError, setCancelReasonError] = useState(false);
-  const [filter, setFilter] = useState(highlightFilter || 'all');
-  const highlightRef = useRef(null);
-
-  // Synka selected med live bookings
-  const selected = useMemo(() =>
-    selectedId ? bookings.find(b => b.id === selectedId) || null : null,
-  [selectedId, bookings]);
-
-  // Synka filter när highlightFilter ändras utifrån
-  useEffect(() => {
-    if (highlightFilter) setFilter(highlightFilter);
-  }, [highlightFilter]);
-
-  // Scrolla till highlighted bokning + vibration
-  useEffect(() => {
-    if (highlightBookingId && highlightRef.current) {
-      setTimeout(() => {
-        highlightRef.current?.scrollIntoView({ behavior:'smooth', block:'center' });
-        // Vibration — rolig effekt: kort-kort-lång
-        if (navigator.vibrate) navigator.vibrate([60, 40, 60, 40, 120]);
-      }, 350);
-    }
-  }, [highlightBookingId, filter]);
-
-  const today = toISO(new Date());
-  const windowEnd = (() => { const d=new Date(); d.setFullYear(d.getFullYear()+2); return toISO(d); })();
-
-  // Sortera senaste överst (created_at desc)
-  const sorted = useMemo(() => {
-    const all = bookings.slice().sort((a,b) => (b.created_at||0) - (a.created_at||0));
-    if (filter === 'all') return all;
-    if (filter === 'pending') return all.filter(b => b.status === 'pending' || b.status === 'edit_pending');
-    if (filter === 'approved') return all.filter(b => b.status === 'approved' || b.status === 'edited');
-    if (filter === 'cancelled') return all.filter(b => b.status === 'cancelled' || b.status === 'rejected');
-    return all;
-  }, [bookings, filter]);
-
-  // Filter counts
-  const counts = useMemo(() => ({
-    all: bookings.length,
-    pending: bookings.filter(b => b.status==='pending'||b.status==='edit_pending').length,
-    approved: bookings.filter(b => b.status==='approved'||b.status==='edited').length,
-    cancelled: bookings.filter(b => b.status==='cancelled'||b.status==='rejected').length,
-  }), [bookings]);
-
-  const FILTERS = [
-    { id:'all',       label:'Alla' },
-    { id:'pending',   label:'Väntar' },
-    { id:'approved',  label:'Godkända' },
-    { id:'cancelled', label:'Inställda' },
-  ];
-
-  if (selected !== null) {
-    const b = selected;
-    const isRecur = b.recurrence !== 'none';
-    const upcoming = isRecur
-      ? expandBooking(b, today, windowEnd, exceptions).slice(0,10)
-      : [{ ...b, date: b.start_date }];
-
-    return (
-      <div style={{paddingTop:'max(20px, env(safe-area-inset-top, 0px))',paddingLeft:'16px',paddingRight:'16px',paddingBottom:'100px',fontFamily:'system-ui'}}>
-        <BackButton onBack={()=>setSelectedId(null)} T={T}/>
-        <div style={{fontSize:20,fontWeight:800,color:T.text,marginTop:16,marginBottom:16}}>Bokningsdetaljer</div>
-
-        <div style={{background:T.card,border:`1px solid ${T.border}`,borderRadius:16,padding:'16px',marginBottom:12}}>
-          <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:12}}>
-            <Badge status={b.status}/>
-            {isRecur && <RecurBadge endDate={b.end_date}/>}
-          </div>
-          {[['Aktivitet',b.activity],['Tid',b.time_slot],['Längd',fmtDuration(b.duration_hours)],['Startdatum',isoToDisplay(b.start_date)],['Upprepning',b.recurrence==='daily'?'Varje dag':b.recurrence==='weekly'?'Varje vecka':b.recurrence==='monthly'?'Varje månad':'Ingen']].map(([l,v])=>(
-            <div key={l} style={{marginBottom:10,paddingBottom:10,borderBottom:`1px solid ${T.border}`}}>
-              <div style={{fontSize:10,fontWeight:700,color:T.textMuted,letterSpacing:'.5px',marginBottom:2}}>{l.toUpperCase()}</div>
-              <div style={{fontSize:14,color:T.text}}>{v}</div>
-            </div>
-          ))}
-          {b.end_date && <div style={{marginBottom:10,paddingBottom:10,borderBottom:`1px solid ${T.border}`}}>
-            <div style={{fontSize:10,fontWeight:700,color:T.textMuted,letterSpacing:'.5px',marginBottom:2}}>SLUTDATUM</div>
-            <div style={{fontSize:14,color:T.text}}>{isoToDisplay(b.end_date)}</div>
-          </div>}
-          {b.admin_comment && <div style={{padding:'8px 10px',background:`${T.accent}11`,borderRadius:8}}>
-            <div style={{fontSize:10,fontWeight:700,color:T.textMuted,letterSpacing:'.5px',marginBottom:2}}>KOMMENTAR FRÅN ADMIN</div>
-            <div style={{fontSize:13,color:T.text}}>{b.admin_comment}</div>
-          </div>}
+  return <div style={{position:'fixed',inset:0,background:T.bg,zIndex:200,
+    display:'flex',flexDirection:'column',animation:'bsSlideUp .25s cubic-bezier(0.32,0.72,0,1)'}}>
+    <div style={{padding:'max(20px,env(safe-area-inset-top,0px)) 16px 0',background:T.bg}}>
+      <div style={{display:'flex',gap:10,alignItems:'center',marginBottom:12}}>
+        <div style={{flex:1,display:'flex',alignItems:'center',gap:8,
+          background:T.card,borderRadius:12,padding:'10px 14px',border:`0.5px solid ${T.border}`}}>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none"
+            stroke={T.textMuted} strokeWidth="2" strokeLinecap="round">
+            <circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/>
+          </svg>
+          <input ref={inputRef} value={query} onChange={e=>setQuery(e.target.value)}
+            placeholder="Sök bokningar..."
+            style={{flex:1,background:'none',border:'none',outline:'none',
+              fontSize:16,color:T.text,fontFamily:'system-ui'}}/>
+          {query&&<button onClick={()=>setQuery('')}
+            style={{background:'none',border:'none',color:T.textMuted,
+              cursor:'pointer',padding:0,fontSize:18,lineHeight:1}}>×</button>}
         </div>
-
-        {isRecur && upcoming.length > 0 && (
-          <div style={{background:T.card,border:'1px solid #8b5cf644',borderRadius:14,padding:'14px',marginBottom:12}}>
-            <div style={{fontSize:11,fontWeight:700,color:'#8b5cf6',letterSpacing:'.5px',marginBottom:10}}>
-              KOMMANDE TILLFÄLLEN {!b.end_date && '(visar närmaste 10)'}
-            </div>
-            {upcoming.map((occ,i) => (
-              <div key={i} style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'8px 0',borderBottom:i<upcoming.length-1?`1px solid ${T.border}`:'none'}}>
-                <div>
-                  <div style={{fontSize:13,fontWeight:600,color:T.text}}>{isoToDisplay(occ.date)}</div>
-                  <div style={{fontSize:11,color:T.textMuted}}>{occ.time_slot}</div>
-                </div>
-                <div style={{display:'flex',alignItems:'center',gap:6}}>
-                  <Badge status={occ.status||b.status}/>
-                  <button onClick={()=>setDeleteSheet({booking:b, occurrence_date:occ.date, isLast:upcoming.length===1})}
-                    style={{background:'none',border:'none',cursor:'pointer',color:'#ef4444',fontSize:18,lineHeight:1,padding:'0 4px',WebkitTapHighlightColor:'transparent'}}>×</button>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-
-        {/* Delete / restore actions */}
-        <div style={{display:'flex',flexDirection:'column',gap:8}}>
-          {(b.status === 'cancelled' || b.status === 'rejected') ? (() => {
-            const myName = localStorage.getItem('islamnu_user_name') || '';
-            // Admin har avbokat om kommentaren INTE börjar med "Avbokad av [mitt namn]"
-            // eller om status är rejected
-            const cancelledByAdmin = b.status === 'rejected' ||
-              !b.admin_comment ||
-              !b.admin_comment.startsWith('Avbokad av ' + myName);
-            if (cancelledByAdmin) {
-              return (
-                <div>
-                  <div style={{padding:'10px 12px',background:`${T.accent}0d`,borderRadius:10,marginBottom:10,fontSize:13,color:T.textMuted,fontFamily:'system-ui'}}>
-                    {b.status === 'rejected' ? 'Din bokning avböjdes av admin.' : 'Bokningen ställdes in av admin.'}{' '}
-                    Du kan boka en ny tid nedan.
-                  </div>
-                  <button onClick={()=>{ setSelectedId(null); onBack(); }}
-                    style={{padding:'13px',borderRadius:12,border:`1px solid ${T.accent}44`,background:`${T.accent}11`,color:T.accent,fontSize:14,fontWeight:700,cursor:'pointer',fontFamily:'system-ui',textAlign:'left',width:'100%',WebkitTapHighlightColor:'transparent'}}>
-                    📅 Byt datum och tid
-                    <div style={{fontSize:12,fontWeight:400,marginTop:3,opacity:.75}}>Gå till kalendern och välj en ny tid</div>
-                  </button>
-                </div>
-              );
-            }
-            // Avbokad av användaren själv — visa Återta
-            const checkDate = b.start_date;
-            const timeAvailable = getAvailableStarts(bookings, exceptions, checkDate, b.duration_hours, b.id).includes(parseSlotStart(b.time_slot));
-            return (
-              <button onClick={() => { if (timeAvailable) onRestore?.(b); }} disabled={!timeAvailable}
-                style={{padding:'13px',borderRadius:12,border:`1px solid ${timeAvailable?'#22c55e44':'#88888844'}`,background:timeAvailable?'#22c55e11':'#88888811',color:timeAvailable?'#22c55e':'#888',fontSize:14,fontWeight:700,cursor:timeAvailable?'pointer':'not-allowed',fontFamily:'system-ui',textAlign:'left',WebkitTapHighlightColor:'transparent',opacity:timeAvailable?1:0.6}}>
-                {timeAvailable ? '↩ Återta bokningen' : '↩ Återta bokningen (ej tillgänglig)'}
-                <div style={{fontSize:12,fontWeight:400,marginTop:3,opacity:.75}}>
-                  {timeAvailable
-                    ? isRecur ? 'Serien återaktiveras — tillfällen skapas igen' : 'Tiden är ledig — bokningen återaktiveras som Väntar'
-                    : 'En annan bokning har tagit denna tid'}
-                </div>
-              </button>
-            );
-          })() : (
-            /* Aktiv bokning — visa Avboka */
-            isRecur ? (
-              <button onClick={()=>setDeleteSheet({booking:b, occurrence_date:b.start_date, deleteAll:true})}
-                style={{padding:'13px',borderRadius:12,border:'1px solid #ef444433',background:'#ef444411',color:'#ef4444',fontSize:14,fontWeight:700,cursor:'pointer',fontFamily:'system-ui',textAlign:'left',WebkitTapHighlightColor:'transparent'}}>
-                🗑 Avboka hela serien
-                <div style={{fontSize:12,fontWeight:400,marginTop:3,opacity:.75}}>Tar bort alla kommande tillfällen</div>
-              </button>
-            ) : (
-              <button onClick={()=>setDeleteSheet({booking:b, occurrence_date:b.start_date})}
-                style={{padding:'13px',borderRadius:12,border:'1px solid #ef444433',background:'#ef444411',color:'#ef4444',fontSize:14,fontWeight:700,cursor:'pointer',fontFamily:'system-ui',textAlign:'left',WebkitTapHighlightColor:'transparent'}}>
-                🗑 Avboka
-              </button>
-            )
-          )}
-        </div>
-
-        {/* Delete sheet — Outlook-stil */}
-        {deleteSheet && (
-          <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.5)',zIndex:1000,display:'flex',alignItems:'flex-end',justifyContent:'center'}} onClick={()=>{setDeleteSheet(null);setCancelReason('');setCancelReasonError(false);}}>
-            <div onClick={e=>e.stopPropagation()} style={{background:T.card,borderRadius:'20px 20px 0 0',padding:'24px 20px 36px',width:'100%',maxWidth:500,boxSizing:'border-box',animation:'slideUp .25s cubic-bezier(0.32,0.72,0,1)'}}>
-              <div style={{fontSize:16,fontWeight:800,color:T.text,marginBottom:4,fontFamily:'system-ui'}}>
-                {deleteSheet.deleteAll ? 'Är du säker? Avboka hela serien?' : 'Är du säker på att du vill avboka?'}
-              </div>
-              <div style={{fontSize:12,color:T.textMuted,marginBottom:14,fontFamily:'system-ui'}}>
-                Ange en anledning — admin ser detta meddelande.
-              </div>
-
-              {/* Anledning — obligatorisk */}
-              <div style={{marginBottom:14}}>
-                <textarea
-                  value={cancelReason}
-                  onChange={e=>{setCancelReason(e.target.value);setCancelReasonError(false);}}
-                  placeholder="Anledning (obligatorisk)"
-                  rows={3}
-                  style={{width:'100%',boxSizing:'border-box',background:T.cardElevated,border:`1px solid ${cancelReasonError?'#ef4444':T.border}`,borderRadius:10,padding:'10px 12px',fontSize:16,color:T.text,fontFamily:'system-ui',resize:'none',outline:'none'}}
-                />
-                {cancelReasonError && <div style={{color:'#ef4444',fontSize:12,marginTop:4,fontFamily:'system-ui'}}>Anledning krävs för avbokning.</div>}
-              </div>
-
-              <div style={{display:'flex',flexDirection:'column',gap:10}}>
-                {!deleteSheet.deleteAll && (() => {
-                  const isRecurring = deleteSheet.booking.recurrence !== 'none';
-                  const userName = () => localStorage.getItem('islamnu_user_name') || 'Besökaren';
-                  const reason = () => `Avbokad av ${userName()}: ${cancelReason.trim()}`;
-                  const validateAndRun = (fn) => {
-                    if (!cancelReason.trim()) { setCancelReasonError(true); return; }
-                    fn();
-                  };
-                  return isRecurring ? (
-                    <>
-                      <button onClick={()=>validateAndRun(()=>{ setDeleteSheet(null); setCancelReason(''); setCancelReasonError(false); onCancel(deleteSheet.booking, deleteSheet.occurrence_date, reason()); })}
-                        style={{padding:'14px',borderRadius:12,border:'1px solid #ef444433',background:'#ef444411',color:'#ef4444',fontSize:14,fontWeight:700,cursor:'pointer',fontFamily:'system-ui',textAlign:'left',WebkitTapHighlightColor:'transparent'}}>
-                        🗑 Ta bort bara detta tillfälle
-                        <div style={{fontSize:12,fontWeight:400,marginTop:3,opacity:.75}}>Övriga tillfällen påverkas inte</div>
-                      </button>
-                      <button onClick={()=>validateAndRun(()=>{ setDeleteSheet(null); setCancelReason(''); setCancelReasonError(false); onCancelFromDate(deleteSheet.booking, deleteSheet.occurrence_date, reason()); })}
-                        style={{padding:'14px',borderRadius:12,border:'1px solid #ef444433',background:'#ef444411',color:'#ef4444',fontSize:14,fontWeight:700,cursor:'pointer',fontFamily:'system-ui',textAlign:'left',WebkitTapHighlightColor:'transparent'}}>
-                        🗑 Ta bort detta och alla kommande
-                        <div style={{fontSize:12,fontWeight:400,marginTop:3,opacity:.75}}>Sätter slutdatum till dagen innan detta tillfälle</div>
-                      </button>
-                    </>
-                  ) : (
-                    <button onClick={()=>validateAndRun(()=>{ setDeleteSheet(null); setCancelReason(''); setCancelReasonError(false); onCancel(deleteSheet.booking, deleteSheet.occurrence_date, reason()); })}
-                      style={{padding:'14px',borderRadius:12,border:'1px solid #ef444433',background:'#ef444411',color:'#ef4444',fontSize:14,fontWeight:700,cursor:'pointer',fontFamily:'system-ui',textAlign:'left',WebkitTapHighlightColor:'transparent'}}>
-                      🗑 Avboka bokningen
-                    </button>
-                  );
-                })()}
-                {deleteSheet.deleteAll && (
-                  <button onClick={()=>{
-                    if (!cancelReason.trim()) { setCancelReasonError(true); return; }
-                    const userName = localStorage.getItem('islamnu_user_name') || 'Besökaren';
-                    const reason = cancelReason.trim() ? `Avbokad av ${userName}: ${cancelReason.trim()}` : `Avbokad av ${userName}.`;
-                    setDeleteSheet(null); setCancelReason(''); setCancelReasonError(false);
-                    onCancelSeries(deleteSheet.booking, reason);
-                  }}
-                    style={{padding:'14px',borderRadius:12,border:'1px solid #ef444433',background:'#ef444411',color:'#ef4444',fontSize:14,fontWeight:700,cursor:'pointer',fontFamily:'system-ui',textAlign:'left',WebkitTapHighlightColor:'transparent'}}>
-                    🗑 Ja, avboka hela serien
-                  </button>
-                )}
-                <button onClick={()=>{setDeleteSheet(null);setCancelReason('');setCancelReasonError(false);}}
-                  style={{padding:'13px',borderRadius:12,border:`1px solid ${T.border}`,background:'none',color:T.text,fontSize:14,fontWeight:600,cursor:'pointer',fontFamily:'system-ui',WebkitTapHighlightColor:'transparent'}}>
-                  Avbryt
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
-      </div>
-    );
-  }
-
-  return (
-    <div style={{paddingTop:'max(20px, env(safe-area-inset-top, 0px))',paddingLeft:'16px',paddingRight:'16px',paddingBottom:'20px',fontFamily:'system-ui'}}>
-      <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:0}}>
-        <BackButton onBack={onBack} T={T}/>
-        <button onClick={onLogout}
-          style={{padding:'7px 14px',borderRadius:20,border:'1px solid #ef444433',background:'#ef444411',color:'#ef4444',fontSize:12,fontWeight:700,cursor:'pointer',fontFamily:'system-ui',WebkitTapHighlightColor:'transparent',display:'flex',alignItems:'center',gap:6}}>
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
-          Logga ut
-        </button>
-      </div>
-      <div style={{fontSize:22,fontWeight:800,color:T.text,marginTop:16,marginBottom:12}}>Mina bokningar</div>
-
-      {/* Filter chips */}
-      <div style={{display:'flex',gap:6,flexWrap:'wrap',marginBottom:14}}>
-        {FILTERS.map(f => (
-          <button key={f.id} onClick={()=>setFilter(f.id)}
-            style={{padding:'6px 14px',borderRadius:20,border:`1px solid ${filter===f.id?T.accent:T.border}`,background:filter===f.id?`${T.accent}22`:'none',color:filter===f.id?T.accent:T.textMuted,fontSize:12,fontWeight:600,cursor:'pointer',fontFamily:'system-ui',WebkitTapHighlightColor:'transparent',display:'flex',alignItems:'center',gap:5}}>
-            {f.label}
-            {counts[f.id]>0&&<span style={{background:filter===f.id?T.accent:'#88888833',color:filter===f.id?'#fff':T.textMuted,borderRadius:8,fontSize:10,fontWeight:800,padding:'1px 6px'}}>{counts[f.id]}</span>}
-          </button>
-        ))}
-      </div>
-
-      {loading && <Spinner T={T}/>}
-      {!loading && sorted.length === 0 && (
-        <div style={{textAlign:'center',padding:'40px 0',color:T.textMuted,fontSize:14}}>
-          {filter==='all' ? 'Inga bokningar hittades.' : `Inga ${FILTERS.find(f=>f.id===filter)?.label.toLowerCase()} bokningar.`}
-        </div>
-      )}
-      {/* Skeleton — visas bara om bookings är tom men data fortfarande hämtas */}
-      {!loading && sorted.length === 0 && filter === 'all' && bookings.length === 0 && (
-        <div style={{display:'flex',flexDirection:'column',gap:10,marginTop:4,opacity:0.4}}>
-          {[1,2,3].map(i => (
-            <div key={i} style={{background:T.card,border:`1px solid ${T.border}`,borderRadius:14,padding:'14px 16px',height:80,animation:'shimmer 1.5s ease-in-out infinite'}}>
-              <div style={{width:'40%',height:12,borderRadius:6,background:T.border,marginBottom:8}}/>
-              <div style={{width:'60%',height:10,borderRadius:6,background:T.border,marginBottom:6}}/>
-              <div style={{width:'30%',height:10,borderRadius:6,background:T.border}}/>
-            </div>
-          ))}
-        </div>
-      )}
-      <div style={{display:'flex',flexDirection:'column',gap:10}}>
-        {sorted.map(b => {
-          const isRecur = b.recurrence !== 'none';
-          const nextOcc = isRecur
-            ? expandBooking(b, today, windowEnd, exceptions)[0]
-            : null;
-          const displayDate = nextOcc?.date || b.start_date;
-          const isHighlight = b.id === highlightBookingId;
-          const highlightColor = (b.status==='cancelled'||b.status==='rejected') ? '#3b82f6' : T.accent;
-          return (
-            <div key={b.id} ref={isHighlight?highlightRef:null}
-              onClick={()=>setSelectedId(b.id)}
-              style={{background:T.card,border:`1px solid ${isHighlight?highlightColor:T.border}`,borderRadius:14,padding:'14px 16px',cursor:'pointer',transition:'all .12s',
-                boxShadow:isHighlight?`0 0 0 3px ${highlightColor}44`:'none',
-                animation:isHighlight?`highlightPulse 1.2s ease-in-out 3, vibrate 0.4s 0.35s ease`:'none',
-                '--hl': `${highlightColor}55`}}>
-              <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:8}}>
-                <div style={{display:'flex',alignItems:'center',gap:8}}>
-                  <Badge status={b.status}/>
-                  {isRecur && <RecurBadge endDate={b.end_date}/>}
-                </div>
-                <span style={{fontSize:11,color:T.textMuted,fontFamily:'system-ui'}}>{isoToDisplay(displayDate)}</span>
-              </div>
-              <div style={{fontSize:15,fontWeight:700,color:T.text,marginBottom:4}}>{b.activity}</div>
-              <div style={{fontSize:13,color:T.textMuted}}>{b.time_slot} · {fmtDuration(b.duration_hours)}</div>
-              {b.admin_comment && <div style={{marginTop:8,fontSize:12,color:T.textMuted,fontStyle:'italic'}}>"{b.admin_comment}"</div>}
-            </div>
-          );
-        })}
+        <button onClick={onClose} style={{background:'none',border:'none',color:T.accent,
+          cursor:'pointer',fontSize:17,fontFamily:'system-ui',
+          WebkitTapHighlightColor:'transparent',padding:0}}>Avbryt</button>
       </div>
     </div>
-  );
-}
-
-// ── AdminPanel ────────────────────────────────────────────────────────────────
-
-function AdminPanel({ bookings, exceptions, onBack, onApprove, onReject, onDelete, onDeleteSeries, onDeleteFromDate, onAdminAddRecurring, onRefreshNotifications, onMarkAdminSeen, onManageUsers, adminInitialFilter, adminHighlightId = null, adminHighlightFilter = null, cancelledBookingIds = [], pendingBookingIds = [], T }) {
-  const [filter, setFilter] = useState(adminHighlightFilter || adminInitialFilter || 'all');
-  const [selected, setSelected] = useState(null);
-  const [actionLoading, setActionLoading] = useState(false);
-  const highlightRef = useRef(null);
-
-  // Synka filter när adminHighlightFilter ändras utifrån (precis som MyBookings)
-  useEffect(() => {
-    if (adminHighlightFilter) setFilter(adminHighlightFilter);
-  }, [adminHighlightFilter]);
-
-  // Scrolla till highlighted bokning + vibration (identiskt med MyBookings)
-  useEffect(() => {
-    if (adminHighlightId && highlightRef.current) {
-      setTimeout(() => {
-        highlightRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        if (navigator.vibrate) navigator.vibrate([60, 40, 60, 40, 120]);
-        // Rensa badge efter 3s
-        setTimeout(() => onMarkAdminSeen?.(), 3000);
-      }, 400);
-    }
-  }, [adminHighlightId, filter]); // eslint-disable-line
-  const [comment, setComment] = useState('');
-  const [deleteDialog, setDeleteDialog] = useState(null);
-  const [addForm, setAddForm] = useState(null);
-
-  const today = toISO(new Date());
-  const windowEnd = (() => { const d=new Date(); d.setFullYear(d.getFullYear()+2); return toISO(d); })();
-
-  // highlight/vibration hanteras nu av adminHighlightId-effekten ovan
-
-  // Group bookings by status for filter tabs
-  const pending   = bookings.filter(b=>b.status==='pending'||b.status==='edit_pending');
-  const approved  = bookings.filter(b=>b.status==='approved'||b.status==='edited');
-  const rejected  = bookings.filter(b=>b.status==='rejected');
-  const cancelled = bookings.filter(b=>b.status==='cancelled');
-
-  const filtered = filter==='all' ? bookings :
-    filter==='pending' ? pending :
-    filter==='approved' ? approved :
-    filter==='rejected' ? rejected : cancelled;
-
-  const sorted = filtered.slice().sort((a,b)=>b.created_at-a.created_at);
-
-  const filters = [
-    { id:'all',       label:'Alla',     count: bookings.length },
-    { id:'pending',   label:'Väntar',   count: pending.length },
-    { id:'approved',  label:'Godkända', count: approved.length },
-    { id:'rejected',  label:'Avböjda',  count: rejected.length },
-    { id:'cancelled', label:'Inställda',count: cancelled.length },
-  ];
-
-  if (selected) {
-    const b = selected;
-    const isRecur = b.recurrence !== 'none';
-    const upcoming = isRecur ? expandBooking(b, today, windowEnd, exceptions).slice(0,10) : null;
-
-    return (
-      <div style={{paddingTop:'max(20px, env(safe-area-inset-top, 0px))',paddingLeft:'16px',paddingRight:'16px',paddingBottom:'100px',fontFamily:'system-ui'}}>
-        <BackButton onBack={()=>{setSelected(null);setComment('');}} T={T}/>
-        <div style={{fontSize:20,fontWeight:800,color:T.text,marginTop:16,marginBottom:16}}>Bokningsdetaljer</div>
-
-        <div style={{background:T.card,border:`1px solid ${T.border}`,borderRadius:16,padding:'16px',marginBottom:12}}>
-          <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:12}}>
-            <Badge status={b.status}/>
-            {isRecur && <RecurBadge endDate={b.end_date}/>}
+    <div style={{flex:1,overflowY:'auto',padding:'0 16px 40px'}}>
+      {query&&results.length===0&&<div style={{textAlign:'center',padding:'40px 0',
+        color:T.textMuted,fontSize:14,fontFamily:'system-ui'}}>Inga resultat för "{query}"</div>}
+      {results.map((o,i)=>(
+        <div key={i} onClick={()=>onSelectBooking(o)}
+          style={{background:T.card,border:`0.5px solid ${T.border}`,borderRadius:14,
+            padding:'12px 14px',marginBottom:8,cursor:'pointer',WebkitTapHighlightColor:'transparent'}}>
+          <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:4}}>
+            <div style={{fontSize:15,fontWeight:600,color:T.text,fontFamily:'system-ui'}}>{o.activity}</div>
+            <Badge status={o.status}/>
           </div>
-          {[['Namn',b.name],['Telefon',b.phone],['Aktivitet',b.activity],['Tid',b.time_slot],['Längd',fmtDuration(b.duration_hours)],['Startdatum',isoToDisplay(b.start_date)],['Upprepning',b.recurrence==='daily'?'Varje dag':b.recurrence==='weekly'?'Varje vecka':b.recurrence==='monthly'?'Varje månad':'Ingen']].map(([l,v])=>(
-            <div key={l} style={{marginBottom:10,paddingBottom:10,borderBottom:`1px solid ${T.border}`}}>
-              <div style={{fontSize:10,fontWeight:700,color:T.textMuted,letterSpacing:'.5px',marginBottom:2}}>{l.toUpperCase()}</div>
-              <div style={{fontSize:14,color:T.text}}>{v}</div>
-            </div>
-          ))}
-          {b.end_date && <div style={{marginBottom:10,paddingBottom:10,borderBottom:`1px solid ${T.border}`}}>
-            <div style={{fontSize:10,fontWeight:700,color:T.textMuted,letterSpacing:'.5px',marginBottom:2}}>SLUTDATUM</div>
-            <div style={{fontSize:14,color:T.text}}>{isoToDisplay(b.end_date)}</div>
-          </div>}
+          <div style={{fontSize:13,color:T.textMuted,fontFamily:'system-ui'}}>{isoToDisplay(o.date)} · {o.time_slot}</div>
+          {o.name&&<div style={{fontSize:12,color:T.textMuted,fontFamily:'system-ui',marginTop:2}}>{o.name}</div>}
+          {o.notes&&<div style={{fontSize:12,color:T.textMuted,fontFamily:'system-ui',marginTop:2,fontStyle:'italic'}}>{o.notes}</div>}
         </div>
-
-        {isRecur && upcoming && (
-          <div style={{background:T.card,border:'1px solid #8b5cf644',borderRadius:14,padding:'14px',marginBottom:12}}>
-            <div style={{fontSize:11,fontWeight:700,color:'#8b5cf6',letterSpacing:'.5px',marginBottom:10}}>KOMMANDE TILLFÄLLEN (närmaste 10)</div>
-            {upcoming.map((occ,i) => (
-              <div key={i} style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'8px 0',borderBottom:i<upcoming.length-1?`1px solid ${T.border}`:'none'}}>
-                <div>
-                  <div style={{fontSize:13,fontWeight:600,color:T.text}}>{isoToDisplay(occ.date)}</div>
-                  <div style={{fontSize:11,color:T.textMuted}}>{occ.time_slot}</div>
-                </div>
-                <button onClick={()=>setDeleteDialog({booking:b, occurrence_date:occ.date, type:'one'})}
-                  style={{background:'none',border:'none',cursor:'pointer',color:'#ef4444',fontSize:18,padding:'0 4px',WebkitTapHighlightColor:'transparent'}}>×</button>
-              </div>
-            ))}
-          </div>
-        )}
-
-        {(b.status==='pending'||b.status==='edit_pending') && (
-          <div style={{display:'flex',flexDirection:'column',gap:10,marginBottom:12}}>
-            <Textarea label="KOMMENTAR (valfritt)" value={comment} onChange={setComment} placeholder="Skriv en kommentar till besökaren..." T={T}/>
-            <div style={{display:'flex',gap:10}}>
-              <button onClick={async()=>{setActionLoading(true);await onApprove(b.id,comment);setActionLoading(false);setSelected(null);setComment('');onMarkAdminSeen?.();onRefreshNotifications?.();}}
-                disabled={actionLoading}
-                style={{flex:1,padding:'13px',borderRadius:12,border:'none',background:'#22c55e',color:'#fff',fontSize:15,fontWeight:700,cursor:'pointer',fontFamily:'system-ui'}}>
-                {actionLoading?'...':isRecur?`Godkänn serien`:'Godkänn'}
-              </button>
-              <button onClick={async()=>{if(!comment.trim()){alert('Kommentar krävs vid avböjning.');return;}setActionLoading(true);await onReject(b.id,comment);setActionLoading(false);setSelected(null);setComment('');onMarkAdminSeen?.();onRefreshNotifications?.();}}
-                disabled={actionLoading}
-                style={{flex:1,padding:'13px',borderRadius:12,border:'none',background:'#ef4444',color:'#fff',fontSize:15,fontWeight:700,cursor:'pointer',fontFamily:'system-ui'}}>
-                {actionLoading?'...':'Avböj'}
-              </button>
-            </div>
-          </div>
-        )}
-
-        <div style={{display:'flex',flexDirection:'column',gap:8,marginTop:4}}>
-          {isRecur ? <>
-            <button onClick={()=>setDeleteDialog({booking:b, type:'series'})}
-              style={{padding:'13px',borderRadius:12,border:'1px solid #ef444433',background:'#ef444411',color:'#ef4444',fontSize:14,fontWeight:700,cursor:'pointer',fontFamily:'system-ui',textAlign:'left',WebkitTapHighlightColor:'transparent'}}>
-              🗑 Ta bort hela serien
-            </button>
-          </> : (
-            <button onClick={()=>setDeleteDialog({booking:b, type:'single'})}
-              style={{padding:'13px',borderRadius:12,border:'1px solid #ef444433',background:'#ef444411',color:'#ef4444',fontSize:14,fontWeight:700,cursor:'pointer',fontFamily:'system-ui',textAlign:'left',WebkitTapHighlightColor:'transparent'}}>
-              🗑 Ta bort bokning
-            </button>
-          )}
-        </div>
-
-        {deleteDialog && (
-          <ConfirmDialog
-            title={deleteDialog.type==='series'?'Ta bort hela serien?':deleteDialog.type==='one'?`Ta bort ${isoToDisplay(deleteDialog.occurrence_date)}?`:'Ta bort bokning?'}
-            message={deleteDialog.type==='series'?'Alla tillfällen i serien tas bort.':deleteDialog.type==='one'?'Bara detta tillfälle tas bort — serien fortsätter.':'Bokningen tas bort och besökaren notifieras.'}
-            confirmLabel="Ta bort"
-            requireText="FÖRKLARING TILL BESÖKAREN"
-            requirePlaceholder="Varför tas bokningen bort?"
-            onConfirm={async(explanation)=>{
-              setActionLoading(true);
-              if (deleteDialog.type==='series') await onDeleteSeries(deleteDialog.booking, explanation);
-              else if (deleteDialog.type==='one') await onDelete(deleteDialog.booking, deleteDialog.occurrence_date, explanation);
-              else await onDelete(deleteDialog.booking, null, explanation);
-              setActionLoading(false);
-              setDeleteDialog(null);
-              setSelected(null);
-              onRefreshNotifications?.();
-            }}
-            onCancel={()=>setDeleteDialog(null)}
-            T={T}
-          />
-        )}
-      </div>
-    );
-  }
-
-  return (
-    <div style={{paddingTop:'max(20px, env(safe-area-inset-top, 0px))',paddingLeft:'16px',paddingRight:'16px',paddingBottom:'100px',fontFamily:'system-ui'}}>
-      <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:16}}>
-        <div style={{fontSize:22,fontWeight:800,color:T.text,letterSpacing:'-.4px'}}>Adminpanel</div>
-        <div style={{display:'flex',gap:8}}>
-          <button onClick={()=>onManageUsers?.()} title="Hantera konton"
-            style={{width:40,height:40,borderRadius:12,border:`1px solid ${T.border}`,background:T.card,display:'flex',alignItems:'center',justifyContent:'center',cursor:'pointer',color:T.text,WebkitTapHighlightColor:'transparent'}}>
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
-          </button>
-          <button onClick={()=>setAddForm({})} title="Lägg till bokning"
-            style={{width:40,height:40,borderRadius:12,border:`1px solid ${T.border}`,background:T.card,display:'flex',alignItems:'center',justifyContent:'center',cursor:'pointer',color:T.text,WebkitTapHighlightColor:'transparent'}}>
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-          </button>
-          <button onClick={onBack} title="Logga ut"
-            style={{width:40,height:40,borderRadius:12,border:'1px solid #ef444433',background:'#ef444411',display:'flex',alignItems:'center',justifyContent:'center',cursor:'pointer',color:'#ef4444',WebkitTapHighlightColor:'transparent'}}>
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
-          </button>
-        </div>
-      </div>
-
-      {/* Filter tabs */}
-      <div style={{display:'flex',gap:6,flexWrap:'wrap',marginBottom:16}}>
-        {filters.map(f => (
-          <button key={f.id} onClick={()=>setFilter(f.id)}
-            style={{padding:'6px 14px',borderRadius:20,border:`1px solid ${filter===f.id?T.accent:T.border}`,background:filter===f.id?`${T.accent}22`:'none',color:filter===f.id?T.accent:T.textMuted,fontSize:12,fontWeight:600,cursor:'pointer',fontFamily:'system-ui',WebkitTapHighlightColor:'transparent',display:'flex',alignItems:'center',gap:5}}>
-            {f.label}
-            {f.count>0&&<span style={{background:filter===f.id?T.accent:'#88888844',color:filter===f.id?'#fff':T.textMuted,borderRadius:8,fontSize:10,fontWeight:800,padding:'1px 6px'}}>{f.count}</span>}
-          </button>
-        ))}
-      </div>
-
-      {sorted.length === 0 && <div style={{textAlign:'center',padding:'40px 0',color:T.textMuted,fontSize:14}}>Inga bokningar i denna kategori.</div>}
-
-      <div style={{display:'flex',flexDirection:'column',gap:10}}>
-        {sorted.map(b => {
-          const isRecur = b.recurrence !== 'none';
-          const nextOcc = isRecur ? expandBooking(b, today, windowEnd, exceptions)[0] : null;
-          const displayDate = nextOcc?.date || b.start_date;
-          return (
-            <div key={b.id}
-              ref={b.id === adminHighlightId ? highlightRef : null}
-              onClick={()=>{setSelected(b);setComment('');}}
-              style={(() => {
-                const isCancelHL = b.id===adminHighlightId && adminHighlightFilter==='cancelled';
-                const isPendingHL = b.id===adminHighlightId && adminHighlightFilter==='pending';
-                const hlColor = isCancelHL ? '#3b82f6' : '#f59e0b';
-                const isHL = isCancelHL || isPendingHL;
-                const isPending = b.status==='pending'||b.status==='edit_pending';
-                return {
-                  background:T.card,
-                  border:`1px solid ${isHL?hlColor:isPending?'#f59e0b44':T.border}`,
-                  borderRadius:14,padding:'14px 16px',cursor:'pointer',
-                  boxShadow:isHL?`0 0 0 3px ${hlColor}33`:'none',
-                  animation:isHL?`highlightPulse 1.2s ease-in-out 3, vibrate 0.4s 0.35s ease`:isPending?'cardPulse 2s ease-in-out infinite':'none',
-                  '--hl':`${hlColor}55`,
-                };
-              })()}>
-              <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:8}}>
-                <div style={{display:'flex',alignItems:'center',gap:8}}>
-                  <Badge status={b.status}/>
-                  {isRecur&&<RecurBadge endDate={b.end_date}/>}
-                </div>
-                <span style={{fontSize:11,color:T.textMuted}}>{isoToDisplay(displayDate)}</span>
-              </div>
-              <div style={{fontSize:15,fontWeight:700,color:T.text,marginBottom:2}}>{b.name}</div>
-              <div style={{fontSize:13,color:T.textMuted,marginBottom:4}}>{b.activity}</div>
-              <div style={{fontSize:12,color:T.textMuted}}>{b.time_slot} · {fmtDuration(b.duration_hours)}</div>
-            </div>
-          );
-        })}
-      </div>
-
-      {/* Admin add recurring form */}
-      {addForm !== null && (
-        <AdminAddForm bookings={bookings} exceptions={exceptions} onSubmit={async(data)=>{await onAdminAddRecurring(data);setAddForm(null);}} onClose={()=>setAddForm(null)} T={T}/>
-      )}
+      ))}
     </div>
-  );
+  </div>;
 }
 
-// ── AdminAddForm ──────────────────────────────────────────────────────────────
+// ─── Booking Form ──────────────────────────────────────────────────────────────
+function BookingForm({date,onSubmit,onBack,loading,bookings,exceptions,T}) {
+  const userName=localStorage.getItem(STORAGE_USER_NAME)||'';
+  const userPhone=localStorage.getItem(STORAGE_PHONE)||'';
+  const iso=toISO(date);
+  const[allDay,setAllDay]=useState(false);
+  const[startH,setStartH]=useState(OPEN_HOUR);
+  const[startM,setStartM]=useState(0);
+  const[endH,setEndH]=useState(OPEN_HOUR+1);
+  const[endM,setEndM]=useState(0);
+  const[activity,setActivity]=useState('');
+  const[notes,setNotes]=useState('');
+  const[recurrence,setRecurrence]=useState('none');
+  const[endDate,setEndDate]=useState(null);
+  const[error,setError]=useState('');
+  const[conflicts,setConflicts]=useState(null);
 
-function AdminAddForm({ bookings, exceptions, onSubmit, onClose, T }) {
-  const today = new Date(); today.setHours(0,0,0,0);
-  const [step, setStep] = useState('date');
-  const [anchor, setAnchor] = useState(today);
-  const [selectedDate, setSelectedDate] = useState(today);
-  const [durationHours, setDurationHours] = useState(1);
-  const [selectedStartH, setSelectedStartH] = useState(null);
-  const [recurrence, setRecurrence] = useState('weekly');
-  const [endDate, setEndDate] = useState(null);
-  const [form, setForm] = useState({ name:'', phone:'', activity:'' });
-  const [loading, setLoading] = useState(false);
-  const [conflicts, setConflicts] = useState(null); // null | [{date, time_slot, bookedBy}]
-  const monthGrid = useMemo(()=>getMonthGrid(anchor.getFullYear(),anchor.getMonth()),[anchor]);
+  const bookedBlocks=useMemo(()=>getBookedBlocks(bookings,exceptions,iso),[bookings,exceptions,iso]);
+  const durationHours=allDay?16:(endH+endM/60-startH-startM/60);
+  const slot=allDay?fmtTime(OPEN_HOUR,0)+'–'+fmtTime(0,0):slotFromHM(startH,startM,endH===CLOSE_HOUR?0:endH,endM);
 
-  // Scanna alla framtida tillfällen för konflikter
-  const findConflicts = () => {
-    if (recurrence === 'none') return [];
-    const startISO = toISO(selectedDate);
-    const windowEnd = (() => {
-      if (endDate) return endDate;
-      const d = new Date(selectedDate); d.setFullYear(d.getFullYear() + 2); return toISO(d);
-    })();
-    // Generera alla tillfällen för den nya bokningen
-    const tempBooking = {
-      id: '__preview__', start_date: startISO, end_date: endDate || null,
-      recurrence, time_slot: slotLabel(selectedStartH, durationHours),
-      duration_hours: durationHours, status: 'approved',
-    };
-    const occurrences = expandBooking(tempBooking, startISO, windowEnd, []);
-    const found = [];
-    for (const occ of occurrences) {
-      const booked = getBookedBlocks(bookings, exceptions, occ.date);
-      let hasConflict = false;
-      for (let i = 0; i < durationHours * 2; i++) {
-        if (booked.has(selectedStartH * 2 + i)) { hasConflict = true; break; }
-      }
-      if (hasConflict) {
-        // Hitta vilka bokningar som krockar
-        const occsOnDate = getOccurrencesForDate(bookings, exceptions, occ.date);
-        const clashing = occsOnDate.filter(o => {
-          const parts = o.time_slot.split('–');
-          const parseH = s => { const [hh,mm]=s.split(':').map(Number); const h=hh+(mm===30?0.5:0); return h===0?24:h; };
-          const oStart = parseH(parts[0]);
-          const oEnd = oStart + o.duration_hours;
-          return !(oEnd <= selectedStartH || oStart >= selectedStartH + durationHours);
-        });
-        found.push({ date: occ.date, time_slot: slotLabel(selectedStartH, durationHours), clashing });
-      }
+  const findConflicts=()=>{
+    if(recurrence==='none') return[];
+    const wEnd=endDate||(()=>{const d=new Date(date);d.setFullYear(d.getFullYear()+2);return toISO(d);})();
+    const tempB={id:'__prev__',start_date:iso,end_date:endDate||null,
+      recurrence,time_slot:slot,duration_hours:durationHours,status:'pending'};
+    const occs=expandBooking(tempB,iso,wEnd,[]);
+    const found=[];
+    const sd=startH+startM/60;
+    for(const occ of occs) {
+      const bb=getBookedBlocks(bookings,exceptions,occ.date);
+      let clash=false;
+      for(let i=0;i<durationHours*2;i++){if(bb.has(sd*2+i)){clash=true;break;}}
+      if(clash) found.push({date:occ.date,time_slot:slot});
     }
     return found;
   };
 
-  const handleSubmit = async () => {
-    if (!form.name.trim()||!form.activity.trim()) return;
-    // Kolla konflikter för återkommande bokningar
-    if (recurrence !== 'none' && selectedStartH !== null) {
-      const found = findConflicts();
-      if (found.length > 0) {
-        setConflicts(found);
-        return;
-      }
-    }
-    setLoading(true);
-    await onSubmit({ ...form, date:toISO(selectedDate), time_slot:slotLabel(selectedStartH,durationHours), duration_hours:durationHours, recurrence, end_date:endDate, skip_dates:[] });
-    setLoading(false);
+  const handleSubmit=()=>{
+    if(!activity.trim()){setError('Ange en aktivitet.');return;}
+    if(!allDay&&durationHours<=0){setError('Sluttid måste vara efter starttid.');return;}
+    if(recurrence!=='none'){const f=findConflicts();if(f.length>0){setConflicts(f);return;}}
+    onSubmit({name:userName,phone:userPhone,activity,notes,date:iso,
+      time_slot:slot,duration_hours:durationHours,recurrence,end_date:endDate,skip_dates:[]});
   };
 
-  const handleBookAvailable = async () => {
-    if (!conflicts) return;
-    setLoading(true);
-    const skipDates = conflicts.map(c => c.date);
-    await onSubmit({ ...form, date:toISO(selectedDate), time_slot:slotLabel(selectedStartH,durationHours), duration_hours:durationHours, recurrence, end_date:endDate, skip_dates:skipDates });
-    setLoading(false);
+  const handleBookAvailable=()=>{
+    if(!conflicts) return;
+    onSubmit({name:userName,phone:userPhone,activity,notes,date:iso,
+      time_slot:slot,duration_hours:durationHours,recurrence,end_date:endDate,
+      skip_dates:conflicts.map(c=>c.date)});
     setConflicts(null);
   };
 
-  return (
-    <>
-    <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.5)',zIndex:1000,display:'flex',alignItems:'flex-end',justifyContent:'center'}} onClick={onClose}>
-      <div onClick={e=>e.stopPropagation()} style={{background:T.card,borderRadius:'20px 20px 0 0',padding:'24px 20px 36px',width:'100%',maxWidth:500,boxSizing:'border-box',animation:'slideUp .25s cubic-bezier(0.32,0.72,0,1)',maxHeight:'90vh',overflowY:'auto'}}>
-        <div style={{fontSize:18,fontWeight:800,color:T.text,marginBottom:16,fontFamily:'system-ui'}}>Lägg till återkommande bokning</div>
-
-        {step==='date' && <>
-          <div style={{marginBottom:14}}><DurationPicker value={durationHours} onChange={setDurationHours} T={T}/></div>
-          <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:10}}>
-            <button onClick={()=>{const d=new Date(anchor);d.setMonth(d.getMonth()-1);setAnchor(d);}} style={{width:32,height:32,borderRadius:8,border:`1px solid ${T.border}`,background:T.card,display:'flex',alignItems:'center',justifyContent:'center',cursor:'pointer',color:T.text}}>
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
-            </button>
-            <span style={{fontSize:13,fontWeight:700,color:T.text}}>{MONTHS_SV[anchor.getMonth()]} {anchor.getFullYear()}</span>
-            <button onClick={()=>{const d=new Date(anchor);d.setMonth(d.getMonth()+1);setAnchor(d);}} style={{width:32,height:32,borderRadius:8,border:`1px solid ${T.border}`,background:T.card,display:'flex',alignItems:'center',justifyContent:'center',cursor:'pointer',color:T.text}}>
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
-            </button>
-          </div>
-          <div style={{display:'grid',gridTemplateColumns:'repeat(7,1fr)',gap:2,marginBottom:4}}>{DAYS_SV.map(d=><div key={d} style={{textAlign:'center',fontSize:9,fontWeight:700,color:T.textMuted}}>{d}</div>)}</div>
-          {monthGrid.map((row,ri)=><div key={ri} style={{display:'grid',gridTemplateColumns:'repeat(7,1fr)',gap:2,marginBottom:2}}>
-            {row.map((d,ci)=>{
-              if(!d) return <div key={ci}/>;
-              const isSel=selectedDate&&toISO(d)===toISO(selectedDate);
-              return <button key={ci} onClick={()=>{const c=new Date(d);c.setHours(0,0,0,0);setSelectedDate(c);setStep('time');}} style={{borderRadius:8,border:isSel?`2px solid ${T.accent}`:'1px solid transparent',background:isSel?`${T.accent}22`:'none',padding:'6px 2px',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',WebkitTapHighlightColor:'transparent'}}>
-                <span style={{fontSize:13,fontWeight:isSel?800:400,color:isSel?T.accent:T.text}}>{d.getDate()}</span>
-              </button>;
-            })}
+  return <div style={{paddingTop:'max(20px,env(safe-area-inset-top,0px))',
+    paddingLeft:16,paddingRight:16,paddingBottom:40,fontFamily:'system-ui'}}>
+    {onBack&&<BackButton onBack={onBack} T={T}/>}
+    <div style={{marginTop:16,marginBottom:20}}>
+      <div style={{fontSize:26,fontWeight:700,color:T.text,letterSpacing:'-.5px',marginBottom:8}}>Ny aktivitet</div>
+      <div style={{fontSize:14,color:T.textMuted}}>{DAYS_FULL[(date.getDay()+6)%7]}, {isoToDisplay(iso)}</div>
+    </div>
+    <div style={{display:'flex',alignItems:'center',gap:10,background:T.card,
+      border:`0.5px solid ${T.border}`,borderRadius:12,padding:'12px 14px',marginBottom:16}}>
+      <div style={{width:34,height:34,borderRadius:'50%',background:`${T.accent}22`,
+        display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}>
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={T.accent}
+          strokeWidth="2" strokeLinecap="round">
+          <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>
+        </svg>
+      </div>
+      <div>
+        <div style={{fontSize:14,fontWeight:600,color:T.text}}>{userName}</div>
+        <div style={{fontSize:12,color:T.textMuted}}>{userPhone}</div>
+      </div>
+    </div>
+    <div style={{display:'flex',flexDirection:'column',gap:14}}>
+      <Input label="AKTIVITET" value={activity} onChange={setActivity} placeholder="Vad är aktiviteten?" required T={T}/>
+      <div style={{background:T.card,border:`0.5px solid ${T.border}`,borderRadius:12,overflow:'hidden'}}>
+        <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',
+          padding:'13px 16px',borderBottom:allDay?'none':`0.5px solid ${T.separator}`}}>
+          <span style={{fontSize:16,color:T.text}}>Heldag</span>
+          <IOSToggle value={allDay} onChange={setAllDay} T={T}/>
+        </div>
+        {!allDay&&<>
+          <TimeAccordion label="Startar" hour={startH} minute={startM}
+            onConfirm={(h,m)=>{setStartH(h);setStartM(m);
+              if(endH+endM/60<=h+m/60){setEndH(Math.min(h+1,CLOSE_HOUR));setEndM(0);}}}
+            bookedBlocks={bookedBlocks} isStart={true} pairedHour={startH} pairedMinute={startM} T={T}/>
+          <div style={{height:'0.5px',background:T.separator}}/>
+          <TimeAccordion label="Slutar" hour={endH} minute={endM}
+            onConfirm={(h,m)=>{setEndH(h);setEndM(m);}}
+            bookedBlocks={bookedBlocks} isStart={false} pairedHour={startH} pairedMinute={startM} T={T}/>
+        </>}
+      </div>
+      <div style={{background:T.card,border:`0.5px solid ${T.border}`,borderRadius:12,padding:14}}>
+        <RecurrencePicker recurrence={recurrence} onChange={r=>{setRecurrence(r);setEndDate(null);}}
+          endDate={endDate} onEndDateChange={setEndDate} T={T}/>
+      </div>
+      <Textarea label="ANTECKNINGAR" value={notes} onChange={setNotes}
+        placeholder="Lägg till anteckningar..." T={T}/>
+      {error&&<div style={{fontSize:13,color:T.error,background:`${T.error}18`,
+        padding:'10px 14px',borderRadius:8}}>{error}</div>}
+      <button onClick={handleSubmit} disabled={loading}
+        style={{background:loading?T.textMuted:T.accent,color:'#fff',border:'none',
+          borderRadius:12,padding:'15px',fontSize:16,fontWeight:700,
+          cursor:loading?'default':'pointer',WebkitTapHighlightColor:'transparent',
+          display:'flex',alignItems:'center',justifyContent:'center',gap:8}}>
+        {loading?'Skickar...':'Skicka bokningsförfrågan'}
+      </button>
+      <p style={{fontSize:11,color:T.textMuted,textAlign:'center',margin:0}}>
+        Din förfrågan granskas av en administratör.
+      </p>
+    </div>
+    {conflicts&&<div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.6)',zIndex:2000,
+      display:'flex',alignItems:'flex-end',justifyContent:'center'}} onClick={()=>setConflicts(null)}>
+      <div onClick={e=>e.stopPropagation()} style={{
+        background:T.sheetBg,borderRadius:'20px 20px 0 0',
+        padding:'24px 20px 36px',width:'100%',maxWidth:500,boxSizing:'border-box',
+        animation:'bsSlideUp .25s cubic-bezier(0.32,0.72,0,1)',maxHeight:'80vh',overflowY:'auto'}}>
+        <div style={{fontSize:17,fontWeight:700,color:T.text,marginBottom:8}}>Tidskonflikter hittades</div>
+        <div style={{fontSize:13,color:T.textMuted,marginBottom:16}}>{conflicts.length} tillfällen krockar.</div>
+        <div style={{maxHeight:200,overflowY:'auto',marginBottom:16,display:'flex',flexDirection:'column',gap:6}}>
+          {conflicts.map((c,i)=><div key={i} style={{background:`${T.warning}18`,
+            border:`1px solid ${T.warning}33`,borderRadius:10,padding:'8px 12px'}}>
+            <div style={{fontSize:13,fontWeight:600,color:T.text}}>{isoToDisplay(c.date)} · {c.time_slot}</div>
           </div>)}
-        </>}
-
-        {step==='time' && selectedDate && <>
-          <div style={{fontSize:12,fontWeight:700,color:T.textMuted,marginBottom:12,letterSpacing:'.3px'}}>{isoToDisplay(toISO(selectedDate))} — VÄLJ TID</div>
-          <div style={{display:'flex',flexDirection:'column',gap:6,maxHeight:260,overflowY:'auto'}}>
-            {ALL_HOURS.filter(h=>h+durationHours<=CLOSE_HOUR).map(h=>{
-              const avail=getAvailableStarts(bookings,exceptions,toISO(selectedDate),durationHours).includes(h);
-              return <button key={h} onClick={()=>{setSelectedStartH(h);setStep('details');}} style={{padding:'11px 16px',borderRadius:10,border:`1px solid ${T.accent}44`,background:T.cardElevated,color:T.text,fontSize:14,fontWeight:600,cursor:'pointer',textAlign:'left',fontFamily:'system-ui',WebkitTapHighlightColor:'transparent',display:'flex',justifyContent:'space-between',alignItems:'center'}}>
-                {slotLabel(h,durationHours)}
-                {!avail&&<span style={{fontSize:10,color:'#ef4444',fontWeight:700}}>Upptagen</span>}
-              </button>;
-            })}
-          </div>
-          <button onClick={()=>setStep('date')} style={{marginTop:12,background:'none',border:'none',color:T.accent,cursor:'pointer',fontSize:13,fontWeight:600,fontFamily:'system-ui',padding:0}}>← Byt datum</button>
-        </>}
-
-        {step==='details' && <>
-          <div style={{background:`${T.accent}18`,borderRadius:10,padding:'8px 12px',marginBottom:16}}>
-            <span style={{fontSize:13,color:T.accent,fontWeight:600}}>{isoToDisplay(toISO(selectedDate))} · {slotLabel(selectedStartH,durationHours)}</span>
-          </div>
-          <div style={{display:'flex',flexDirection:'column',gap:12}}>
-            <Input label="NAMN" value={form.name} onChange={v=>setForm(p=>({...p,name:v}))} placeholder="Namn på bokaren" required T={T}/>
-            <Input label="TELEFON" value={form.phone} onChange={v=>setForm(p=>({...p,phone:v}))} placeholder="Telefonnummer" T={T}/>
-            <Textarea label="AKTIVITET" value={form.activity} onChange={v=>setForm(p=>({...p,activity:v}))} placeholder="Beskriv aktiviteten..." required T={T}/>
-            <RecurrencePicker recurrence={recurrence} onChange={setRecurrence} endDate={endDate} onEndDateChange={setEndDate} T={T}/>
-            <button onClick={handleSubmit} disabled={loading||!form.name.trim()||!form.activity.trim()||selectedStartH===null}
-              style={{padding:'13px',borderRadius:12,border:'none',background:T.accent,color:'#fff',fontSize:15,fontWeight:700,cursor:'pointer',fontFamily:'system-ui'}}>
-              {loading?'Lägger till...':'Lägg till bokning ✓'}
-            </button>
-          </div>
-          <button onClick={()=>setStep('time')} style={{marginTop:12,background:'none',border:'none',color:T.accent,cursor:'pointer',fontSize:13,fontWeight:600,fontFamily:'system-ui',padding:0}}>← Byt tid</button>
-        </>}
-      </div>
-    </div>
-
-    {/* ── Konfliktdialog ── */}
-    {conflicts && (
-      <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.65)',zIndex:2000,display:'flex',alignItems:'flex-end',justifyContent:'center'}} onClick={()=>setConflicts(null)}>
-        <div onClick={e=>e.stopPropagation()} style={{background:T.card,borderRadius:'20px 20px 0 0',padding:'24px 20px 36px',width:'100%',maxWidth:500,boxSizing:'border-box',animation:'slideUp .25s cubic-bezier(0.32,0.72,0,1)',maxHeight:'80vh',overflowY:'auto'}}>
-          <div style={{display:'flex',alignItems:'center',gap:10,marginBottom:6}}>
-            <div style={{width:32,height:32,borderRadius:10,background:'#ef444422',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}>
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#ef4444" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
-            </div>
-            <div style={{fontSize:17,fontWeight:800,color:T.text,fontFamily:'system-ui'}}>Tidskonflikter hittades</div>
-          </div>
-          <div style={{fontSize:13,color:T.textMuted,marginBottom:16,fontFamily:'system-ui'}}>
-            {conflicts.length} tillfälle{conflicts.length!==1?'n':''} krockar med befintliga bokningar.
-          </div>
-
-          {/* Lista konflikter */}
-          <div style={{display:'flex',flexDirection:'column',gap:6,marginBottom:20,maxHeight:260,overflowY:'auto'}}>
-            {conflicts.map((c,i) => (
-              <div key={i} style={{background:`#ef444411`,border:'1px solid #ef444433',borderRadius:10,padding:'10px 12px'}}>
-                <div style={{fontSize:13,fontWeight:700,color:T.text,fontFamily:'system-ui',marginBottom:4}}>
-                  {isoToDisplay(c.date)} · {c.time_slot}
-                </div>
-                {c.clashing.map(b => (
-                  <div key={b.id} style={{fontSize:11,color:'#ef4444',fontFamily:'system-ui'}}>
-                    ↳ {b.name} · {b.time_slot}
-                  </div>
-                ))}
-              </div>
-            ))}
-          </div>
-
-          {/* Val */}
-          <div style={{display:'flex',flexDirection:'column',gap:10}}>
-            <button onClick={()=>setConflicts(null)}
-              style={{padding:'13px',borderRadius:12,border:`1px solid ${T.accent}`,background:'none',color:T.accent,fontSize:14,fontWeight:700,cursor:'pointer',fontFamily:'system-ui',WebkitTapHighlightColor:'transparent'}}>
-              ← Ändra tid
-            </button>
-            <button onClick={handleBookAvailable} disabled={loading}
-              style={{padding:'13px',borderRadius:12,border:'none',background:T.accent,color:'#fff',fontSize:14,fontWeight:700,cursor:'pointer',fontFamily:'system-ui',WebkitTapHighlightColor:'transparent'}}>
-              {loading ? 'Bokar...' : 'Boka bara lediga tillfällen ✓'}
-            </button>
-          </div>
         </div>
-      </div>
-    )}
-    </>
-  );
-}
-
-// ── Login screens ─────────────────────────────────────────────────────────────
-
-// Full UserLogin: telefon → engångskod (första gången) → välj PIN → inloggad
-function UserLogin({ onSuccess, onBack, T }) {
-  const [step, setStep] = useState('phone'); // phone|invite|setpin|pin
-  const [phone, setPhone] = useState('');
-  const [pin, setPin] = useState('');
-  const [inviteCode, setInviteCode] = useState('');
-  const [newPin, setNewPin] = useState('');
-  const [newPin2, setNewPin2] = useState('');
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
-  const [userData, setUserData] = useState(null);
-  const lookupRef = useRef(null);
-
-  const handlePhoneChange = (val) => {
-    setPhone(val); setError('');
-    clearTimeout(lookupRef.current);
-    const norm = normalizePhone(val);
-    if (norm.length >= 10) {
-      lookupRef.current = setTimeout(async () => {
-        const { data } = await supabase.from('app_users').select('id,name,role,invite_used,pin_hash,deleted_at').eq('phone',norm).maybeSingle();
-        if (data && !data.deleted_at) {
-          setUserData({...data, norm});
-          setStep(data.invite_used ? 'pin' : 'invite');
-        }
-      }, 400);
-    }
-  };
-
-  const handlePhoneNext = async () => {
-    if (!phone.trim()) { setError('Ange ditt telefonnummer.'); return; }
-    setLoading(true); setError('');
-    const norm = normalizePhone(phone);
-    const { data } = await supabase.from('app_users').select('id,name,role,invite_used,pin_hash,deleted_at').eq('phone',norm).maybeSingle();
-    setLoading(false);
-    if (!data || data.deleted_at) { setError('Inget konto hittades. Kontakta admin för att få ett konto.'); return; }
-    setUserData({...data, norm});
-    setStep(data.invite_used ? 'pin' : 'invite');
-  };
-
-  const handleInviteSubmit = async () => {
-    if (inviteCode.length !== 6) { setError('Ange 6-siffrig inbjudningskod.'); return; }
-    setLoading(true); setError('');
-    const { data } = await supabase.from('app_users').select('invite_code').eq('id',userData.id).maybeSingle();
-    if (data?.invite_code !== inviteCode) { setLoading(false); setError('Fel kod. Kontrollera koden med admin.'); return; }
-    setLoading(false);
-    setStep('setpin');
-  };
-
-  const handleSetPin = async () => {
-    if (newPin.length < 4) { setError('PIN måste vara minst 4 siffror.'); return; }
-    if (newPin !== newPin2) { setError('PIN-koderna matchar inte.'); return; }
-    setLoading(true); setError('');
-    const pinHash = await sha256(userData.norm + ':' + newPin);
-    await supabase.from('app_users').update({ pin_hash:pinHash, invite_used:true, invite_code:null, last_login:Date.now() }).eq('id',userData.id);
-    setLoading(false);
-    localStorage.setItem(STORAGE_USER_ID, userData.id);
-    localStorage.setItem(STORAGE_USER_NAME, userData.name);
-    localStorage.setItem(STORAGE_USER_ROLE, userData.role);
-    localStorage.setItem(STORAGE_PHONE, userData.norm);
-    if (userData.role === 'admin') localStorage.setItem(STORAGE_ADMIN, 'true');
-    onSuccess({ id:userData.id, name:userData.name, role:userData.role });
-  };
-
-  const handlePinSubmit = async () => {
-    setLoading(true); setError('');
-    const pinHash = await sha256(userData.norm + ':' + pin);
-    if (pinHash !== userData.pin_hash) { setLoading(false); setError('Fel PIN-kod. Försök igen.'); setPin(''); return; }
-    await supabase.from('app_users').update({ last_login:Date.now() }).eq('id',userData.id);
-    setLoading(false);
-    localStorage.setItem(STORAGE_USER_ID, userData.id);
-    localStorage.setItem(STORAGE_USER_NAME, userData.name);
-    localStorage.setItem(STORAGE_USER_ROLE, userData.role);
-    localStorage.setItem(STORAGE_PHONE, userData.norm);
-    if (userData.role === 'admin') localStorage.setItem(STORAGE_ADMIN, 'true');
-    else localStorage.removeItem(STORAGE_ADMIN);
-    onSuccess({ id:userData.id, name:userData.name, role:userData.role });
-  };
-
-  const iconStyle = { width:56,height:56,borderRadius:'50%',background:`${T.accent}22`,display:'flex',alignItems:'center',justifyContent:'center',margin:'0 auto 14px' };
-
-  return (
-    <div style={{paddingTop:'max(20px, env(safe-area-inset-top, 0px))',paddingLeft:'16px',paddingRight:'16px',paddingBottom:'20px',fontFamily:'system-ui'}}>
-      {onBack && <BackButton onBack={onBack} T={T}/>}
-      <div style={{marginTop:24,maxWidth:340,margin:'24px auto 0'}}>
-        {step==='phone'&&<>
-          <div style={{textAlign:'center',marginBottom:24}}>
-            <div style={iconStyle}><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke={T.accent} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></div>
-            <div style={{fontSize:20,fontWeight:800,color:T.text}}>Åtkomst endast för behöriga</div>
-            <div style={{fontSize:13,color:T.textMuted,marginTop:4}}>Ange ditt telefonnummer</div>
-          </div>
-          <input type="tel" value={phone} onChange={e=>handlePhoneChange(e.target.value)} onKeyDown={e=>e.key==='Enter'&&handlePhoneNext()} placeholder="07X-XXX XX XX" autoFocus
-            style={{background:T.cardElevated,border:`1px solid ${T.border}`,borderRadius:12,padding:'13px 16px',fontSize:18,color:T.text,outline:'none',width:'100%',boxSizing:'border-box'}}/>
-          {error&&<div style={{fontSize:13,color:'#ef4444',background:'#ef444418',padding:'10px 14px',borderRadius:8,marginTop:8}}>{error}</div>}
-          <button onClick={handlePhoneNext} disabled={loading}
-            style={{marginTop:16,width:'100%',padding:'14px',borderRadius:12,border:'none',background:T.accent,color:'#fff',fontSize:16,fontWeight:700,cursor:'pointer'}}>
-            {loading?'Kontrollerar...':'Fortsätt →'}
-          </button>
-        </>}
-
-        {step==='invite'&&<>
-          <div style={{textAlign:'center',marginBottom:24}}>
-            <div style={iconStyle}><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke={T.accent} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></div>
-            <div style={{fontSize:20,fontWeight:800,color:T.text}}>Välkommen, {userData?.name}</div>
-            <div style={{fontSize:13,color:T.textMuted,marginTop:4}}>Ange din 6-siffriga inbjudningskod från admin</div>
-          </div>
-          <input type="tel" inputMode="numeric" maxLength={6} value={inviteCode} onChange={e=>{setInviteCode(e.target.value.replace(/\D/g,'').slice(0,6));setError('');}} placeholder="- - - - - -"
-            style={{background:T.cardElevated,border:`1px solid ${T.border}`,borderRadius:12,padding:'14px',fontSize:28,color:T.text,outline:'none',width:'100%',boxSizing:'border-box',textAlign:'center',letterSpacing:12}}/>
-          {error&&<div style={{fontSize:13,color:'#ef4444',background:'#ef444418',padding:'10px 14px',borderRadius:8,marginTop:8}}>{error}</div>}
-          <button onClick={handleInviteSubmit} disabled={loading}
-            style={{marginTop:16,width:'100%',padding:'14px',borderRadius:12,border:'none',background:T.accent,color:'#fff',fontSize:16,fontWeight:700,cursor:'pointer'}}>
-            {loading?'Kontrollerar...':'Verifiera kod →'}
-          </button>
-          <button onClick={()=>{setStep('phone');setError('');}} style={{marginTop:10,background:'none',border:'none',color:T.textMuted,cursor:'pointer',fontSize:13,width:'100%'}}>← Byt telefonnummer</button>
-        </>}
-
-        {step==='setpin'&&<>
-          <div style={{textAlign:'center',marginBottom:24}}>
-            <div style={iconStyle}><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke={T.accent} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></div>
-            <div style={{fontSize:20,fontWeight:800,color:T.text}}>Välj PIN-kod</div>
-            <div style={{fontSize:13,color:T.textMuted,marginTop:4}}>Används vid framtida inloggning</div>
-          </div>
-          <input type="password" inputMode="numeric" maxLength={6} value={newPin} onChange={e=>{setNewPin(e.target.value.replace(/\D/g,'').slice(0,6));setError('');}} placeholder="Välj PIN (4-6 siffror)"
-            style={{background:T.cardElevated,border:`1px solid ${T.border}`,borderRadius:12,padding:'14px',fontSize:24,color:T.text,outline:'none',width:'100%',boxSizing:'border-box',textAlign:'center',letterSpacing:8,marginBottom:10}}/>
-          <input type="password" inputMode="numeric" maxLength={6} value={newPin2} onChange={e=>{setNewPin2(e.target.value.replace(/\D/g,'').slice(0,6));setError('');}} placeholder="Upprepa PIN"
-            style={{background:T.cardElevated,border:`1px solid ${T.border}`,borderRadius:12,padding:'14px',fontSize:24,color:T.text,outline:'none',width:'100%',boxSizing:'border-box',textAlign:'center',letterSpacing:8}}/>
-          {error&&<div style={{fontSize:13,color:'#ef4444',background:'#ef444418',padding:'10px 14px',borderRadius:8,marginTop:8}}>{error}</div>}
-          <button onClick={handleSetPin} disabled={loading}
-            style={{marginTop:16,width:'100%',padding:'14px',borderRadius:12,border:'none',background:T.accent,color:'#fff',fontSize:16,fontWeight:700,cursor:'pointer'}}>
-            {loading?'Sparar...':'Spara PIN & logga in'}
-          </button>
-        </>}
-
-        {step==='pin'&&<>
-          <div style={{textAlign:'center',marginBottom:24}}>
-            <div style={iconStyle}><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke={T.accent} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></div>
-            <div style={{fontSize:20,fontWeight:800,color:T.text}}>Välkommen, {userData?.name}</div>
-            <div style={{fontSize:13,color:T.textMuted,marginTop:4}}>Ange din PIN-kod</div>
-          </div>
-          <input type="password" inputMode="numeric" maxLength={6} value={pin} onChange={async e=>{
-              const val=e.target.value.replace(/\D/g,'').slice(0,6);
-              setPin(val); setError('');
-              // Auto-submit when PIN is correct length (4-6 digits) and matches
-              if (val.length >= 4 && userData?.pin_hash) {
-                const hash = await sha256(userData.norm + ':' + val);
-                if (hash === userData.pin_hash) {
-                  setLoading(true);
-                  await supabase.from('app_users').update({ last_login:Date.now() }).eq('id',userData.id);
-                  setLoading(false);
-                  localStorage.setItem(STORAGE_USER_ID, userData.id);
-                  localStorage.setItem(STORAGE_USER_NAME, userData.name);
-                  localStorage.setItem(STORAGE_USER_ROLE, userData.role);
-                  localStorage.setItem(STORAGE_PHONE, userData.norm);
-                  if (userData.role === 'admin') localStorage.setItem(STORAGE_ADMIN, 'true');
-                  else localStorage.removeItem(STORAGE_ADMIN);
-                  onSuccess({ id:userData.id, name:userData.name, role:userData.role });
-                }
-              }
-            }} onKeyDown={e=>e.key==='Enter'&&handlePinSubmit()} placeholder="PIN-kod" autoFocus
-            style={{background:T.cardElevated,border:`1px solid ${T.border}`,borderRadius:12,padding:'14px',fontSize:28,color:T.text,outline:'none',width:'100%',boxSizing:'border-box',textAlign:'center',letterSpacing:12}}/>
-          {error&&<div style={{fontSize:13,color:'#ef4444',background:'#ef444418',padding:'10px 14px',borderRadius:8,marginTop:8}}>{error}</div>}
-          <button onClick={handlePinSubmit} disabled={loading}
-            style={{marginTop:16,width:'100%',padding:'14px',borderRadius:12,border:'none',background:T.accent,color:'#fff',fontSize:16,fontWeight:700,cursor:'pointer'}}>
-            {loading?'Loggar in...':'Logga in'}
-          </button>
-          <button onClick={()=>{setStep('phone');setPhone('');setError('');setUserData(null);}} style={{marginTop:10,background:'none',border:'none',color:T.textMuted,cursor:'pointer',fontSize:13,width:'100%'}}>← Byt konto</button>
-        </>}
-      </div>
-    </div>
-  );
-}
-
-// ── UserManagement — admin skapar/hanterar konton ─────────────────────────────
-
-function UserManagement({ onBack, T }) {
-  const [users, setUsers] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [showCreate, setShowCreate] = useState(false);
-  const [form, setForm] = useState({ name:'', phone:'', role:'user' });
-  const [creating, setCreating] = useState(false);
-  const [newInvite, setNewInvite] = useState(null);
-  const [resetTarget, setResetTarget] = useState(null);
-  const [deleteTarget, setDeleteTarget] = useState(null);
-  const [deleting, setDeleting] = useState(false);
-  const [error, setError] = useState('');
-  const currentUserId = localStorage.getItem(STORAGE_USER_ID);
-
-  const load = async () => {
-    setLoading(true);
-    const { data } = await supabase.from('app_users').select('id,name,phone,role,invite_used,created_at,last_login,deleted_at,deleted_by_name').order('created_at',{ascending:false});
-    if (data) setUsers(data);
-    setLoading(false);
-  };
-  useEffect(()=>{ load(); },[]);// eslint-disable-line
-
-  const handleCreate = async () => {
-    if (!form.name.trim()||!form.phone.trim()) { setError('Namn och telefon krävs.'); return; }
-    setCreating(true); setError('');
-    const norm = normalizePhone(form.phone);
-    const existing = await supabase.from('app_users').select('id').eq('phone',norm).maybeSingle();
-    if (existing.data) { setCreating(false); setError('Det finns redan ett konto med detta telefonnummer.'); return; }
-    const code = generateInviteCode();
-    const { error:err } = await supabase.from('app_users').insert([{
-      id:uid(), name:form.name.trim(), phone:norm, role:form.role,
-      invite_code:code, invite_used:false,
-      created_by:currentUserId, created_at:Date.now(), last_login:null, pin_hash:null,
-    }]);
-    setCreating(false);
-    if (err) { setError('Kunde inte skapa konto: '+err.message); return; }
-    setNewInvite({ name:form.name.trim(), code, phone:norm });
-    setForm({ name:'', phone:'', role:'user' });
-    setShowCreate(false);
-    load();
-  };
-
-  const handleResetPin = async (user) => {
-    const code = generateInviteCode();
-    await supabase.from('app_users').update({ invite_code:code, invite_used:false, pin_hash:null }).eq('id',user.id);
-    setResetTarget({...user, code});
-    load();
-  };
-
-  const handleDelete = async () => {
-    if (!deleteTarget) return;
-    setDeleting(true);
-    const adminName = localStorage.getItem(STORAGE_USER_NAME)||'Okänd admin';
-    const adminId   = localStorage.getItem(STORAGE_USER_ID)||'?';
-    await supabase.from('app_users').update({ deleted_at:Date.now(), deleted_by_id:adminId, deleted_by_name:adminName, pin_hash:null, invite_code:null }).eq('id',deleteTarget.id);
-    setDeleting(false); setDeleteTarget(null); load();
-  };
-
-  const roleLabel = r => r==='admin'?'Admin':'Användare';
-  const roleBg    = r => r==='admin'?'#f59e0b22':'#22c55e22';
-  const roleColor = r => r==='admin'?'#f59e0b':'#22c55e';
-
-  return (
-    <div style={{paddingTop:'max(20px, env(safe-area-inset-top, 0px))',paddingLeft:'16px',paddingRight:'16px',paddingBottom:'20px',fontFamily:'system-ui',minHeight:'100%',background:T.bg}}>
-      <BackButton onBack={onBack} T={T}/>
-      <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginTop:16,marginBottom:20}}>
-        <div style={{fontSize:22,fontWeight:800,color:T.text}}>Hantera konton</div>
-        <button onClick={()=>setShowCreate(v=>!v)} style={{background:T.accent,color:'#fff',border:'none',borderRadius:12,padding:'8px 16px',fontSize:13,fontWeight:700,cursor:'pointer',WebkitTapHighlightColor:'transparent',display:'flex',alignItems:'center',gap:6}}>
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-          Nytt konto
-        </button>
-      </div>
-
-      {(newInvite||resetTarget)&&<div style={{background:`${T.accent}18`,border:`1px solid ${T.accent}44`,borderRadius:16,padding:16,marginBottom:16}}>
-        <div style={{fontSize:13,fontWeight:700,color:T.accent,marginBottom:8}}>
-          {newInvite?`✓ Konto skapat för ${newInvite.name}`:`✓ Ny kod för ${resetTarget.name}`}
-        </div>
-        <div style={{fontSize:12,color:T.textMuted,marginBottom:10}}>Dela denna engångskod med användaren. Den används bara en gång.</div>
-        <div style={{display:'flex',alignItems:'center',gap:10,background:T.bg,borderRadius:10,padding:'10px 14px'}}>
-          <span style={{fontSize:28,fontWeight:800,color:T.accent,letterSpacing:8,fontVariantNumeric:'tabular-nums'}}>{newInvite?.code||resetTarget?.code}</span>
-          <button onClick={()=>navigator.clipboard?.writeText(newInvite?.code||resetTarget?.code)} style={{background:'none',border:`1px solid ${T.border}`,borderRadius:8,padding:'5px 10px',fontSize:12,color:T.textMuted,cursor:'pointer'}}>Kopiera</button>
-        </div>
-        <div style={{fontSize:11,color:T.textMuted,marginTop:8}}>Tel: {newInvite?.phone||resetTarget?.phone}</div>
-        <button onClick={()=>{setNewInvite(null);setResetTarget(null);}} style={{marginTop:10,background:'none',border:'none',color:T.textMuted,cursor:'pointer',fontSize:12}}>Stäng ×</button>
-      </div>}
-
-      {showCreate&&<div style={{background:T.card,border:`1px solid ${T.border}`,borderRadius:16,padding:16,marginBottom:16}}>
-        <div style={{fontSize:15,fontWeight:700,color:T.text,marginBottom:14}}>Skapa nytt konto</div>
         <div style={{display:'flex',flexDirection:'column',gap:10}}>
-          <Input label="NAMN" value={form.name} onChange={v=>setForm(p=>({...p,name:v}))} placeholder="Personens namn" required T={T}/>
-          <Input label="TELEFON" value={form.phone} onChange={v=>setForm(p=>({...p,phone:v}))} placeholder="07X-XXX XX XX" required T={T} type="tel"/>
+          <button onClick={()=>setConflicts(null)} style={{padding:'13px',borderRadius:12,
+            border:`1px solid ${T.accent}`,background:'none',color:T.accent,
+            fontSize:14,fontWeight:700,cursor:'pointer'}}>← Ändra tid</button>
+          <button onClick={handleBookAvailable} disabled={loading} style={{padding:'13px',borderRadius:12,
+            border:'none',background:T.accent,color:'#fff',fontSize:14,fontWeight:700,cursor:'pointer'}}>
+            {loading?'Skickar...':'Boka bara lediga tillfällen →'}
+          </button>
+        </div>
+      </div>
+    </div>}
+  </div>;
+}
+
+// ─── My Bookings ──────────────────────────────────────────────────────────────
+function MyBookings({bookings,exceptions,loading,onBack,onCancel,onCancelFromDate,onCancelSeries,highlightBookingId,highlightFilter,onLogout,T}) {
+  const[selectedId,setSelectedId]=useState(null);
+  const[deleteSheet,setDeleteSheet]=useState(null);
+  const[cancelReason,setCancelReason]=useState('');
+  const[cancelReasonError,setCancelReasonError]=useState(false);
+  const[filter,setFilter]=useState(highlightFilter||'all');
+  const highlightRef=useRef(null);
+  const today=toISO(new Date());
+  const wEnd=toISO(new Date(new Date().setFullYear(new Date().getFullYear()+2)));
+
+  const selected=useMemo(()=>selectedId?bookings.find(b=>b.id===selectedId)||null:null,[selectedId,bookings]);
+
+  useEffect(()=>{if(highlightFilter)setFilter(highlightFilter);},[highlightFilter]);
+  useEffect(()=>{
+    if(highlightBookingId&&highlightRef.current){
+      setTimeout(()=>{
+        highlightRef.current?.scrollIntoView({behavior:'smooth',block:'center'});
+        if(navigator.vibrate) navigator.vibrate([60,40,60,40,120]);
+      },350);
+    }
+  },[highlightBookingId,filter]);
+
+  const FILTERS=[{id:'all',label:'Alla'},{id:'pending',label:'Väntar'},{id:'approved',label:'Godkända'},{id:'cancelled',label:'Inställda'}];
+  const counts={
+    all:bookings.length,
+    pending:bookings.filter(b=>b.status==='pending'||b.status==='edit_pending').length,
+    approved:bookings.filter(b=>b.status==='approved'||b.status==='edited').length,
+    cancelled:bookings.filter(b=>b.status==='cancelled'||b.status==='rejected').length,
+  };
+  const sorted=useMemo(()=>{
+    const all=bookings.slice().sort((a,b)=>(b.created_at||0)-(a.created_at||0));
+    if(filter==='all') return all;
+    if(filter==='pending') return all.filter(b=>b.status==='pending'||b.status==='edit_pending');
+    if(filter==='approved') return all.filter(b=>b.status==='approved'||b.status==='edited');
+    if(filter==='cancelled') return all.filter(b=>b.status==='cancelled'||b.status==='rejected');
+    return all;
+  },[bookings,filter]);
+
+  if(selected) {
+    const b=selected;
+    const isRecur=b.recurrence&&b.recurrence!=='none';
+    const upcoming=isRecur?expandBooking(b,today,wEnd,exceptions).slice(0,10):[{...b,date:b.start_date}];
+    return <div style={{paddingTop:'max(20px,env(safe-area-inset-top,0px))',
+      paddingLeft:16,paddingRight:16,paddingBottom:100,fontFamily:'system-ui'}}>
+      <BackButton onBack={()=>setSelectedId(null)} T={T}/>
+      <div style={{fontSize:20,fontWeight:700,color:T.text,marginTop:16,marginBottom:16}}>Bokningsdetaljer</div>
+      <div style={{background:T.card,border:`0.5px solid ${T.border}`,borderRadius:16,padding:16,marginBottom:12}}>
+        <div style={{display:'flex',gap:8,marginBottom:12}}>
+          <Badge status={b.status}/>
+          {isRecur&&<RecurBadge recurrence={b.recurrence}/>}
+        </div>
+        {[['Aktivitet',b.activity],['Tid',b.time_slot],['Längd',fmtDuration(b.duration_hours)],
+          ['Startdatum',isoToDisplay(b.start_date)],['Upprepning',fmtRecur(b.recurrence)]
+        ].map(([l,v])=><div key={l} style={{marginBottom:10,paddingBottom:10,borderBottom:`0.5px solid ${T.separator}`}}>
+          <div style={{fontSize:10,fontWeight:700,color:T.textMuted,letterSpacing:'.5px',marginBottom:2}}>{l.toUpperCase()}</div>
+          <div style={{fontSize:14,color:T.text}}>{v}</div>
+        </div>)}
+        {b.notes&&<div style={{marginBottom:10,paddingBottom:10,borderBottom:`0.5px solid ${T.separator}`}}>
+          <div style={{fontSize:10,fontWeight:700,color:T.textMuted,letterSpacing:'.5px',marginBottom:2}}>ANTECKNINGAR</div>
+          <div style={{fontSize:14,color:T.text}}>{b.notes}</div>
+        </div>}
+        {b.end_date&&<div style={{marginBottom:10,paddingBottom:10,borderBottom:`0.5px solid ${T.separator}`}}>
+          <div style={{fontSize:10,fontWeight:700,color:T.textMuted,letterSpacing:'.5px',marginBottom:2}}>SLUTDATUM</div>
+          <div style={{fontSize:14,color:T.text}}>{isoToDisplay(b.end_date)}</div>
+        </div>}
+        {b.admin_comment&&<div style={{padding:'8px 10px',background:`${T.accent}11`,borderRadius:8}}>
+          <div style={{fontSize:10,fontWeight:700,color:T.textMuted,letterSpacing:'.5px',marginBottom:2}}>KOMMENTAR FRÅN ADMIN</div>
+          <div style={{fontSize:13,color:T.text}}>{b.admin_comment}</div>
+        </div>}
+      </div>
+      {isRecur&&upcoming.length>0&&<div style={{background:T.card,border:'1px solid #8b5cf644',
+        borderRadius:14,padding:14,marginBottom:12}}>
+        <div style={{fontSize:11,fontWeight:700,color:'#8b5cf6',letterSpacing:'.5px',marginBottom:10}}>
+          KOMMANDE TILLFÄLLEN
+        </div>
+        {upcoming.map((occ,i)=><div key={i} style={{display:'flex',alignItems:'center',
+          justifyContent:'space-between',padding:'8px 0',
+          borderBottom:i<upcoming.length-1?`0.5px solid ${T.separator}`:'none'}}>
           <div>
-            <label style={{fontSize:12,fontWeight:600,color:T.textMuted,letterSpacing:'.3px'}}>ROLL</label>
-            <div style={{display:'flex',gap:8,marginTop:6}}>
-              {['user','admin'].map(r=>(
-                <button key={r} onClick={()=>setForm(p=>({...p,role:r}))} style={{flex:1,padding:'10px',borderRadius:10,border:`1px solid ${form.role===r?T.accent:T.border}`,background:form.role===r?`${T.accent}18`:'none',color:form.role===r?T.accent:T.textMuted,fontWeight:600,fontSize:13,cursor:'pointer',WebkitTapHighlightColor:'transparent'}}>
-                  {r==='admin'?'Admin':'Användare'}
-                </button>
-              ))}
-            </div>
+            <div style={{fontSize:13,fontWeight:600,color:T.text}}>{isoToDisplay(occ.date)}</div>
+            <div style={{fontSize:11,color:T.textMuted}}>{occ.time_slot}</div>
           </div>
-          {error&&<div style={{fontSize:13,color:'#ef4444',background:'#ef444415',borderRadius:8,padding:'8px 12px'}}>{error}</div>}
-          <div style={{display:'flex',gap:8}}>
-            <button onClick={()=>{setShowCreate(false);setError('');}} style={{flex:1,padding:'11px',borderRadius:10,border:`1px solid ${T.border}`,background:'none',color:T.textMuted,fontWeight:600,cursor:'pointer'}}>Avbryt</button>
-            <button onClick={handleCreate} disabled={creating} style={{flex:1,padding:'11px',borderRadius:10,border:'none',background:T.accent,color:'#fff',fontWeight:700,cursor:'pointer',WebkitTapHighlightColor:'transparent'}}>{creating?'Skapar...':'Skapa konto'}</button>
+          <div style={{display:'flex',alignItems:'center',gap:6}}>
+            <Badge status={occ.status||b.status}/>
+            <button onClick={()=>setDeleteSheet({booking:b,occurrence_date:occ.date})}
+              style={{background:'none',border:'none',cursor:'pointer',
+                color:T.error,fontSize:18,lineHeight:1,padding:'0 4px',
+                WebkitTapHighlightColor:'transparent'}}>×</button>
+          </div>
+        </div>)}
+      </div>}
+      <div style={{display:'flex',flexDirection:'column',gap:8}}>
+        {(b.status==='cancelled'||b.status==='rejected')?(
+          <div style={{padding:'10px 12px',background:`${T.accent}0d`,borderRadius:10,
+            fontSize:13,color:T.textMuted}}>
+            {b.status==='rejected'?'Din bokning avböjdes av admin.':'Bokningen ställdes in.'}
+          </div>
+        ):isRecur?(
+          <button onClick={()=>setDeleteSheet({booking:b,occurrence_date:b.start_date,deleteAll:true})}
+            style={{padding:'13px',borderRadius:12,border:`1px solid ${T.error}33`,
+              background:`${T.error}11`,color:T.error,fontSize:14,fontWeight:700,
+              cursor:'pointer',textAlign:'left',WebkitTapHighlightColor:'transparent'}}>
+            🗑 Avboka hela serien
+          </button>
+        ):(
+          <button onClick={()=>setDeleteSheet({booking:b,occurrence_date:b.start_date})}
+            style={{padding:'13px',borderRadius:12,border:`1px solid ${T.error}33`,
+              background:`${T.error}11`,color:T.error,fontSize:14,fontWeight:700,
+              cursor:'pointer',WebkitTapHighlightColor:'transparent'}}>
+            🗑 Avboka
+          </button>
+        )}
+      </div>
+      {deleteSheet&&<div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.5)',zIndex:1000,
+        display:'flex',alignItems:'flex-end',justifyContent:'center'}}
+        onClick={()=>{setDeleteSheet(null);setCancelReason('');setCancelReasonError(false);}}>
+        <div onClick={e=>e.stopPropagation()} style={{background:T.sheetBg,borderRadius:'20px 20px 0 0',
+          padding:'24px 20px 36px',width:'100%',maxWidth:500,boxSizing:'border-box',
+          animation:'bsSlideUp .25s cubic-bezier(0.32,0.72,0,1)'}}>
+          <div style={{fontSize:16,fontWeight:700,color:T.text,marginBottom:8}}>
+            {deleteSheet.deleteAll?'Avboka hela serien?':'Avboka?'}
+          </div>
+          <textarea value={cancelReason}
+            onChange={e=>{setCancelReason(e.target.value);setCancelReasonError(false);}}
+            placeholder="Anledning (obligatorisk)" rows={3}
+            style={{width:'100%',boxSizing:'border-box',background:T.cardElevated,
+              border:`0.5px solid ${cancelReasonError?T.error:T.border}`,
+              borderRadius:10,padding:'10px 12px',fontSize:16,color:T.text,
+              fontFamily:'system-ui',resize:'none',outline:'none',marginBottom:14}}/>
+          {cancelReasonError&&<div style={{color:T.error,fontSize:12,marginBottom:10}}>Anledning krävs.</div>}
+          <div style={{display:'flex',flexDirection:'column',gap:10}}>
+            {!deleteSheet.deleteAll&&(()=>{
+              const isR=deleteSheet.booking.recurrence&&deleteSheet.booking.recurrence!=='none';
+              const uName=localStorage.getItem(STORAGE_USER_NAME)||'Besökaren';
+              const getReason=()=>`Avbokad av ${uName}: ${cancelReason.trim()}`;
+              const validate=fn=>{if(!cancelReason.trim()){setCancelReasonError(true);return;}fn();};
+              return isR?<>
+                <button onClick={()=>validate(()=>{setDeleteSheet(null);setCancelReason('');setCancelReasonError(false);onCancel(deleteSheet.booking,deleteSheet.occurrence_date,getReason());})}
+                  style={{padding:'14px',borderRadius:12,border:`1px solid ${T.error}33`,background:`${T.error}11`,color:T.error,fontSize:14,fontWeight:700,cursor:'pointer',textAlign:'left',WebkitTapHighlightColor:'transparent'}}>
+                  🗑 Bara detta tillfälle
+                </button>
+                <button onClick={()=>validate(()=>{setDeleteSheet(null);setCancelReason('');setCancelReasonError(false);onCancelFromDate(deleteSheet.booking,deleteSheet.occurrence_date,getReason());})}
+                  style={{padding:'14px',borderRadius:12,border:`1px solid ${T.error}33`,background:`${T.error}11`,color:T.error,fontSize:14,fontWeight:700,cursor:'pointer',textAlign:'left',WebkitTapHighlightColor:'transparent'}}>
+                  🗑 Detta och alla kommande
+                </button>
+              </>:<button onClick={()=>validate(()=>{setDeleteSheet(null);setCancelReason('');setCancelReasonError(false);onCancel(deleteSheet.booking,deleteSheet.occurrence_date,getReason());})}
+                style={{padding:'14px',borderRadius:12,border:`1px solid ${T.error}33`,background:`${T.error}11`,color:T.error,fontSize:14,fontWeight:700,cursor:'pointer',WebkitTapHighlightColor:'transparent'}}>
+                🗑 Avboka bokningen
+              </button>;
+            })()}
+            {deleteSheet.deleteAll&&<button onClick={()=>{
+              if(!cancelReason.trim()){setCancelReasonError(true);return;}
+              const uName=localStorage.getItem(STORAGE_USER_NAME)||'Besökaren';
+              const reason=`Avbokad av ${uName}: ${cancelReason.trim()}`;
+              setDeleteSheet(null);setCancelReason('');setCancelReasonError(false);
+              onCancelSeries(deleteSheet.booking,reason);
+            }} style={{padding:'14px',borderRadius:12,border:`1px solid ${T.error}33`,background:`${T.error}11`,
+              color:T.error,fontSize:14,fontWeight:700,cursor:'pointer',WebkitTapHighlightColor:'transparent'}}>
+              🗑 Ja, avboka hela serien
+            </button>}
+            <button onClick={()=>{setDeleteSheet(null);setCancelReason('');setCancelReasonError(false);}}
+              style={{padding:'13px',borderRadius:12,border:`0.5px solid ${T.border}`,
+                background:'none',color:T.text,fontSize:14,fontWeight:600,
+                cursor:'pointer',WebkitTapHighlightColor:'transparent'}}>Avbryt</button>
           </div>
         </div>
       </div>}
+    </div>;
+  }
 
-      {deleteTarget&&<div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.6)',zIndex:100,display:'flex',alignItems:'flex-end',justifyContent:'center',padding:'0 16px 32px'}}>
-        <div style={{background:T.card,borderRadius:20,padding:24,width:'100%',maxWidth:400}}>
-          <div style={{fontSize:17,fontWeight:800,color:T.text,marginBottom:8}}>Radera konto?</div>
-          <div style={{fontSize:13,color:T.textMuted,marginBottom:6,lineHeight:1.5}}><strong style={{color:T.text}}>{deleteTarget.name}</strong> ({deleteTarget.phone})</div>
-          <div style={{fontSize:12,color:T.textMuted,marginBottom:20,lineHeight:1.5,background:'#ef444411',borderRadius:8,padding:'8px 12px',border:'1px solid #ef444433'}}>
-            Kontot inaktiveras. Deras bokningar påverkas inte. Raderingen loggas med ditt namn.
-          </div>
-          <div style={{display:'flex',gap:10}}>
-            <button onClick={()=>setDeleteTarget(null)} style={{flex:1,padding:'12px',borderRadius:12,border:`1px solid ${T.border}`,background:'none',color:T.text,fontWeight:600,cursor:'pointer',fontSize:14}}>Avbryt</button>
-            <button onClick={handleDelete} disabled={deleting} style={{flex:1,padding:'12px',borderRadius:12,border:'none',background:'#ef4444',color:'#fff',fontWeight:700,cursor:'pointer',fontSize:14,WebkitTapHighlightColor:'transparent'}}>
-              {deleting?'Raderar...':'Radera konto'}
-            </button>
-          </div>
-        </div>
-      </div>}
-
-      {loading ? <Spinner T={T}/> : <>
-        <div style={{display:'flex',flexDirection:'column',gap:8}}>
-          {users.filter(u=>!u.deleted_at).length===0&&<div style={{textAlign:'center',color:T.textMuted,padding:'40px 0'}}>Inga aktiva konton</div>}
-          {users.filter(u=>!u.deleted_at).map(u=>(
-            <div key={u.id} style={{background:T.card,border:`1px solid ${T.border}`,borderRadius:14,padding:'14px 16px'}}>
-              <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:6}}>
-                <div style={{display:'flex',alignItems:'center',gap:8,flexWrap:'wrap'}}>
-                  <div style={{fontSize:15,fontWeight:700,color:T.text}}>{u.name}</div>
-                  <span style={{background:roleBg(u.role),color:roleColor(u.role),borderRadius:8,fontSize:11,fontWeight:700,padding:'2px 8px'}}>{roleLabel(u.role)}</span>
-                  {!u.invite_used&&<span style={{background:'#f59e0b22',color:'#f59e0b',borderRadius:8,fontSize:10,fontWeight:700,padding:'2px 7px'}}>Ej aktiverat</span>}
-                </div>
-                {u.id!==currentUserId&&<button onClick={()=>setDeleteTarget(u)} style={{background:'#ef444418',border:'1px solid #ef444433',borderRadius:8,cursor:'pointer',color:'#ef4444',fontSize:12,fontWeight:600,padding:'4px 10px',WebkitTapHighlightColor:'transparent'}}>Radera</button>}
-              </div>
-              <div style={{fontSize:12,color:T.textMuted,marginBottom:8}}>{u.phone}</div>
-              <div style={{display:'flex',gap:6}}>
-                <button onClick={()=>handleResetPin(u)} style={{padding:'5px 12px',borderRadius:8,border:`1px solid ${T.border}`,background:T.cardElevated,color:T.textMuted,fontSize:12,fontWeight:600,cursor:'pointer',WebkitTapHighlightColor:'transparent'}}>
-                  Ny inbjudningskod
-                </button>
-              </div>
+  return <div style={{paddingTop:'max(20px,env(safe-area-inset-top,0px))',
+    paddingLeft:16,paddingRight:16,paddingBottom:20}}>
+    <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:0}}>
+      <BackButton onBack={onBack} T={T}/>
+      <button onClick={onLogout} style={{padding:'7px 14px',borderRadius:20,
+        border:`1px solid ${T.error}33`,background:`${T.error}11`,color:T.error,
+        fontSize:12,fontWeight:700,cursor:'pointer',fontFamily:'system-ui',
+        WebkitTapHighlightColor:'transparent',display:'flex',alignItems:'center',gap:6}}>
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+          strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
+          <polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/>
+        </svg>
+        Logga ut
+      </button>
+    </div>
+    <div style={{fontSize:26,fontWeight:700,color:T.text,marginTop:16,marginBottom:12}}>Mina bokningar</div>
+    <div style={{display:'flex',gap:6,flexWrap:'wrap',marginBottom:14}}>
+      {FILTERS.map(f=><button key={f.id} onClick={()=>setFilter(f.id)}
+        style={{padding:'6px 14px',borderRadius:20,
+          border:`1px solid ${filter===f.id?T.accent:T.border}`,
+          background:filter===f.id?`${T.accent}22`:'none',
+          color:filter===f.id?T.accent:T.textMuted,
+          fontSize:12,fontWeight:600,cursor:'pointer',
+          fontFamily:'system-ui',WebkitTapHighlightColor:'transparent',
+          display:'flex',alignItems:'center',gap:5}}>
+        {f.label}
+        {counts[f.id]>0&&<span style={{background:filter===f.id?T.accent:'#88888833',
+          color:filter===f.id?'#fff':T.textMuted,borderRadius:8,fontSize:10,fontWeight:800,
+          padding:'1px 6px'}}>{counts[f.id]}</span>}
+      </button>)}
+    </div>
+    {loading&&<Spinner T={T}/>}
+    {!loading&&sorted.length===0&&<div style={{textAlign:'center',padding:'40px 0',color:T.textMuted,fontSize:14}}>Inga bokningar.</div>}
+    <div style={{display:'flex',flexDirection:'column',gap:10}}>
+      {sorted.map(b=>{
+        const isRecur=b.recurrence&&b.recurrence!=='none';
+        const nextOcc=isRecur?expandBooking(b,today,wEnd,exceptions)[0]:null;
+        const displayDate=nextOcc?.date||b.start_date;
+        const isHL=b.id===highlightBookingId;
+        const hlColor=(b.status==='cancelled'||b.status==='rejected')?T.accentBlue:T.accent;
+        return <div key={b.id} ref={isHL?highlightRef:null}
+          onClick={()=>setSelectedId(b.id)}
+          style={{background:T.card,border:`0.5px solid ${isHL?hlColor:T.border}`,
+            borderRadius:14,padding:'14px 16px',cursor:'pointer',
+            boxShadow:isHL?`0 0 0 3px ${hlColor}44`:'none',
+            animation:isHL?'bsHighlight 1.2s ease-in-out 3':'none','--hl':`${hlColor}55`}}>
+          <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:8}}>
+            <div style={{display:'flex',alignItems:'center',gap:8}}>
+              <Badge status={b.status}/>
+              {isRecur&&<RecurBadge recurrence={b.recurrence}/>}
             </div>
-          ))}
-        </div>
-        {users.filter(u=>u.deleted_at).length>0&&<>
-          <div style={{fontSize:12,fontWeight:700,color:T.textMuted,letterSpacing:'.5px',marginTop:24,marginBottom:10}}>RADERADE KONTON</div>
-          <div style={{display:'flex',flexDirection:'column',gap:8}}>
-            {users.filter(u=>u.deleted_at).map(u=>(
-              <div key={u.id} style={{background:T.card,border:'1px solid #ef444433',borderRadius:14,padding:'14px 16px',opacity:0.7}}>
-                <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:4}}>
-                  <div style={{fontSize:14,fontWeight:700,color:T.textMuted,textDecoration:'line-through'}}>{u.name}</div>
-                  <span style={{background:'#ef444422',color:'#ef4444',borderRadius:8,fontSize:10,fontWeight:700,padding:'2px 8px'}}>Raderat</span>
-                </div>
-                <div style={{fontSize:12,color:T.textMuted,marginBottom:4}}>{u.phone}</div>
-                <div style={{fontSize:11,color:T.textMuted}}>Raderades av <strong style={{color:T.text}}>{u.deleted_by_name||'Okänd'}</strong>{u.deleted_at&&<> · {new Date(u.deleted_at).toLocaleDateString('sv-SE')}</>}</div>
-              </div>
-            ))}
+            <span style={{fontSize:11,color:T.textMuted}}>{isoToDisplay(displayDate)}</span>
           </div>
-        </>}
+          <div style={{fontSize:15,fontWeight:600,color:T.text,marginBottom:4}}>{b.activity}</div>
+          <div style={{fontSize:13,color:T.textMuted}}>{b.time_slot} · {fmtDuration(b.duration_hours)}</div>
+          {b.admin_comment&&<div style={{marginTop:8,fontSize:12,color:T.textMuted,fontStyle:'italic'}}>
+            "{b.admin_comment}"
+          </div>}
+        </div>;
+      })}
+    </div>
+  </div>;
+}
+
+// ─── Admin Add Form ──────────────────────────────────────────────────────────
+function AdminAddForm({bookings,exceptions,onSubmit,onClose,T}) {
+  const today=new Date();today.setHours(0,0,0,0);
+  const[step,setStep]=useState('date');
+  const[anchor,setAnchor]=useState(today);
+  const[selectedDate,setSelectedDate]=useState(today);
+  const[startH,setStartH]=useState(OPEN_HOUR);
+  const[startM,setStartM]=useState(0);
+  const[endH,setEndH]=useState(OPEN_HOUR+1);
+  const[endM,setEndM]=useState(0);
+  const[recurrence,setRecurrence]=useState('weekly');
+  const[endDate,setEndDate]=useState(null);
+  const[form,setForm]=useState({name:'',phone:'',activity:'',notes:''});
+  const[loading,setLoading]=useState(false);
+  const mg=useMemo(()=>getMonthGrid(anchor.getFullYear(),anchor.getMonth()),[anchor]);
+  const iso=toISO(selectedDate);
+  const bookedBlocks=useMemo(()=>getBookedBlocks(bookings,exceptions,iso),[bookings,exceptions,iso]);
+  const dH=endH+endM/60-startH-startM/60;
+  const slot=slotFromHM(startH,startM,endH===CLOSE_HOUR?0:endH,endM);
+  const navBtn=(dir)=>(
+    <button onClick={()=>{const d=new Date(anchor);dir==='prev'?d.setMonth(d.getMonth()-1):d.setMonth(d.getMonth()+1);setAnchor(d);}}
+      style={{width:32,height:32,borderRadius:8,border:`0.5px solid ${T.border}`,
+        background:T.card,display:'flex',alignItems:'center',justifyContent:'center',
+        cursor:'pointer',color:T.text}}>
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none"
+        stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+        {dir==='prev'?<polyline points="15 18 9 12 15 6"/>:<polyline points="9 18 15 12 9 6"/>}
+      </svg>
+    </button>
+  );
+  return <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.5)',zIndex:1000,
+    display:'flex',alignItems:'flex-end',justifyContent:'center'}} onClick={onClose}>
+    <div onClick={e=>e.stopPropagation()} style={{background:T.sheetBg,borderRadius:'20px 20px 0 0',
+      padding:'24px 20px 36px',width:'100%',maxWidth:500,boxSizing:'border-box',
+      animation:'bsSlideUp .25s cubic-bezier(0.32,0.72,0,1)',maxHeight:'90vh',overflowY:'auto'}}>
+      <div style={{fontSize:18,fontWeight:700,color:T.text,marginBottom:16}}>Lägg till bokning</div>
+      {step==='date'&&<>
+        <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:10}}>
+          {navBtn('prev')}
+          <span style={{fontSize:13,fontWeight:700,color:T.text}}>{MONTHS_SV[anchor.getMonth()]} {anchor.getFullYear()}</span>
+          {navBtn('next')}
+        </div>
+        <div style={{display:'grid',gridTemplateColumns:'repeat(7,1fr)',gap:2,marginBottom:4}}>
+          {DAYS_SV.map(d=><div key={d} style={{textAlign:'center',fontSize:9,fontWeight:700,color:T.textMuted}}>{d}</div>)}
+        </div>
+        {mg.map((row,ri)=><div key={ri} style={{display:'grid',gridTemplateColumns:'repeat(7,1fr)',gap:2,marginBottom:2}}>
+          {row.map((d,ci)=>{
+            if(!d) return <div key={ci}/>;
+            const isSel=selectedDate&&toISO(d)===toISO(selectedDate);
+            return <button key={ci} onClick={()=>{const c=new Date(d);c.setHours(0,0,0,0);setSelectedDate(c);setStep('time');}}
+              style={{borderRadius:8,border:isSel?`2px solid ${T.accent}`:'1px solid transparent',
+                background:isSel?`${T.accent}22`:'none',padding:'6px 2px',cursor:'pointer',
+                display:'flex',alignItems:'center',justifyContent:'center',WebkitTapHighlightColor:'transparent'}}>
+              <span style={{fontSize:13,fontWeight:isSel?700:400,color:isSel?T.accent:T.text}}>{d.getDate()}</span>
+            </button>;
+          })}
+        </div>)}
+      </>}
+      {step==='time'&&<>
+        <div style={{fontSize:12,fontWeight:700,color:T.textMuted,marginBottom:12,letterSpacing:'.3px'}}>
+          {isoToDisplay(iso)} — VÄLJ TID
+        </div>
+        <div style={{background:T.card,border:`0.5px solid ${T.border}`,borderRadius:12,overflow:'hidden',marginBottom:12}}>
+          <TimeAccordion label="Startar" hour={startH} minute={startM}
+            onConfirm={(h,m)=>{setStartH(h);setStartM(m);if(endH+endM/60<=h+m/60){setEndH(Math.min(h+1,CLOSE_HOUR));setEndM(0);}}}
+            bookedBlocks={bookedBlocks} isStart={true} pairedHour={startH} pairedMinute={startM} T={T}/>
+          <div style={{height:'0.5px',background:T.separator}}/>
+          <TimeAccordion label="Slutar" hour={endH} minute={endM}
+            onConfirm={(h,m)=>{setEndH(h);setEndM(m);}}
+            bookedBlocks={bookedBlocks} isStart={false} pairedHour={startH} pairedMinute={startM} T={T}/>
+        </div>
+        <button onClick={()=>setStep('details')}
+          style={{width:'100%',padding:'13px',borderRadius:12,border:'none',
+            background:T.accent,color:'#fff',fontSize:15,fontWeight:700,cursor:'pointer'}}>Nästa →</button>
+        <button onClick={()=>setStep('date')}
+          style={{marginTop:10,background:'none',border:'none',color:T.accent,
+            cursor:'pointer',fontSize:13,padding:0}}>← Byt datum</button>
+      </>}
+      {step==='details'&&<>
+        <div style={{background:`${T.accent}18`,borderRadius:10,padding:'8px 12px',marginBottom:16}}>
+          <span style={{fontSize:13,color:T.accent,fontWeight:600}}>{isoToDisplay(iso)} · {slot}</span>
+        </div>
+        <div style={{display:'flex',flexDirection:'column',gap:12}}>
+          <Input label="NAMN" value={form.name} onChange={v=>setForm(p=>({...p,name:v}))} placeholder="Namn på bokaren" required T={T}/>
+          <Input label="TELEFON" value={form.phone} onChange={v=>setForm(p=>({...p,phone:v}))} placeholder="Telefonnummer" T={T}/>
+          <Textarea label="AKTIVITET" value={form.activity} onChange={v=>setForm(p=>({...p,activity:v}))} placeholder="Beskriv aktiviteten..." T={T}/>
+          <Textarea label="ANTECKNINGAR" value={form.notes} onChange={v=>setForm(p=>({...p,notes:v}))} placeholder="Valfria anteckningar..." T={T}/>
+          <div style={{background:T.card,border:`0.5px solid ${T.border}`,borderRadius:12,padding:14}}>
+            <RecurrencePicker recurrence={recurrence} onChange={setRecurrence}
+              endDate={endDate} onEndDateChange={setEndDate} T={T}/>
+          </div>
+          <button onClick={async()=>{
+            if(!form.name.trim()||!form.activity.trim()) return;
+            setLoading(true);
+            await onSubmit({...form,date:iso,time_slot:slot,duration_hours:dH,recurrence,end_date:endDate,skip_dates:[]});
+            setLoading(false);
+          }} disabled={loading||!form.name.trim()||!form.activity.trim()}
+            style={{padding:'13px',borderRadius:12,border:'none',background:T.accent,color:'#fff',
+              fontSize:15,fontWeight:700,cursor:'pointer'}}>
+            {loading?'Lägger till...':'Lägg till bokning ✓'}
+          </button>
+        </div>
+        <button onClick={()=>setStep('time')}
+          style={{marginTop:12,background:'none',border:'none',color:T.accent,cursor:'pointer',fontSize:13,padding:0}}>← Byt tid</button>
       </>}
     </div>
-  );
+  </div>;
 }
 
-// ── Main BookingScreen ────────────────────────────────────────────────────────
+// ─── Admin Panel ──────────────────────────────────────────────────────────────
+function AdminPanel({bookings,exceptions,onBack,onApprove,onReject,onDelete,onDeleteSeries,onDeleteFromDate,onAdminAddRecurring,onRefreshNotifications,onMarkAdminSeen,onManageUsers,adminInitialFilter,adminHighlightId=null,adminHighlightFilter=null,T}) {
+  const[filter,setFilter]=useState(adminHighlightFilter||adminInitialFilter||'all');
+  const[selected,setSelected]=useState(null);
+  const[actionLoading,setActionLoading]=useState(false);
+  const[comment,setComment]=useState('');
+  const[deleteDialog,setDeleteDialog]=useState(null);
+  const[addForm,setAddForm]=useState(null);
+  const highlightRef=useRef(null);
+  const today=toISO(new Date());
+  const wEnd=toISO(new Date(new Date().setFullYear(new Date().getFullYear()+2)));
 
+  useEffect(()=>{if(adminHighlightFilter)setFilter(adminHighlightFilter);},[adminHighlightFilter]);
+  useEffect(()=>{
+    if(adminHighlightId&&highlightRef.current){
+      setTimeout(()=>{
+        highlightRef.current?.scrollIntoView({behavior:'smooth',block:'center'});
+        if(navigator.vibrate) navigator.vibrate([60,40,60,40,120]);
+        setTimeout(()=>onMarkAdminSeen?.(),3000);
+      },400);
+    }
+  },[adminHighlightId,filter]);// eslint-disable-line
+
+  const pending=bookings.filter(b=>b.status==='pending'||b.status==='edit_pending');
+  const approved=bookings.filter(b=>b.status==='approved'||b.status==='edited');
+  const rejected=bookings.filter(b=>b.status==='rejected');
+  const cancelled=bookings.filter(b=>b.status==='cancelled');
+  const filtered=filter==='all'?bookings:filter==='pending'?pending:filter==='approved'?approved:filter==='rejected'?rejected:cancelled;
+  const sorted=filtered.slice().sort((a,b)=>b.created_at-a.created_at);
+  const filters=[
+    {id:'all',label:'Alla',count:bookings.length},
+    {id:'pending',label:'Väntar',count:pending.length},
+    {id:'approved',label:'Godkända',count:approved.length},
+    {id:'rejected',label:'Avböjda',count:rejected.length},
+    {id:'cancelled',label:'Inställda',count:cancelled.length},
+  ];
+
+  if(selected) {
+    const b=selected;
+    const isRecur=b.recurrence&&b.recurrence!=='none';
+    const upcoming=isRecur?expandBooking(b,today,wEnd,exceptions).slice(0,10):null;
+    return <div style={{paddingTop:'max(20px,env(safe-area-inset-top,0px))',
+      paddingLeft:16,paddingRight:16,paddingBottom:100}}>
+      <BackButton onBack={()=>{setSelected(null);setComment('');}} T={T}/>
+      <div style={{fontSize:20,fontWeight:700,color:T.text,marginTop:16,marginBottom:16}}>Bokningsdetaljer</div>
+      <div style={{background:T.card,border:`0.5px solid ${T.border}`,borderRadius:16,padding:16,marginBottom:12}}>
+        <div style={{display:'flex',gap:8,marginBottom:12}}>
+          <Badge status={b.status}/>
+          {isRecur&&<RecurBadge recurrence={b.recurrence}/>}
+        </div>
+        {[['Namn',b.name],['Telefon',b.phone],['Aktivitet',b.activity],['Tid',b.time_slot],
+          ['Längd',fmtDuration(b.duration_hours)],['Startdatum',isoToDisplay(b.start_date)],
+          ['Upprepning',fmtRecur(b.recurrence)],
+        ].map(([l,v])=><div key={l} style={{marginBottom:10,paddingBottom:10,borderBottom:`0.5px solid ${T.separator}`}}>
+          <div style={{fontSize:10,fontWeight:700,color:T.textMuted,letterSpacing:'.5px',marginBottom:2}}>{l.toUpperCase()}</div>
+          <div style={{fontSize:14,color:T.text}}>{v}</div>
+        </div>)}
+        {b.notes&&<div style={{marginBottom:10,paddingBottom:10,borderBottom:`0.5px solid ${T.separator}`}}>
+          <div style={{fontSize:10,fontWeight:700,color:T.textMuted,letterSpacing:'.5px',marginBottom:2}}>ANTECKNINGAR</div>
+          <div style={{fontSize:14,color:T.text}}>{b.notes}</div>
+        </div>}
+        {b.end_date&&<div style={{marginBottom:10}}>
+          <div style={{fontSize:10,fontWeight:700,color:T.textMuted,letterSpacing:'.5px',marginBottom:2}}>SLUTDATUM</div>
+          <div style={{fontSize:14,color:T.text}}>{isoToDisplay(b.end_date)}</div>
+        </div>}
+      </div>
+      {isRecur&&upcoming&&<div style={{background:T.card,border:'1px solid #8b5cf644',borderRadius:14,padding:14,marginBottom:12}}>
+        <div style={{fontSize:11,fontWeight:700,color:'#8b5cf6',letterSpacing:'.5px',marginBottom:10}}>KOMMANDE TILLFÄLLEN</div>
+        {upcoming.map((occ,i)=><div key={i} style={{display:'flex',alignItems:'center',justifyContent:'space-between',
+          padding:'8px 0',borderBottom:i<upcoming.length-1?`0.5px solid ${T.separator}`:'none'}}>
+          <div>
+            <div style={{fontSize:13,fontWeight:600,color:T.text}}>{isoToDisplay(occ.date)}</div>
+            <div style={{fontSize:11,color:T.textMuted}}>{occ.time_slot}</div>
+          </div>
+          <button onClick={()=>setDeleteDialog({booking:b,occurrence_date:occ.date,type:'one'})}
+            style={{background:'none',border:'none',cursor:'pointer',color:T.error,fontSize:18,padding:'0 4px',WebkitTapHighlightColor:'transparent'}}>×</button>
+        </div>)}
+      </div>}
+      {(b.status==='pending'||b.status==='edit_pending')&&<div style={{display:'flex',flexDirection:'column',gap:10,marginBottom:12}}>
+        <Textarea label="KOMMENTAR (valfritt)" value={comment} onChange={setComment}
+          placeholder="Skriv en kommentar till besökaren..." T={T}/>
+        <div style={{display:'flex',gap:10}}>
+          <button onClick={async()=>{setActionLoading(true);await onApprove(b.id,comment);setActionLoading(false);setSelected(null);setComment('');onMarkAdminSeen?.();onRefreshNotifications?.();}}
+            disabled={actionLoading}
+            style={{flex:1,padding:'13px',borderRadius:12,border:'none',background:T.success,color:'#fff',fontSize:15,fontWeight:700,cursor:'pointer'}}>
+            {actionLoading?'...':'Godkänn'}
+          </button>
+          <button onClick={async()=>{if(!comment.trim()){alert('Kommentar krävs.');return;}setActionLoading(true);await onReject(b.id,comment);setActionLoading(false);setSelected(null);setComment('');onMarkAdminSeen?.();onRefreshNotifications?.();}}
+            disabled={actionLoading}
+            style={{flex:1,padding:'13px',borderRadius:12,border:'none',background:T.error,color:'#fff',fontSize:15,fontWeight:700,cursor:'pointer'}}>
+            {actionLoading?'...':'Avböj'}
+          </button>
+        </div>
+      </div>}
+      <button onClick={()=>setDeleteDialog({booking:b,type:isRecur?'series':'single'})}
+        style={{padding:'13px',borderRadius:12,border:`1px solid ${T.error}33`,background:`${T.error}11`,
+          color:T.error,fontSize:14,fontWeight:700,cursor:'pointer',
+          textAlign:'left',WebkitTapHighlightColor:'transparent',width:'100%'}}>
+        🗑 {isRecur?'Ta bort hela serien':'Ta bort bokning'}
+      </button>
+      {deleteDialog&&<ConfirmDialog
+        title={deleteDialog.type==='series'?'Ta bort hela serien?':deleteDialog.type==='one'?`Ta bort ${isoToDisplay(deleteDialog.occurrence_date)}?`:'Ta bort bokning?'}
+        message={deleteDialog.type==='series'?'Alla tillfällen tas bort.':deleteDialog.type==='one'?'Bara detta tillfälle tas bort.':'Bokningen tas bort.'}
+        confirmLabel="Ta bort"
+        requireText="FÖRKLARING TILL BESÖKAREN"
+        requirePlaceholder="Varför tas bokningen bort?"
+        onConfirm={async(explanation)=>{
+          setActionLoading(true);
+          if(deleteDialog.type==='series') await onDeleteSeries(deleteDialog.booking,explanation);
+          else if(deleteDialog.type==='one') await onDelete(deleteDialog.booking,deleteDialog.occurrence_date,explanation);
+          else await onDelete(deleteDialog.booking,null,explanation);
+          setActionLoading(false);setDeleteDialog(null);setSelected(null);onRefreshNotifications?.();
+        }}
+        onCancel={()=>setDeleteDialog(null)} T={T}/>}
+    </div>;
+  }
+
+  return <div style={{paddingTop:'max(20px,env(safe-area-inset-top,0px))',paddingLeft:16,paddingRight:16,paddingBottom:100}}>
+    <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:16}}>
+      <div style={{fontSize:26,fontWeight:700,color:T.text,letterSpacing:'-.5px'}}>Adminpanel</div>
+      <div style={{display:'flex',gap:8}}>
+        <button onClick={()=>onManageUsers?.()} title="Hantera konton"
+          style={{width:40,height:40,borderRadius:12,border:`0.5px solid ${T.border}`,
+            background:T.card,display:'flex',alignItems:'center',justifyContent:'center',
+            cursor:'pointer',color:T.text,WebkitTapHighlightColor:'transparent'}}>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+            strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
+            <circle cx="9" cy="7" r="4"/>
+            <path d="M23 21v-2a4 4 0 0 0-3-3.87"/>
+            <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+          </svg>
+        </button>
+        <button onClick={()=>setAddForm({})} title="Lägg till bokning"
+          style={{width:40,height:40,borderRadius:12,border:`0.5px solid ${T.border}`,
+            background:T.card,display:'flex',alignItems:'center',justifyContent:'center',
+            cursor:'pointer',color:T.text,WebkitTapHighlightColor:'transparent'}}>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+            strokeWidth="2.5" strokeLinecap="round">
+            <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+          </svg>
+        </button>
+        <button onClick={onBack} title="Logga ut"
+          style={{width:40,height:40,borderRadius:12,border:`1px solid ${T.error}33`,
+            background:`${T.error}11`,display:'flex',alignItems:'center',justifyContent:'center',
+            cursor:'pointer',color:T.error,WebkitTapHighlightColor:'transparent'}}>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+            strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
+            <polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/>
+          </svg>
+        </button>
+      </div>
+    </div>
+    <div style={{display:'flex',gap:6,flexWrap:'wrap',marginBottom:16}}>
+      {filters.map(f=><button key={f.id} onClick={()=>setFilter(f.id)}
+        style={{padding:'6px 14px',borderRadius:20,
+          border:`1px solid ${filter===f.id?T.accent:T.border}`,
+          background:filter===f.id?`${T.accent}22`:'none',
+          color:filter===f.id?T.accent:T.textMuted,
+          fontSize:12,fontWeight:600,cursor:'pointer',
+          fontFamily:'system-ui',WebkitTapHighlightColor:'transparent',
+          display:'flex',alignItems:'center',gap:5}}>
+        {f.label}
+        {f.count>0&&<span style={{background:filter===f.id?T.accent:'#88888844',
+          color:filter===f.id?'#fff':T.textMuted,borderRadius:8,fontSize:10,fontWeight:800,padding:'1px 6px'}}>
+          {f.count}
+        </span>}
+      </button>)}
+    </div>
+    {sorted.length===0&&<div style={{textAlign:'center',padding:'40px 0',color:T.textMuted,fontSize:14}}>
+      Inga bokningar i denna kategori.
+    </div>}
+    <div style={{display:'flex',flexDirection:'column',gap:10}}>
+      {sorted.map(b=>{
+        const isRecur=b.recurrence&&b.recurrence!=='none';
+        const nextOcc=isRecur?expandBooking(b,today,wEnd,exceptions)[0]:null;
+        const displayDate=nextOcc?.date||b.start_date;
+        const isHL=b.id===adminHighlightId;
+        const hlColor=adminHighlightFilter==='cancelled'?T.accentBlue:T.warning;
+        const isPending=b.status==='pending'||b.status==='edit_pending';
+        return <div key={b.id} ref={b.id===adminHighlightId?highlightRef:null}
+          onClick={()=>{setSelected(b);setComment('');}}
+          style={{background:T.card,
+            border:`0.5px solid ${isHL?hlColor:isPending?`${T.warning}44`:T.border}`,
+            borderRadius:14,padding:'14px 16px',cursor:'pointer',
+            boxShadow:isHL?`0 0 0 3px ${hlColor}33`:'none',
+            animation:isHL?`bsHighlight 1.2s ease-in-out 3`:isPending?'bsPulse 2s ease-in-out infinite':'none',
+            '--hl':`${hlColor}55`}}>
+          <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:8}}>
+            <div style={{display:'flex',alignItems:'center',gap:8}}>
+              <Badge status={b.status}/>
+              {isRecur&&<RecurBadge recurrence={b.recurrence}/>}
+            </div>
+            <span style={{fontSize:11,color:T.textMuted}}>{isoToDisplay(displayDate)}</span>
+          </div>
+          <div style={{fontSize:15,fontWeight:600,color:T.text,marginBottom:2}}>{b.name}</div>
+          <div style={{fontSize:13,color:T.textMuted,marginBottom:4}}>{b.activity}</div>
+          <div style={{fontSize:12,color:T.textMuted}}>{b.time_slot} · {fmtDuration(b.duration_hours)}</div>
+        </div>;
+      })}
+    </div>
+    {addForm!==null&&<AdminAddForm bookings={bookings} exceptions={exceptions}
+      onSubmit={async data=>{await onAdminAddRecurring(data);setAddForm(null);}}
+      onClose={()=>setAddForm(null)} T={T}/>}
+  </div>;
+}
+
+// ─── Login ────────────────────────────────────────────────────────────────────
+function UserLogin({onSuccess,onBack,T}) {
+  const[step,setStep]=useState('phone');
+  const[phone,setPhone]=useState('');
+  const[pin,setPin]=useState('');
+  const[inviteCode,setInviteCode]=useState('');
+  const[newPin,setNewPin]=useState('');
+  const[newPin2,setNewPin2]=useState('');
+  const[loading,setLoading]=useState(false);
+  const[error,setError]=useState('');
+  const[userData,setUserData]=useState(null);
+  const lookupRef=useRef(null);
+
+  const handlePhoneChange=val=>{
+    setPhone(val);setError('');
+    clearTimeout(lookupRef.current);
+    const norm=normalizePhone(val);
+    if(norm.length>=10) {
+      lookupRef.current=setTimeout(async()=>{
+        const{data}=await supabase.from('app_users').select('id,name,role,invite_used,pin_hash,deleted_at').eq('phone',norm).maybeSingle();
+        if(data&&!data.deleted_at){setUserData({...data,norm});setStep(data.invite_used?'pin':'invite');}
+      },400);
+    }
+  };
+  const handlePhoneNext=async()=>{
+    if(!phone.trim()){setError('Ange ditt telefonnummer.');return;}
+    setLoading(true);setError('');
+    const norm=normalizePhone(phone);
+    const{data}=await supabase.from('app_users').select('id,name,role,invite_used,pin_hash,deleted_at').eq('phone',norm).maybeSingle();
+    setLoading(false);
+    if(!data||data.deleted_at){setError('Inget konto hittades. Kontakta admin.');return;}
+    setUserData({...data,norm});setStep(data.invite_used?'pin':'invite');
+  };
+  const handleInviteSubmit=async()=>{
+    if(inviteCode.length!==6){setError('Ange 6-siffrig kod.');return;}
+    setLoading(true);setError('');
+    const{data}=await supabase.from('app_users').select('invite_code').eq('id',userData.id).maybeSingle();
+    if(data?.invite_code!==inviteCode){setLoading(false);setError('Fel kod.');return;}
+    setLoading(false);setStep('setpin');
+  };
+  const handleSetPin=async()=>{
+    if(newPin.length<4){setError('PIN måste vara minst 4 siffror.');return;}
+    if(newPin!==newPin2){setError('PIN-koderna matchar inte.');return;}
+    setLoading(true);setError('');
+    const pinHash=await sha256(userData.norm+':'+newPin);
+    await supabase.from('app_users').update({pin_hash:pinHash,invite_used:true,invite_code:null,last_login:Date.now()}).eq('id',userData.id);
+    setLoading(false);
+    localStorage.setItem(STORAGE_USER_ID,userData.id);
+    localStorage.setItem(STORAGE_USER_NAME,userData.name);
+    localStorage.setItem(STORAGE_USER_ROLE,userData.role);
+    localStorage.setItem(STORAGE_PHONE,userData.norm);
+    if(userData.role==='admin') localStorage.setItem(STORAGE_ADMIN,'true');
+    onSuccess({id:userData.id,name:userData.name,role:userData.role});
+  };
+  const handlePinSubmit=async()=>{
+    setLoading(true);setError('');
+    const pinHash=await sha256(userData.norm+':'+pin);
+    if(pinHash!==userData.pin_hash){setLoading(false);setError('Fel PIN-kod.');setPin('');return;}
+    await supabase.from('app_users').update({last_login:Date.now()}).eq('id',userData.id);
+    setLoading(false);
+    localStorage.setItem(STORAGE_USER_ID,userData.id);
+    localStorage.setItem(STORAGE_USER_NAME,userData.name);
+    localStorage.setItem(STORAGE_USER_ROLE,userData.role);
+    localStorage.setItem(STORAGE_PHONE,userData.norm);
+    if(userData.role==='admin') localStorage.setItem(STORAGE_ADMIN,'true');
+    else localStorage.removeItem(STORAGE_ADMIN);
+    onSuccess({id:userData.id,name:userData.name,role:userData.role});
+  };
+
+  const iconS={width:56,height:56,borderRadius:'50%',background:`${T.accent}22`,
+    display:'flex',alignItems:'center',justifyContent:'center',margin:'0 auto 14px'};
+  const inputS={background:T.cardElevated,border:`0.5px solid ${T.border}`,
+    borderRadius:12,padding:'13px 16px',fontSize:18,color:T.text,outline:'none',
+    width:'100%',boxSizing:'border-box'};
+  const btnS={marginTop:16,width:'100%',padding:'14px',borderRadius:12,border:'none',
+    background:T.accent,color:'#fff',fontSize:16,fontWeight:700,cursor:'pointer'};
+
+  return <div style={{paddingTop:'max(20px,env(safe-area-inset-top,0px))',
+    paddingLeft:16,paddingRight:16,paddingBottom:20}}>
+    {onBack&&<BackButton onBack={onBack} T={T}/>}
+    <div style={{marginTop:24,maxWidth:340,margin:'24px auto 0'}}>
+      {step==='phone'&&<>
+        <div style={{textAlign:'center',marginBottom:24}}>
+          <div style={iconS}><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke={T.accent} strokeWidth="1.8" strokeLinecap="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></div>
+          <div style={{fontSize:20,fontWeight:700,color:T.text}}>Åtkomst för behöriga</div>
+          <div style={{fontSize:13,color:T.textMuted,marginTop:4}}>Ange ditt telefonnummer</div>
+        </div>
+        <input type="tel" value={phone} onChange={e=>handlePhoneChange(e.target.value)}
+          onKeyDown={e=>e.key==='Enter'&&handlePhoneNext()} placeholder="07X-XXX XX XX" autoFocus style={inputS}/>
+        {error&&<div style={{fontSize:13,color:T.error,background:`${T.error}18`,padding:'10px 14px',borderRadius:8,marginTop:8}}>{error}</div>}
+        <button onClick={handlePhoneNext} disabled={loading} style={btnS}>{loading?'Kontrollerar...':'Fortsätt →'}</button>
+      </>}
+      {step==='invite'&&<>
+        <div style={{textAlign:'center',marginBottom:24}}>
+          <div style={iconS}><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke={T.accent} strokeWidth="1.8" strokeLinecap="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></div>
+          <div style={{fontSize:20,fontWeight:700,color:T.text}}>Välkommen, {userData?.name}</div>
+          <div style={{fontSize:13,color:T.textMuted,marginTop:4}}>Ange din 6-siffriga inbjudningskod</div>
+        </div>
+        <input type="tel" inputMode="numeric" maxLength={6} value={inviteCode}
+          onChange={e=>{setInviteCode(e.target.value.replace(/\D/g,'').slice(0,6));setError('');}}
+          placeholder="- - - - - -"
+          style={{...inputS,fontSize:28,textAlign:'center',letterSpacing:12}}/>
+        {error&&<div style={{fontSize:13,color:T.error,background:`${T.error}18`,padding:'10px 14px',borderRadius:8,marginTop:8}}>{error}</div>}
+        <button onClick={handleInviteSubmit} disabled={loading} style={btnS}>{loading?'Kontrollerar...':'Verifiera kod →'}</button>
+        <button onClick={()=>{setStep('phone');setError('');}}
+          style={{marginTop:10,background:'none',border:'none',color:T.textMuted,cursor:'pointer',fontSize:13,width:'100%'}}>← Byt telefonnummer</button>
+      </>}
+      {step==='setpin'&&<>
+        <div style={{textAlign:'center',marginBottom:24}}>
+          <div style={iconS}><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke={T.accent} strokeWidth="1.8" strokeLinecap="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></div>
+          <div style={{fontSize:20,fontWeight:700,color:T.text}}>Välj PIN-kod</div>
+        </div>
+        <input type="password" inputMode="numeric" maxLength={6} value={newPin}
+          onChange={e=>{setNewPin(e.target.value.replace(/\D/g,'').slice(0,6));setError('');}}
+          placeholder="Välj PIN (4-6 siffror)"
+          style={{...inputS,fontSize:24,textAlign:'center',letterSpacing:8,marginBottom:10}}/>
+        <input type="password" inputMode="numeric" maxLength={6} value={newPin2}
+          onChange={e=>{setNewPin2(e.target.value.replace(/\D/g,'').slice(0,6));setError('');}}
+          placeholder="Upprepa PIN"
+          style={{...inputS,fontSize:24,textAlign:'center',letterSpacing:8}}/>
+        {error&&<div style={{fontSize:13,color:T.error,background:`${T.error}18`,padding:'10px 14px',borderRadius:8,marginTop:8}}>{error}</div>}
+        <button onClick={handleSetPin} disabled={loading} style={btnS}>{loading?'Sparar...':'Spara PIN & logga in'}</button>
+      </>}
+      {step==='pin'&&<>
+        <div style={{textAlign:'center',marginBottom:24}}>
+          <div style={iconS}><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke={T.accent} strokeWidth="1.8" strokeLinecap="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></div>
+          <div style={{fontSize:20,fontWeight:700,color:T.text}}>Välkommen, {userData?.name}</div>
+          <div style={{fontSize:13,color:T.textMuted,marginTop:4}}>Ange din PIN-kod</div>
+        </div>
+        <input type="password" inputMode="numeric" maxLength={6} value={pin}
+          onChange={async e=>{
+            const val=e.target.value.replace(/\D/g,'').slice(0,6);
+            setPin(val);setError('');
+            if(val.length>=4&&userData?.pin_hash) {
+              const hash=await sha256(userData.norm+':'+val);
+              if(hash===userData.pin_hash) {
+                setLoading(true);
+                await supabase.from('app_users').update({last_login:Date.now()}).eq('id',userData.id);
+                setLoading(false);
+                localStorage.setItem(STORAGE_USER_ID,userData.id);
+                localStorage.setItem(STORAGE_USER_NAME,userData.name);
+                localStorage.setItem(STORAGE_USER_ROLE,userData.role);
+                localStorage.setItem(STORAGE_PHONE,userData.norm);
+                if(userData.role==='admin') localStorage.setItem(STORAGE_ADMIN,'true');
+                else localStorage.removeItem(STORAGE_ADMIN);
+                onSuccess({id:userData.id,name:userData.name,role:userData.role});
+              }
+            }
+          }}
+          onKeyDown={e=>e.key==='Enter'&&handlePinSubmit()}
+          placeholder="PIN-kod" autoFocus
+          style={{...inputS,fontSize:28,textAlign:'center',letterSpacing:12}}/>
+        {error&&<div style={{fontSize:13,color:T.error,background:`${T.error}18`,padding:'10px 14px',borderRadius:8,marginTop:8}}>{error}</div>}
+        <button onClick={handlePinSubmit} disabled={loading} style={btnS}>{loading?'Loggar in...':'Logga in'}</button>
+        <button onClick={()=>{setStep('phone');setPhone('');setError('');setUserData(null);}}
+          style={{marginTop:10,background:'none',border:'none',color:T.textMuted,cursor:'pointer',fontSize:13,width:'100%'}}>← Byt konto</button>
+      </>}
+    </div>
+  </div>;
+}
+
+// ─── User Management ──────────────────────────────────────────────────────────
+function UserManagement({onBack,T}) {
+  const[users,setUsers]=useState([]);
+  const[loading,setLoading]=useState(true);
+  const[showCreate,setShowCreate]=useState(false);
+  const[form,setForm]=useState({name:'',phone:'',role:'user'});
+  const[creating,setCreating]=useState(false);
+  const[newInvite,setNewInvite]=useState(null);
+  const[resetTarget,setResetTarget]=useState(null);
+  const[deleteTarget,setDeleteTarget]=useState(null);
+  const[deleting,setDeleting]=useState(false);
+  const[error,setError]=useState('');
+  const currentUserId=localStorage.getItem(STORAGE_USER_ID);
+
+  const load=async()=>{
+    setLoading(true);
+    const{data}=await supabase.from('app_users').select('id,name,phone,role,invite_used,created_at,last_login,deleted_at,deleted_by_name').order('created_at',{ascending:false});
+    if(data) setUsers(data);setLoading(false);
+  };
+  useEffect(()=>{load();},[]);// eslint-disable-line
+
+  const handleCreate=async()=>{
+    if(!form.name.trim()||!form.phone.trim()){setError('Namn och telefon krävs.');return;}
+    setCreating(true);setError('');
+    const norm=normalizePhone(form.phone);
+    const existing=await supabase.from('app_users').select('id').eq('phone',norm).maybeSingle();
+    if(existing.data){setCreating(false);setError('Det finns redan ett konto med detta nummer.');return;}
+    const code=generateInviteCode();
+    const{error:err}=await supabase.from('app_users').insert([{
+      id:uid(),name:form.name.trim(),phone:norm,role:form.role,
+      invite_code:code,invite_used:false,
+      created_by:currentUserId,created_at:Date.now(),last_login:null,pin_hash:null}]);
+    setCreating(false);
+    if(err){setError('Kunde inte skapa konto: '+err.message);return;}
+    setNewInvite({name:form.name.trim(),code,phone:norm});
+    setForm({name:'',phone:'',role:'user'});setShowCreate(false);load();
+  };
+  const handleResetPin=async user=>{
+    const code=generateInviteCode();
+    await supabase.from('app_users').update({invite_code:code,invite_used:false,pin_hash:null}).eq('id',user.id);
+    setResetTarget({...user,code});load();
+  };
+  const handleDelete=async()=>{
+    if(!deleteTarget) return;
+    setDeleting(true);
+    const adminName=localStorage.getItem(STORAGE_USER_NAME)||'Okänd admin';
+    const adminId=localStorage.getItem(STORAGE_USER_ID)||'?';
+    await supabase.from('app_users').update({deleted_at:Date.now(),deleted_by_id:adminId,deleted_by_name:adminName,pin_hash:null,invite_code:null}).eq('id',deleteTarget.id);
+    setDeleting(false);setDeleteTarget(null);load();
+  };
+
+  return <div style={{paddingTop:'max(20px,env(safe-area-inset-top,0px))',paddingLeft:16,paddingRight:16,paddingBottom:20,minHeight:'100%',background:T.bg}}>
+    <BackButton onBack={onBack} T={T}/>
+    <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginTop:16,marginBottom:20}}>
+      <div style={{fontSize:26,fontWeight:700,color:T.text}}>Hantera konton</div>
+      <button onClick={()=>setShowCreate(v=>!v)} style={{background:T.accent,color:'#fff',
+        border:'none',borderRadius:12,padding:'8px 16px',fontSize:13,fontWeight:700,
+        cursor:'pointer',WebkitTapHighlightColor:'transparent',
+        display:'flex',alignItems:'center',gap:6}}>
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+          <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+        </svg>
+        Nytt konto
+      </button>
+    </div>
+    {(newInvite||resetTarget)&&<div style={{background:`${T.accent}18`,border:`1px solid ${T.accent}44`,borderRadius:16,padding:16,marginBottom:16}}>
+      <div style={{fontSize:13,fontWeight:700,color:T.accent,marginBottom:8}}>
+        {newInvite?`✓ Konto skapat för ${newInvite.name}`:`✓ Ny kod för ${resetTarget.name}`}
+      </div>
+      <div style={{display:'flex',alignItems:'center',gap:10,background:T.bg,borderRadius:10,padding:'10px 14px'}}>
+        <span style={{fontSize:28,fontWeight:800,color:T.accent,letterSpacing:8}}>
+          {newInvite?.code||resetTarget?.code}
+        </span>
+        <button onClick={()=>navigator.clipboard?.writeText(newInvite?.code||resetTarget?.code)}
+          style={{background:'none',border:`0.5px solid ${T.border}`,borderRadius:8,padding:'5px 10px',fontSize:12,color:T.textMuted,cursor:'pointer'}}>
+          Kopiera
+        </button>
+      </div>
+      <button onClick={()=>{setNewInvite(null);setResetTarget(null);}}
+        style={{marginTop:10,background:'none',border:'none',color:T.textMuted,cursor:'pointer',fontSize:12}}>Stäng ×</button>
+    </div>}
+    {showCreate&&<div style={{background:T.card,border:`0.5px solid ${T.border}`,borderRadius:16,padding:16,marginBottom:16}}>
+      <div style={{fontSize:15,fontWeight:700,color:T.text,marginBottom:14}}>Skapa nytt konto</div>
+      <div style={{display:'flex',flexDirection:'column',gap:10}}>
+        <Input label="NAMN" value={form.name} onChange={v=>setForm(p=>({...p,name:v}))} placeholder="Personens namn" required T={T}/>
+        <Input label="TELEFON" value={form.phone} onChange={v=>setForm(p=>({...p,phone:v}))} placeholder="07X-XXX XX XX" T={T} type="tel"/>
+        <div>
+          <label style={{fontSize:12,fontWeight:600,color:T.textMuted,letterSpacing:'.3px'}}>ROLL</label>
+          <div style={{display:'flex',gap:8,marginTop:6}}>
+            {['user','admin'].map(r=><button key={r} onClick={()=>setForm(p=>({...p,role:r}))}
+              style={{flex:1,padding:'10px',borderRadius:10,border:`0.5px solid ${form.role===r?T.accent:T.border}`,
+                background:form.role===r?`${T.accent}18`:'none',color:form.role===r?T.accent:T.textMuted,
+                fontWeight:600,fontSize:13,cursor:'pointer',WebkitTapHighlightColor:'transparent'}}>
+              {r==='admin'?'Admin':'Användare'}
+            </button>)}
+          </div>
+        </div>
+        {error&&<div style={{fontSize:13,color:T.error,background:`${T.error}15`,borderRadius:8,padding:'8px 12px'}}>{error}</div>}
+        <div style={{display:'flex',gap:8}}>
+          <button onClick={()=>{setShowCreate(false);setError('');}}
+            style={{flex:1,padding:'11px',borderRadius:10,border:`0.5px solid ${T.border}`,background:'none',color:T.textMuted,fontWeight:600,cursor:'pointer'}}>Avbryt</button>
+          <button onClick={handleCreate} disabled={creating}
+            style={{flex:1,padding:'11px',borderRadius:10,border:'none',background:T.accent,color:'#fff',fontWeight:700,cursor:'pointer',WebkitTapHighlightColor:'transparent'}}>
+            {creating?'Skapar...':'Skapa konto'}
+          </button>
+        </div>
+      </div>
+    </div>}
+    {deleteTarget&&<div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.6)',zIndex:100,
+      display:'flex',alignItems:'flex-end',justifyContent:'center',padding:'0 16px 32px'}}>
+      <div style={{background:T.card,borderRadius:20,padding:24,width:'100%',maxWidth:400}}>
+        <div style={{fontSize:17,fontWeight:700,color:T.text,marginBottom:8}}>Radera konto?</div>
+        <div style={{fontSize:13,color:T.textMuted,marginBottom:20,lineHeight:1.5}}>
+          <strong style={{color:T.text}}>{deleteTarget.name}</strong> ({deleteTarget.phone})<br/>
+          Kontot inaktiveras. Bokningar påverkas inte.
+        </div>
+        <div style={{display:'flex',gap:10}}>
+          <button onClick={()=>setDeleteTarget(null)}
+            style={{flex:1,padding:'12px',borderRadius:12,border:`0.5px solid ${T.border}`,background:'none',color:T.text,fontWeight:600,cursor:'pointer',fontSize:14}}>Avbryt</button>
+          <button onClick={handleDelete} disabled={deleting}
+            style={{flex:1,padding:'12px',borderRadius:12,border:'none',background:T.error,color:'#fff',fontWeight:700,cursor:'pointer',fontSize:14,WebkitTapHighlightColor:'transparent'}}>
+            {deleting?'Raderar...':'Radera konto'}
+          </button>
+        </div>
+      </div>
+    </div>}
+    {loading?<Spinner T={T}/>:(
+      <div style={{display:'flex',flexDirection:'column',gap:8}}>
+        {users.filter(u=>!u.deleted_at).length===0&&<div style={{textAlign:'center',color:T.textMuted,padding:'40px 0'}}>Inga aktiva konton</div>}
+        {users.filter(u=>!u.deleted_at).map(u=>(
+          <div key={u.id} style={{background:T.card,border:`0.5px solid ${T.border}`,borderRadius:14,padding:'14px 16px'}}>
+            <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:6}}>
+              <div style={{display:'flex',alignItems:'center',gap:8,flexWrap:'wrap'}}>
+                <div style={{fontSize:15,fontWeight:700,color:T.text}}>{u.name}</div>
+                <span style={{background:u.role==='admin'?'#FF9F0A22':'#34C75922',color:u.role==='admin'?'#FF9F0A':'#34C759',
+                  borderRadius:8,fontSize:11,fontWeight:700,padding:'2px 8px'}}>
+                  {u.role==='admin'?'Admin':'Användare'}
+                </span>
+                {!u.invite_used&&<span style={{background:'#FF9F0A22',color:'#FF9F0A',borderRadius:8,fontSize:10,fontWeight:700,padding:'2px 7px'}}>Ej aktiverat</span>}
+              </div>
+              {u.id!==currentUserId&&<button onClick={()=>setDeleteTarget(u)}
+                style={{background:`${T.error}18`,border:`1px solid ${T.error}33`,borderRadius:8,cursor:'pointer',
+                  color:T.error,fontSize:12,fontWeight:600,padding:'4px 10px',WebkitTapHighlightColor:'transparent'}}>
+                Radera
+              </button>}
+            </div>
+            <div style={{fontSize:12,color:T.textMuted,marginBottom:8}}>{u.phone}</div>
+            <button onClick={()=>handleResetPin(u)}
+              style={{padding:'5px 12px',borderRadius:8,border:`0.5px solid ${T.border}`,background:T.cardElevated,
+                color:T.textMuted,fontSize:12,fontWeight:600,cursor:'pointer',WebkitTapHighlightColor:'transparent'}}>
+              Ny inbjudningskod
+            </button>
+          </div>
+        ))}
+        {users.filter(u=>u.deleted_at).length>0&&<>
+          <div style={{fontSize:12,fontWeight:700,color:T.textMuted,letterSpacing:'.5px',marginTop:24,marginBottom:10}}>RADERADE KONTON</div>
+          {users.filter(u=>u.deleted_at).map(u=>(
+            <div key={u.id} style={{background:T.card,border:`1px solid ${T.error}33`,borderRadius:14,padding:'14px 16px',opacity:0.6}}>
+              <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:4}}>
+                <div style={{fontSize:14,fontWeight:700,color:T.textMuted,textDecoration:'line-through'}}>{u.name}</div>
+                <span style={{background:`${T.error}22`,color:T.error,borderRadius:8,fontSize:10,fontWeight:700,padding:'2px 8px'}}>Raderat</span>
+              </div>
+              <div style={{fontSize:12,color:T.textMuted}}>{u.phone}</div>
+              <div style={{fontSize:11,color:T.textMuted,marginTop:4}}>
+                Raderades av <strong style={{color:T.text}}>{u.deleted_by_name||'Okänd'}</strong>
+              </div>
+            </div>
+          ))}
+        </>}
+      </div>
+    )}
+  </div>;
+}
+
+// ─── Main BookingScreen ────────────────────────────────────────────────────────
 export default function BookingScreen({
-  onTabBarHide, onTabBarShow,
-  activateForDevice, registerAdminDevice, dismissAdminDevice,
+  onTabBarHide,onTabBarShow,
+  activateForDevice,registerAdminDevice,dismissAdminDevice,
   onRefreshNotifications,
-  startAtAdminLogin, startAtAdmin,
-  highlightBookingId,
-  highlightFilter,
-  onMarkAdminSeen,
-  markVisitorSeen,
+  startAtAdminLogin,startAtAdmin,
+  highlightBookingId,highlightFilter,
+  onMarkAdminSeen,markVisitorSeen,
   adminInitialFilter,
-  adminHighlightId = null,
-  adminHighlightFilter = null,
-  cancelledBookingIds = [],
-  pendingBookingIds = [],
-  visitorUnread = 0,
+  adminHighlightId=null,adminHighlightFilter=null,
+  cancelledBookingIds=[],pendingBookingIds=[],
+  visitorUnread=0,
 }) {
-  const { theme: T } = useTheme();
-  const [bookings, setBookings] = useState([]);
-  const [exceptions, setExceptions] = useState([]);
-  const [dbLoading, setDbLoading] = useState(true);
-  const [submitLoading, setSubmitLoading] = useState(false);
-  const [toast, setToast] = useState('');
-  const [view, setView] = useState(() => {
-    const userId = localStorage.getItem(STORAGE_USER_ID);
-    if (!userId) return 'login'; // kalender är skyddad — alltid inloggning först
-    if (startAtAdmin) return 'admin'; // explicit admin start (via bell/banner)
-    if (highlightBookingId) return 'my-bookings';
-    return 'calendar'; // alla börjar i kalendervyn — admin når sin panel via knapp
-  });
-  const [pendingSlot, setPendingSlot] = useState(null);
-  const [adminMode, setAdminMode] = useState(() => localStorage.getItem(STORAGE_ADMIN)==='true');
-  const [loggedInUser, setLoggedInUser] = useState(() => {
-    const id = localStorage.getItem(STORAGE_USER_ID);
-    const name = localStorage.getItem(STORAGE_USER_NAME);
-    return id && name ? { id, name } : null;
+  const{theme:T}=useTheme();
+  const[bookings,setBookings]=useState([]);
+  const[exceptions,setExceptions]=useState([]);
+  const[dbLoading,setDbLoading]=useState(true);
+  const[submitLoading,setSubmitLoading]=useState(false);
+  const[toast,setToast]=useState('');
+
+  const[view,setView]=useState(()=>{
+    const userId=localStorage.getItem(STORAGE_USER_ID);
+    if(!userId) return 'login';
+    if(startAtAdmin) return 'admin';
+    if(highlightBookingId) return 'my-bookings';
+    return 'calendar';
   });
 
-  const deviceId = useRef((() => {
-    let id = localStorage.getItem(STORAGE_DEVICE);
-    if (!id) { id = Date.now().toString(36)+Math.random().toString(36).slice(2,9); localStorage.setItem(STORAGE_DEVICE,id); }
+  const today=new Date();today.setHours(0,0,0,0);
+  const[selectedDate,setSelectedDate]=useState(today);
+  const[showYearView,setShowYearView]=useState(false);
+  const[showSearch,setShowSearch]=useState(false);
+  const[yearViewYear,setYearViewYear]=useState(today.getFullYear());
+  const[pendingFormDate,setPendingFormDate]=useState(null);
+  const[adminMode,setAdminMode]=useState(()=>localStorage.getItem(STORAGE_ADMIN)==='true');
+  const[loggedInUser,setLoggedInUser]=useState(()=>{
+    const id=localStorage.getItem(STORAGE_USER_ID);
+    const name=localStorage.getItem(STORAGE_USER_NAME);
+    return id&&name?{id,name}:null;
+  });
+  const[calendarAdminDetail,setCalendarAdminDetail]=useState(null);
+
+  const deviceId=useRef((()=>{
+    let id=localStorage.getItem(STORAGE_DEVICE);
+    if(!id){id=Date.now().toString(36)+Math.random().toString(36).slice(2,9);localStorage.setItem(STORAGE_DEVICE,id);}
     return id;
   })()).current;
 
-  const showToast = useCallback((msg) => { setToast(msg); setTimeout(()=>setToast(''),3000); }, []);
+  const showToast=useCallback(msg=>{setToast(msg);setTimeout(()=>setToast(''),3000);},[]);
 
-  // ── Fetch all bookings + exceptions ────────────────────────────────────────
-  const fetchAll = useCallback(async () => {
-    const [{ data: bData }, { data: eData }] = await Promise.all([
-      supabase.from('bookings').select('*').order('created_at', { ascending:false }),
+  const fetchAll=useCallback(async()=>{
+    const[{data:bData},{data:eData}]=await Promise.all([
+      supabase.from('bookings').select('*').order('created_at',{ascending:false}),
       supabase.from('booking_exceptions').select('*'),
     ]);
-    if (bData) setBookings(bData);
-    if (eData) setExceptions(eData);
+    if(bData) setBookings(bData);
+    if(eData) setExceptions(eData);
     setDbLoading(false);
-  }, []);
+  },[]);
 
-  // Smart initial load:
-  // Steg 1 (snabb): hämta bara egna bokningar → Mina bokningar visas omedelbart
-  // Steg 2 (full): fetchAll i bakgrunden → komplett lista för kalender + admin
-  // step1 skriver bara om bookings är fortfarande tom (step2 inte hunnit)
-  // step2 vinner alltid — den kompletta listan är sanningskällan
-  useEffect(() => {
-    const userId = localStorage.getItem(STORAGE_USER_ID);
-    const devId  = localStorage.getItem('islamnu_device_id');
+  useEffect(()=>{
+    const userId=localStorage.getItem(STORAGE_USER_ID);
+    const devId=localStorage.getItem(STORAGE_DEVICE);
+    if(!userId&&!devId){setDbLoading(false);return;}
+    fetchAll();
+  },[fetchAll]);
 
-    if (!userId && !devId) {
-      setDbLoading(false);
-      return;
-    }
-
-    let step2Done = false;
-
-    // Steg 2: full fetch — kör alltid, sätter alltid bookings
-    fetchAll().then(() => { step2Done = true; });
-
-    // Steg 1: snabb filtrerad fetch — visa egna bokningar direkt
-    // Hoppar över om step2 redan är klar (snabbt nätverk)
-    const runStep1 = async () => {
-      try {
-        let q = supabase.from('bookings').select('*').order('created_at', { ascending: false });
-        if (userId) q = q.eq('user_id', userId);
-        else        q = q.eq('device_id', devId);
-        const { data } = await q;
-        if (data && !step2Done) {
-          // Bara om step2 inte redan satt komplett data
-          setBookings(prev => prev.length === 0 ? data : prev);
-          setDbLoading(false);
-        }
-      } catch { /* fail silently */ }
-    };
-
-    runStep1();
-  }, [fetchAll]); // eslint-disable-line
-
-  // Realtime — debounced
-  useEffect(() => {
-    let timer = null;
-    const debounced = () => { clearTimeout(timer); timer = setTimeout(fetchAll, 600); };
-    const ch = supabase.channel('booking-v2-realtime')
-      .on('postgres_changes', { event:'*', schema:'public', table:'bookings' }, debounced)
-      .on('postgres_changes', { event:'*', schema:'public', table:'booking_exceptions' }, debounced)
+  useEffect(()=>{
+    let timer=null;
+    const debounced=()=>{clearTimeout(timer);timer=setTimeout(fetchAll,600);};
+    const ch=supabase.channel('booking-v3-rt')
+      .on('postgres_changes',{event:'*',schema:'public',table:'bookings'},debounced)
+      .on('postgres_changes',{event:'*',schema:'public',table:'booking_exceptions'},debounced)
       .subscribe();
-    return () => { clearTimeout(timer); supabase.removeChannel(ch); };
-  }, [fetchAll]);
+    return()=>{clearTimeout(timer);supabase.removeChannel(ch);};
+  },[fetchAll]);
 
-  // Navigera till my-bookings BARA när highlightBookingId sätts via bell/banner
-  const prevHighlightRef = useRef(null);
-  useEffect(() => {
-    const prev = prevHighlightRef.current;
-    prevHighlightRef.current = highlightBookingId;
-    if (highlightBookingId && !prev) {
-      setView('my-bookings');
-    }
-  }, [highlightBookingId]); // eslint-disable-line
+  const prevHLRef=useRef(null);
+  useEffect(()=>{
+    const prev=prevHLRef.current;prevHLRef.current=highlightBookingId;
+    if(highlightBookingId&&!prev) setView('my-bookings');
+  },[highlightBookingId]);// eslint-disable-line
 
-  // Navigera till admin-vyn när startAtAdmin sätts via bell/banner (komponent redan monterad)
-  const prevStartAtAdminRef = useRef(startAtAdmin);
-  useEffect(() => {
-    const prev = prevStartAtAdminRef.current;
-    prevStartAtAdminRef.current = startAtAdmin;
-    if (startAtAdmin && !prev) {
-      setView('admin');
-    }
-  }, [startAtAdmin]); // eslint-disable-line
+  const prevStartAtAdminRef=useRef(startAtAdmin);
+  useEffect(()=>{
+    const prev=prevStartAtAdminRef.current;prevStartAtAdminRef.current=startAtAdmin;
+    if(startAtAdmin&&!prev) setView('admin');
+  },[startAtAdmin]);// eslint-disable-line
 
-  // Edge swipe back — bara om inloggad (kalender är skyddad)
-  const viewRef = useRef(view);
-  useEffect(() => { viewRef.current = view; }, [view]);
-  useEffect(() => {
-    const handler = () => {
-      if (viewRef.current === 'login') return;
-      const userId = localStorage.getItem(STORAGE_USER_ID);
-      if (!userId) return;
-      // Om redan i kalender — låt Shell hantera swipe (byt tab)
-      // Om i annan vy — gå till kalender
-      if (viewRef.current !== 'calendar') {
-        setView('calendar');
-      }
+  const viewRef=useRef(view);
+  useEffect(()=>{viewRef.current=view;},[view]);
+  useEffect(()=>{
+    const h=()=>{
+      if(viewRef.current==='login') return;
+      const userId=localStorage.getItem(STORAGE_USER_ID);
+      if(!userId) return;
+      if(viewRef.current!=='calendar') setView('calendar');
     };
-    window.addEventListener('edgeSwipeBack', handler);
-    return () => window.removeEventListener('edgeSwipeBack', handler);
-  }, []); // eslint-disable-line
+    window.addEventListener('edgeSwipeBack',h);
+    return()=>window.removeEventListener('edgeSwipeBack',h);
+  },[]);
 
-  // Tab bar hide/show based on view
-  useEffect(() => {
-    // Tab bar alltid synlig — onTabBarShow körs alltid
+  useEffect(()=>{
     onTabBarShow?.();
-    // Rensa visitor badge när Mina bokningar öppnas
-    if (view === 'my-bookings') markVisitorSeen?.();
-    // Rensa admin cancelled badge vid normal navigation (ej från notis)
-    // Notis-fallet hanteras av AdminPanel's useEffect med 3s fördröjning
-    if (view === 'admin') onMarkAdminSeen?.();
-  }, [view]); // eslint-disable-line
+    if(view==='my-bookings') markVisitorSeen?.();
+    if(view==='admin') onMarkAdminSeen?.();
+  },[view]);// eslint-disable-line
 
-  // ── My bookings: filter for this device/user ───────────────────────────────
-  const myBookings = useMemo(() => {
-    const userId = localStorage.getItem(STORAGE_USER_ID);
-    return bookings.filter(b =>
-      (userId && b.user_id === userId) || b.device_id === deviceId
-    );
-  }, [bookings, deviceId]);
+  const myBookings=useMemo(()=>{
+    const userId=localStorage.getItem(STORAGE_USER_ID);
+    return bookings.filter(b=>(userId&&b.user_id===userId)||b.device_id===deviceId);
+  },[bookings,deviceId]);
 
-  // ── DB actions ─────────────────────────────────────────────────────────────
-
-  const handleSubmitBooking = useCallback(async (formData) => {
+  // ── DB actions ────────────────────────────────────────────────────────────────
+  const handleSubmitBooking=useCallback(async formData=>{
     setSubmitLoading(true);
-    const userId = localStorage.getItem(STORAGE_USER_ID) || loggedInUser?.id || null;
-    const booking = {
-      id: uid(),
-      name: formData.name,
-      phone: formData.phone,
-      activity: formData.activity,
-      time_slot: formData.time_slot,
-      duration_hours: formData.duration_hours,
-      start_date: formData.date,
-      end_date: formData.end_date || null,
-      recurrence: formData.recurrence || 'none',
-      status: 'pending',
-      admin_comment: '',
-      created_at: Date.now(),
-      resolved_at: null,
-      device_id: deviceId,
-      user_id: userId,
-    };
-    const { error } = await supabase.from('bookings').insert([booking]);
+    const userId=localStorage.getItem(STORAGE_USER_ID)||loggedInUser?.id||null;
+    const booking={id:uid(),name:formData.name,phone:formData.phone,
+      activity:formData.activity,notes:formData.notes||'',
+      time_slot:formData.time_slot,duration_hours:formData.duration_hours,
+      start_date:formData.date,end_date:formData.end_date||null,
+      recurrence:formData.recurrence||'none',status:'pending',
+      admin_comment:'',created_at:Date.now(),resolved_at:null,
+      device_id:deviceId,user_id:userId};
+    const{error}=await supabase.from('bookings').insert([booking]);
     setSubmitLoading(false);
-    if (error) { showToast(`Fel: ${error.message}`); return; }
-
-    // Skapa skip-exceptions för krockar om användaren valde "boka bara lediga"
-    const skipDates = formData.skip_dates || [];
-    if (skipDates.length > 0) {
-      const excs = skipDates.map(date => ({
-        id: uid(),
-        booking_id: booking.id,
-        exception_date: date,
-        type: 'skip',
-        created_at: Date.now(),
-      }));
+    if(error){showToast(`Fel: ${error.message}`);return;}
+    const skipDates=formData.skip_dates||[];
+    if(skipDates.length>0) {
+      const excs=skipDates.map(date=>({id:uid(),booking_id:booking.id,exception_date:date,type:'skip',created_at:Date.now()}));
       await supabase.from('booking_exceptions').insert(excs);
-      setExceptions(prev => [...prev, ...excs]);
+      setExceptions(prev=>[...prev,...excs]);
     }
-
     activateForDevice?.();
-    localStorage.setItem(STORAGE_PHONE, normalizePhone(formData.phone));
-    // Lägg till bokningen direkt i local state — syns omedelbart i Mina bokningar
-    setBookings(prev => [booking, ...prev]);
-    showToast(skipDates.length > 0 ? `Förfrågan skickad — ${skipDates.length} krockar hoppades över!` : 'Bokningsförfrågan skickad!');
-    setView('my-bookings');
-  }, [deviceId, loggedInUser, showToast, activateForDevice]);
+    localStorage.setItem(STORAGE_PHONE,normalizePhone(formData.phone));
+    setBookings(prev=>[booking,...prev]);
+    showToast(skipDates.length>0?`Förfrågan skickad — ${skipDates.length} krockar hoppades över!`:'Bokningsförfrågan skickad!');
+    setView('calendar');
+  },[deviceId,loggedInUser,showToast,activateForDevice]);
 
-  // Visitor: cancel single occurrence (adds exception)
-  const handleCancelOccurrence = useCallback(async (booking, occurrenceDate, reason) => {
-    const userName = localStorage.getItem(STORAGE_USER_NAME) || 'Besökaren';
-    const comment = reason || `Avbokad av ${userName}.`;
-    if (!occurrenceDate || booking.recurrence === 'none') {
-      // Single booking — cancel it directly
-      const { error } = await supabase.from('bookings').update({ status:'cancelled', admin_comment:comment, resolved_at:Date.now() }).eq('id', booking.id);
-      if (error) { showToast('Något gick fel.'); return; }
-      setBookings(prev => prev.map(b => b.id===booking.id ? {...b,status:'cancelled',admin_comment:comment} : b));
+  const handleCancelOccurrence=useCallback(async(booking,occurrenceDate,reason)=>{
+    const uName=localStorage.getItem(STORAGE_USER_NAME)||'Besökaren';
+    const comment=reason||`Avbokad av ${uName}.`;
+    if(!occurrenceDate||booking.recurrence==='none') {
+      const{error}=await supabase.from('bookings').update({status:'cancelled',admin_comment:comment,resolved_at:Date.now()}).eq('id',booking.id);
+      if(error){showToast('Något gick fel.');return;}
+      setBookings(prev=>prev.map(b=>b.id===booking.id?{...b,status:'cancelled',admin_comment:comment}:b));
     } else {
-      // Recurring — add skip exception
-      const exc = { id:uid(), booking_id:booking.id, exception_date:occurrenceDate, type:'skip', created_at:Date.now() };
-      const { error } = await supabase.from('booking_exceptions').insert([exc]);
-      if (error) { showToast('Något gick fel.'); return; }
-      setExceptions(prev => [...prev, exc]);
+      const exc={id:uid(),booking_id:booking.id,exception_date:occurrenceDate,type:'skip',created_at:Date.now()};
+      const{error}=await supabase.from('booking_exceptions').insert([exc]);
+      if(error){showToast('Något gick fel.');return;}
+      setExceptions(prev=>[...prev,exc]);
     }
     showToast('Tillfälle avbokat.');
-  }, [showToast]);
+  },[showToast]);
 
-  // Visitor: cancel from date forward (set end_date)
-  const handleCancelFromDate = useCallback(async (booking, fromDate, reason) => {
-    const prevDay = new Date(parseISO(fromDate));
-    prevDay.setDate(prevDay.getDate() - 1);
-    const newEndDate = toISO(prevDay);
-    const userName = localStorage.getItem(STORAGE_USER_NAME) || 'Besökaren';
-    const comment = reason || `Avbokad av ${userName}.`;
-    const { error } = await supabase.from('bookings').update({ end_date:newEndDate, admin_comment:comment, resolved_at:Date.now() }).eq('id', booking.id);
-    if (error) { showToast('Något gick fel.'); return; }
-    setBookings(prev => prev.map(b => b.id===booking.id ? {...b,end_date:newEndDate,admin_comment:comment} : b));
+  const handleCancelFromDate=useCallback(async(booking,fromDate,reason)=>{
+    const prevDay=new Date(parseISO(fromDate));prevDay.setDate(prevDay.getDate()-1);
+    const newEndDate=toISO(prevDay);
+    const uName=localStorage.getItem(STORAGE_USER_NAME)||'Besökaren';
+    const comment=reason||`Avbokad av ${uName}.`;
+    const{error}=await supabase.from('bookings').update({end_date:newEndDate,admin_comment:comment,resolved_at:Date.now()}).eq('id',booking.id);
+    if(error){showToast('Något gick fel.');return;}
+    setBookings(prev=>prev.map(b=>b.id===booking.id?{...b,end_date:newEndDate,admin_comment:comment}:b));
     showToast('Serien avbokad från detta datum.');
-  }, [showToast]);
+  },[showToast]);
 
-  // Visitor: cancel entire series
-  const handleCancelSeries = useCallback(async (booking, reason) => {
-    const userName = localStorage.getItem(STORAGE_USER_NAME) || 'Besökaren';
-    const comment = reason || `Avbokad av ${userName}.`;
-    const { error } = await supabase.from('bookings').update({ status:'cancelled', admin_comment:comment, resolved_at:Date.now() }).eq('id', booking.id);
-    if (error) { showToast('Något gick fel.'); return; }
-    setBookings(prev => prev.map(b => b.id===booking.id ? {...b,status:'cancelled',admin_comment:comment} : b));
+  const handleCancelSeries=useCallback(async(booking,reason)=>{
+    const uName=localStorage.getItem(STORAGE_USER_NAME)||'Besökaren';
+    const comment=reason||`Avbokad av ${uName}.`;
+    const{error}=await supabase.from('bookings').update({status:'cancelled',admin_comment:comment,resolved_at:Date.now()}).eq('id',booking.id);
+    if(error){showToast('Något gick fel.');return;}
+    setBookings(prev=>prev.map(b=>b.id===booking.id?{...b,status:'cancelled',admin_comment:comment}:b));
     showToast('Hela serien avbokad.');
-  }, [showToast]);
+  },[showToast]);
 
-  // Visitor/Admin: restore a cancelled booking
-  const handleRestoreBooking = useCallback(async (booking) => {
-    const newStatus = booking.user_id ? 'pending' : 'approved';
-    const { error } = await supabase.from('bookings').update({
-      status: newStatus,
-      admin_comment: '',
-      resolved_at: null,
-    }).eq('id', booking.id);
-    if (error) { showToast('Något gick fel.'); return; }
-    setBookings(prev => prev.map(b => b.id===booking.id ? {...b,status:newStatus,admin_comment:'',resolved_at:null} : b));
-    showToast(newStatus==='pending' ? 'Bokning återskickad som förfrågan ✓' : 'Bokning återaktiverad ✓');
-  }, [showToast]);
-
-  // Admin: approve
-  const handleApprove = useCallback(async (bookingId, comment) => {
-    const { error } = await supabase.from('bookings').update({ status:'approved', admin_comment:comment||'', resolved_at:Date.now() }).eq('id', bookingId);
-    if (error) { showToast('Något gick fel.'); return; }
-    setBookings(prev => prev.map(b => b.id===bookingId ? {...b,status:'approved',admin_comment:comment||''} : b));
+  const handleApprove=useCallback(async(bookingId,comment)=>{
+    const{error}=await supabase.from('bookings').update({status:'approved',admin_comment:comment||'',resolved_at:Date.now()}).eq('id',bookingId);
+    if(error){showToast('Något gick fel.');return;}
+    setBookings(prev=>prev.map(b=>b.id===bookingId?{...b,status:'approved',admin_comment:comment||''}:b));
     showToast('Bokning godkänd ✓');
-  }, [showToast]);
+  },[showToast]);
 
-  // Admin: reject
-  const handleReject = useCallback(async (bookingId, comment) => {
-    const { error } = await supabase.from('bookings').update({ status:'rejected', admin_comment:comment, resolved_at:Date.now() }).eq('id', bookingId);
-    if (error) { showToast('Något gick fel.'); return; }
-    setBookings(prev => prev.map(b => b.id===bookingId ? {...b,status:'rejected',admin_comment:comment} : b));
+  const handleReject=useCallback(async(bookingId,comment)=>{
+    const{error}=await supabase.from('bookings').update({status:'rejected',admin_comment:comment,resolved_at:Date.now()}).eq('id',bookingId);
+    if(error){showToast('Något gick fel.');return;}
+    setBookings(prev=>prev.map(b=>b.id===bookingId?{...b,status:'rejected',admin_comment:comment}:b));
     showToast('Bokning avböjd.');
-  }, [showToast]);
+  },[showToast]);
 
-  // Admin: delete single occurrence or single booking
-  const handleAdminDelete = useCallback(async (booking, occurrenceDate, explanation) => {
-    const adminName = localStorage.getItem(STORAGE_USER_NAME) || 'Admin';
-    const comment = `Avbokad av ${adminName}: ${explanation}`;
-    if (booking.recurrence !== 'none' && occurrenceDate) {
-      const exc = { id:uid(), booking_id:booking.id, exception_date:occurrenceDate, type:'skip', admin_comment:comment, created_at:Date.now() };
-      const { error } = await supabase.from('booking_exceptions').insert([exc]);
-      if (error) { showToast('Något gick fel.'); return; }
-      setExceptions(prev => [...prev, exc]);
+  const handleAdminDelete=useCallback(async(booking,occurrenceDate,explanation)=>{
+    const adminName=localStorage.getItem(STORAGE_USER_NAME)||'Admin';
+    const comment=`Avbokad av ${adminName}: ${explanation}`;
+    if(booking.recurrence&&booking.recurrence!=='none'&&occurrenceDate) {
+      const exc={id:uid(),booking_id:booking.id,exception_date:occurrenceDate,type:'skip',admin_comment:comment,created_at:Date.now()};
+      const{error}=await supabase.from('booking_exceptions').insert([exc]);
+      if(error){showToast('Något gick fel.');return;}
+      setExceptions(prev=>[...prev,exc]);
     } else {
-      const { error } = await supabase.from('bookings').update({ status:'cancelled', admin_comment:comment, resolved_at:Date.now() }).eq('id', booking.id);
-      if (error) { showToast('Något gick fel.'); return; }
-      setBookings(prev => prev.map(b => b.id===booking.id ? {...b,status:'cancelled',admin_comment:comment} : b));
+      const{error}=await supabase.from('bookings').update({status:'cancelled',admin_comment:comment,resolved_at:Date.now()}).eq('id',booking.id);
+      if(error){showToast('Något gick fel.');return;}
+      setBookings(prev=>prev.map(b=>b.id===booking.id?{...b,status:'cancelled',admin_comment:comment}:b));
     }
     showToast('Tillfälle borttaget & besökare notifierad.');
-  }, [showToast]);
+  },[showToast]);
 
-  // Admin: delete entire series
-  const handleAdminDeleteSeries = useCallback(async (booking, explanation) => {
-    const adminName = localStorage.getItem(STORAGE_USER_NAME) || 'Admin';
-    const comment = `Avbokad av ${adminName}: ${explanation}`;
-    const { error } = await supabase.from('bookings').update({ status:'cancelled', admin_comment:comment, resolved_at:Date.now() }).eq('id', booking.id);
-    if (error) { showToast('Något gick fel.'); return; }
-    setBookings(prev => prev.map(b => b.id===booking.id ? {...b,status:'cancelled',admin_comment:comment} : b));
+  const handleAdminDeleteSeries=useCallback(async(booking,explanation)=>{
+    const adminName=localStorage.getItem(STORAGE_USER_NAME)||'Admin';
+    const comment=`Avbokad av ${adminName}: ${explanation}`;
+    const{error}=await supabase.from('bookings').update({status:'cancelled',admin_comment:comment,resolved_at:Date.now()}).eq('id',booking.id);
+    if(error){showToast('Något gick fel.');return;}
+    setBookings(prev=>prev.map(b=>b.id===booking.id?{...b,status:'cancelled',admin_comment:comment}:b));
     showToast('Hela serien borttagen & besökare notifierad.');
-  }, [showToast]);
+  },[showToast]);
 
-  // Admin: add recurring booking directly
-  const handleAdminAddRecurring = useCallback(async (formData) => {
-    const bookingId = uid();
-    const booking = {
-      id: bookingId,
-      name: formData.name,
-      phone: formData.phone || '',
-      activity: formData.activity,
-      time_slot: formData.time_slot,
-      duration_hours: formData.duration_hours,
-      start_date: formData.date,
-      end_date: formData.end_date || null,
-      recurrence: formData.recurrence || 'none',
-      status: 'approved',
-      admin_comment: '',
-      created_at: Date.now(),
-      resolved_at: Date.now(),
-      device_id: 'admin',
-      user_id: null,
-    };
-    const { error } = await supabase.from('bookings').insert([booking]);
-    if (error) { showToast('Något gick fel.'); return; }
-
-    // Skapa skip-exceptions för krockar
-    const skipDates = formData.skip_dates || [];
-    if (skipDates.length > 0) {
-      const excs = skipDates.map(date => ({
-        id: uid(),
-        booking_id: bookingId,
-        exception_date: date,
-        type: 'skip',
-        created_at: Date.now(),
-      }));
-      const { error: excError } = await supabase.from('booking_exceptions').insert(excs);
-      if (excError) console.error('Exception insert error:', excError);
-      setExceptions(prev => [...prev, ...excs]);
-      showToast(`Bokning tillagd — ${skipDates.length} krockar hoppades över ✓`);
-    } else {
-      showToast('Återkommande bokning tillagd ✓');
+  const handleAdminAddRecurring=useCallback(async formData=>{
+    const bookingId=uid();
+    const booking={id:bookingId,name:formData.name,phone:formData.phone||'',
+      activity:formData.activity,notes:formData.notes||'',
+      time_slot:formData.time_slot,duration_hours:formData.duration_hours,
+      start_date:formData.date,end_date:formData.end_date||null,
+      recurrence:formData.recurrence||'none',status:'approved',
+      admin_comment:'',created_at:Date.now(),resolved_at:Date.now(),
+      device_id:'admin',user_id:null};
+    const{error}=await supabase.from('bookings').insert([booking]);
+    if(error){showToast('Något gick fel.');return;}
+    const skipDates=formData.skip_dates||[];
+    if(skipDates.length>0){
+      const excs=skipDates.map(date=>({id:uid(),booking_id:bookingId,exception_date:date,type:'skip',created_at:Date.now()}));
+      await supabase.from('booking_exceptions').insert(excs);
+      setExceptions(prev=>[...prev,...excs]);
     }
-    setBookings(prev => [booking, ...prev]);
-  }, [showToast]);
+    setBookings(prev=>[booking,...prev]);
+    showToast(skipDates.length>0?`Bokning tillagd — ${skipDates.length} krockar hoppades över ✓`:'Bokning tillagd ✓');
+  },[showToast]);
 
-  // Called when UserLogin succeeds — handle both admin and regular user
-  const handleLoginSuccess = useCallback((user) => {
+  const handleLoginSuccess=useCallback(user=>{
     setLoggedInUser(user);
-    localStorage.setItem(STORAGE_USER_ID, user.id);
-    localStorage.setItem(STORAGE_USER_NAME, user.name);
-    localStorage.setItem(STORAGE_USER_ROLE, user.role);
-    if (user.role === 'admin') {
-      localStorage.setItem(STORAGE_ADMIN, 'true');
+    localStorage.setItem(STORAGE_USER_ID,user.id);
+    localStorage.setItem(STORAGE_USER_NAME,user.name);
+    localStorage.setItem(STORAGE_USER_ROLE,user.role);
+    if(user.role==='admin'){
+      localStorage.setItem(STORAGE_ADMIN,'true');
       setAdminMode(true);
       registerAdminDevice?.();
       setView('admin');
@@ -2351,186 +2165,182 @@ export default function BookingScreen({
       setView('calendar');
       showToast(`Välkommen, ${user.name}`);
     }
-  }, [showToast, registerAdminDevice]);
+  },[showToast,registerAdminDevice]);
 
-  const handleAdminLogin = handleLoginSuccess; // kept for compatibility
-
-  const handleAdminLogout = useCallback(() => {
+  const handleAdminLogout=useCallback(()=>{
     localStorage.removeItem(STORAGE_ADMIN);
     localStorage.removeItem(STORAGE_USER_ID);
     localStorage.removeItem(STORAGE_USER_NAME);
     localStorage.removeItem(STORAGE_USER_ROLE);
-    setAdminMode(false);
-    setLoggedInUser(null);
-    setView('login');
-    showToast('Utloggad');
+    setAdminMode(false);setLoggedInUser(null);
+    setView('login');showToast('Utloggad');
     dismissAdminDevice?.();
-  }, [showToast, dismissAdminDevice]);
+  },[showToast,dismissAdminDevice]);
 
-  const handleUserLogout = useCallback(() => {
+  const handleUserLogout=useCallback(()=>{
     localStorage.removeItem(STORAGE_USER_ID);
     localStorage.removeItem(STORAGE_USER_NAME);
     localStorage.removeItem(STORAGE_USER_ROLE);
     localStorage.removeItem(STORAGE_ADMIN);
-    setLoggedInUser(null);
-    setAdminMode(false);
-    setView('login');
-    showToast('Utloggad');
-  }, [showToast]);
+    setLoggedInUser(null);setAdminMode(false);
+    setView('login');showToast('Utloggad');
+  },[showToast]);
 
-  const [calendarAdminDetail, setCalendarAdminDetail] = useState(null);
+  // ─── Render ───────────────────────────────────────────────────────────────────
+  if(dbLoading&&!adminMode){
+    return <div style={{padding:'80px 16px',background:T.bg,minHeight:'100%'}}><Spinner T={T}/></div>;
+  }
 
-  const handleSelectSlot = useCallback((date, slotLbl, startH, durationHours, existingBooking) => {
-    if (adminMode && existingBooking) {
-      // Visa detaljvy direkt i kalendervyn — inte adminpanelen
-      setCalendarAdminDetail(existingBooking);
-      return;
-    }
-    setPendingSlot({ date, slotLabel:slotLbl, startH, durationHours });
-    setView('form');
-  }, [adminMode]);
+  return <div style={{background:T.bg,minHeight:'100%',fontFamily:'system-ui'}}>
+    <style>{`
+      @keyframes bsFadeInUp{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+      @keyframes bsSlideUp{from{transform:translateY(100%)}to{transform:translateY(0)}}
+      @keyframes bsSpin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}
+      @keyframes bsPulse{0%,100%{box-shadow:0 0 0 0 rgba(255,159,10,.4)}50%{box-shadow:0 0 0 6px rgba(255,159,10,0)}}
+      @keyframes bsSlideLeft{from{opacity:.35;transform:translateX(7%)}to{opacity:1;transform:translateX(0)}}
+      @keyframes bsSlideRight{from{opacity:.35;transform:translateX(-7%)}to{opacity:1;transform:translateX(0)}}
+      @keyframes bsHighlight{0%,100%{box-shadow:0 0 0 3px var(--hl,rgba(45,139,120,.3))}50%{box-shadow:0 0 0 8px transparent}}
+      @keyframes bsYearIn{from{opacity:0;transform:scale(0.93)}to{opacity:1;transform:scale(1)}}
+      @keyframes bsMonthZoomIn{from{opacity:0;transform:scale(0.88)}to{opacity:1;transform:scale(1)}}
+    `}</style>
+    <Toast message={toast}/>
 
-  // ── Render ─────────────────────────────────────────────────────────────────
+    {/* Year View overlay */}
+    {showYearView&&<YearView year={yearViewYear}
+      onSelectMonth={(yr,m)=>{
+        const d=new Date(yr,m,1);
+        setSelectedDate(d);
+        setShowYearView(false);
+      }}
+      bookings={bookings} exceptions={exceptions} T={T}
+      onBack={()=>setShowYearView(false)}/>}
 
-  const scrollRef = useRef(null);
-  const { visible: headerVis, onScroll } = useScrollHide({ threshold:40 });
+    {/* Search overlay */}
+    {showSearch&&<SearchPanel bookings={adminMode ? bookings : myBookings} exceptions={exceptions}
+      onSelectBooking={o=>{
+        setShowSearch(false);
+        const d=parseISO(o.date);d.setHours(0,0,0,0);setSelectedDate(d);
+      }}
+      onClose={()=>setShowSearch(false)} T={T}/>}
 
-  // Admin ser adminpanelen direkt — skeleton visas inuti istället för global spinner
-  if (dbLoading && !adminMode) return (
-    <div style={{padding:'80px 16px',background:T.bg,minHeight:'100%'}}><Spinner T={T}/></div>
-  );
-
-  return (
-    <div style={{background:T.bg,minHeight:'100%',fontFamily:'system-ui'}}>
-      <style>{`
-        @keyframes fadeInUp{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
-        @keyframes slideUp{from{transform:translateY(100%)}to{transform:translateY(0)}}
-        @keyframes spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}
-        @keyframes cardPulse{0%,100%{box-shadow:0 0 0 0 rgba(245,158,11,0.4)}50%{box-shadow:0 0 0 6px rgba(245,158,11,0)}}
-        @keyframes cancelledPulse{0%,100%{box-shadow:0 0 0 0 rgba(59,130,246,0.4)}50%{box-shadow:0 0 0 6px rgba(59,130,246,0)}}
-        @keyframes calSlideLeft{from{opacity:0.4;transform:translateX(8%)}to{opacity:1;transform:translateX(0)}}
-        @keyframes calSlideRight{from{opacity:0.4;transform:translateX(-8%)}to{opacity:1;transform:translateX(0)}}
-        @keyframes highlightPulse{0%,100%{box-shadow:0 0 0 3px var(--hl,rgba(45,139,120,0.3))}50%{box-shadow:0 0 0 8px transparent}}
-        @keyframes shimmer{0%,100%{opacity:0.4}50%{opacity:0.7}}
-        @keyframes vibrate{0%,100%{transform:translateX(0)}10%,50%,90%{transform:translateX(-3px)}30%,70%{transform:translateX(3px)}}
-      `}</style>
-      <Toast message={toast} T={T}/>
-
-      {view === 'calendar' && (
-        <div ref={scrollRef} onScroll={onScroll} style={{paddingTop:'max(20px, env(safe-area-inset-top, 0px))',paddingLeft:'16px',paddingRight:'16px',paddingBottom:'20px'}}>
-          {/* Header */}
-          <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:20}}>
-            <div style={{fontSize:22,fontWeight:800,color:T.text,letterSpacing:'-.4px'}}>Boka lokal</div>
-            <div style={{display:'flex',gap:8}}>
-              <button onClick={()=>{ setView('my-bookings'); markVisitorSeen?.(); }}
-                style={{padding:'7px 14px',borderRadius:20,border:`1px solid ${visitorUnread>0?T.accent:T.border}`,background:visitorUnread>0?`${T.accent}11`:T.card,color:T.text,fontSize:12,fontWeight:600,cursor:'pointer',fontFamily:'system-ui',WebkitTapHighlightColor:'transparent',display:'flex',alignItems:'center',gap:6,position:'relative'}}>
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
-                {loggedInUser?.name || 'Mitt konto'}
-                {visitorUnread > 0 && (
-                  <span style={{background:T.accent,color:'#fff',borderRadius:10,fontSize:10,fontWeight:800,padding:'1px 6px',minWidth:16,textAlign:'center'}}>
-                    {visitorUnread > 9 ? '9+' : visitorUnread}
-                  </span>
-                )}
-              </button>
-              {adminMode && (
-                <button onClick={()=>setView('admin')}
-                  style={{padding:'7px 14px',borderRadius:20,border:'1px solid #f59e0b44',background:'#f59e0b18',color:'#f59e0b',fontSize:12,fontWeight:700,cursor:'pointer',fontFamily:'system-ui',WebkitTapHighlightColor:'transparent'}}>
-                  Adminpanel →
-                </button>
-              )}
-            </div>
+    {/* Calendar View */}
+    {view==='calendar'&&<div style={{background:T.bg,minHeight:'100%',animation:'bsMonthZoomIn 0.32s cubic-bezier(0.4,0,0.2,1)'}}>
+      {/* Header */}
+      <div style={{paddingTop:'max(20px,env(safe-area-inset-top,0px))',
+        paddingLeft:20,paddingRight:20,paddingBottom:0,background:T.calHeaderBg}}>
+        <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:8}}>
+          <div style={{fontSize:17,fontWeight:700,color:T.text}}>Boka lokal</div>
+          <div style={{display:'flex',gap:8,alignItems:'center'}}>
+            <button onClick={()=>setShowSearch(true)}
+              style={{width:34,height:34,borderRadius:'50%',border:'none',
+                background:T.cardElevated,display:'flex',alignItems:'center',justifyContent:'center',
+                cursor:'pointer',color:T.text,WebkitTapHighlightColor:'transparent'}}>
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none"
+                stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+                <circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/>
+              </svg>
+            </button>
+            <button onClick={()=>{setView('my-bookings');markVisitorSeen?.();}}
+              style={{padding:'6px 12px',borderRadius:20,
+                border:`0.5px solid ${visitorUnread>0?T.accent:T.border}`,
+                background:visitorUnread>0?`${T.accent}11`:T.card,
+                color:T.text,fontSize:12,fontWeight:600,cursor:'pointer',
+                fontFamily:'system-ui',WebkitTapHighlightColor:'transparent',
+                display:'flex',alignItems:'center',gap:5}}>
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none"
+                stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+                <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
+                <circle cx="12" cy="7" r="4"/>
+              </svg>
+              {loggedInUser?.name||'Mitt konto'}
+              {visitorUnread>0&&<span style={{background:T.accent,color:'#fff',borderRadius:10,
+                fontSize:10,fontWeight:800,padding:'1px 6px',minWidth:16,textAlign:'center'}}>
+                {visitorUnread>9?'9+':visitorUnread}
+              </span>}
+            </button>
+            {adminMode&&<button onClick={()=>setView('admin')}
+              style={{padding:'6px 12px',borderRadius:20,
+                border:`1px solid ${T.warning}44`,background:`${T.warning}18`,
+                color:T.warning,fontSize:12,fontWeight:700,cursor:'pointer',
+                fontFamily:'system-ui',WebkitTapHighlightColor:'transparent'}}>Admin →</button>}
           </div>
-
-          <CalendarView bookings={bookings} exceptions={exceptions} onSelectSlot={handleSelectSlot} isAdmin={adminMode} T={T}/>
         </div>
-      )}
+      </div>
 
-      {/* Admin detaljvy — bottom sheet direkt från kalender-chip */}
-      {calendarAdminDetail && (() => {
-        const b = calendarAdminDetail;
-        const statusColors = { approved:'#22c55e', edited:'#22c55e', pending:'#f59e0b', edit_pending:'#f59e0b', cancelled:'#64748b', rejected:'#ef4444' };
-        const sc = statusColors[b.status] || T.accent;
-        return (
-          <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.5)',zIndex:1000,display:'flex',alignItems:'flex-end',justifyContent:'center'}}
-            onClick={()=>setCalendarAdminDetail(null)}>
-            <div onClick={e=>e.stopPropagation()}
-              style={{background:T.card,borderRadius:'20px 20px 0 0',padding:'24px 20px max(32px,env(safe-area-inset-bottom,20px))',width:'100%',maxWidth:500,boxSizing:'border-box',animation:'slideUp .25s cubic-bezier(0.32,0.72,0,1)'}}>
-              <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:16}}>
-                <div style={{display:'flex',alignItems:'center',gap:8}}>
-                  <div style={{width:10,height:10,borderRadius:'50%',background:sc,flexShrink:0}}/>
-                  <span style={{fontSize:13,fontWeight:700,color:sc,textTransform:'uppercase',letterSpacing:1}}>{b.status}</span>
-                </div>
-                <button onClick={()=>setCalendarAdminDetail(null)}
-                  style={{background:'none',border:'none',fontSize:22,color:T.textMuted,cursor:'pointer',padding:'0 4px',lineHeight:1}}>×</button>
-              </div>
-              <div style={{fontSize:18,fontWeight:800,color:T.text,marginBottom:4}}>{b.activity}</div>
-              <div style={{fontSize:13,color:T.textMuted,marginBottom:12}}>{b.name} · {b.time_slot} · {b.start_date}</div>
-              {b.message && <div style={{fontSize:13,color:T.textSecondary,background:T.cardElevated,borderRadius:10,padding:'10px 12px',marginBottom:12}}>{b.message}</div>}
-              {b.admin_comment && <div style={{fontSize:12,color:T.textMuted,fontStyle:'italic',marginBottom:12}}>"{b.admin_comment}"</div>}
-              <button onClick={()=>{ setCalendarAdminDetail(null); setView('admin'); }}
-                style={{width:'100%',padding:'13px',borderRadius:12,border:`1px solid ${T.border}`,background:T.cardElevated,color:T.accent,fontSize:14,fontWeight:700,cursor:'pointer',fontFamily:'system-ui',WebkitTapHighlightColor:'transparent'}}>
-                Öppna i adminpanel →
-              </button>
+      <CalendarView bookings={bookings} exceptions={exceptions}
+        onSelectDate={d=>{setSelectedDate(d);}}
+        isAdmin={adminMode} selectedDate={selectedDate} T={T}
+        onYearViewOpen={()=>{setYearViewYear(selectedDate.getFullYear());setShowYearView(true);}}/>
+
+      <div style={{height:'0.5px',background:T.separator,margin:'8px 0'}}/>
+
+      <DayPanel date={selectedDate} bookings={bookings} exceptions={exceptions}
+        isAdmin={adminMode}
+        onSelectBooking={o=>{if(adminMode) setCalendarAdminDetail(o);}}
+        onNewBooking={d=>{setPendingFormDate(d);setView('form');}} T={T}/>
+
+      <div style={{height:100}}/>
+    </div>}
+
+    {/* Admin calendar detail sheet */}
+    {calendarAdminDetail&&(()=>{
+      const b=calendarAdminDetail;
+      const sc={approved:'#34C759',edited:'#34C759',pending:'#FF9F0A',edit_pending:'#FF9F0A',cancelled:'#8E8E93',rejected:'#FF3B30'}[b.status]||T.accent;
+      return <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.5)',zIndex:1000,
+        display:'flex',alignItems:'flex-end',justifyContent:'center'}}
+        onClick={()=>setCalendarAdminDetail(null)}>
+        <div onClick={e=>e.stopPropagation()} style={{background:T.sheetBg,borderRadius:'20px 20px 0 0',
+          padding:'24px 20px max(32px,env(safe-area-inset-bottom,20px))',
+          width:'100%',maxWidth:500,boxSizing:'border-box',
+          animation:'bsSlideUp .25s cubic-bezier(0.32,0.72,0,1)'}}>
+          <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:16}}>
+            <div style={{display:'flex',alignItems:'center',gap:8}}>
+              <div style={{width:10,height:10,borderRadius:'50%',background:sc}}/>
+              <Badge status={b.status}/>
             </div>
+            <button onClick={()=>setCalendarAdminDetail(null)}
+              style={{background:'none',border:'none',fontSize:22,color:T.textMuted,cursor:'pointer',padding:'0 4px',lineHeight:1}}>×</button>
           </div>
-        );
-      })()}
+          <div style={{fontSize:18,fontWeight:700,color:T.text,marginBottom:4}}>{b.activity}</div>
+          <div style={{fontSize:13,color:T.textMuted,marginBottom:4}}>{b.name} · {b.time_slot}</div>
+          {b.notes&&<div style={{fontSize:13,color:T.textMuted,fontStyle:'italic',marginBottom:8}}>{b.notes}</div>}
+          {b.admin_comment&&<div style={{fontSize:12,color:T.textMuted,fontStyle:'italic',marginBottom:12}}>"{b.admin_comment}"</div>}
+          <button onClick={()=>{setCalendarAdminDetail(null);setView('admin');}}
+            style={{width:'100%',padding:'13px',borderRadius:12,border:`0.5px solid ${T.border}`,
+              background:T.cardElevated,color:T.accent,fontSize:14,fontWeight:700,
+              cursor:'pointer',WebkitTapHighlightColor:'transparent'}}>
+            Öppna i adminpanel →
+          </button>
+        </div>
+      </div>;
+    })()}
 
-      {view === 'form' && pendingSlot && (
-        <BookingForm
-          date={pendingSlot.date} slotLabel={pendingSlot.slotLabel}
-          durationHours={pendingSlot.durationHours}
-          onSubmit={handleSubmitBooking} onBack={()=>setView('calendar')}
-          loading={submitLoading} bookings={bookings} exceptions={exceptions} T={T}
-        />
-      )}
+    {view==='form'&&pendingFormDate&&<BookingForm date={pendingFormDate}
+      onSubmit={handleSubmitBooking} onBack={()=>setView('calendar')}
+      loading={submitLoading} bookings={bookings} exceptions={exceptions} T={T}/>}
 
-      {view === 'my-bookings' && (
-        <MyBookings
-          bookings={myBookings} exceptions={exceptions}
-          loading={false} onBack={()=>setView('calendar')}
-          onCancel={handleCancelOccurrence}
-          onCancelFromDate={handleCancelFromDate}
-          onCancelSeries={handleCancelSeries}
-          onRestore={handleRestoreBooking}
-          highlightBookingId={highlightBookingId}
-          highlightFilter={highlightFilter}
-          onLogout={handleUserLogout}
-          T={T}
-        />
-      )}
+    {view==='my-bookings'&&<MyBookings bookings={myBookings} exceptions={exceptions}
+      loading={false} onBack={()=>setView('calendar')}
+      onCancel={handleCancelOccurrence} onCancelFromDate={handleCancelFromDate}
+      onCancelSeries={handleCancelSeries}
+      highlightBookingId={highlightBookingId} highlightFilter={highlightFilter}
+      onLogout={handleUserLogout} T={T}/>}
 
-      {view === 'login' && (
-        <UserLogin
-          onSuccess={handleLoginSuccess}
-          onBack={undefined}
-          T={T}
-        />
-      )}
+    {view==='login'&&<UserLogin onSuccess={handleLoginSuccess} onBack={undefined} T={T}/>}
 
-      {view === 'users' && (
-        <UserManagement onBack={()=>setView('admin')} T={T}/>
-      )}
+    {view==='users'&&<UserManagement onBack={()=>setView('admin')} T={T}/>}
 
-      {view === 'admin' && (
-        <AdminPanel
-          bookings={bookings} exceptions={exceptions}
-          onBack={handleAdminLogout}
-          onApprove={handleApprove} onReject={handleReject}
-          onDelete={handleAdminDelete} onDeleteSeries={handleAdminDeleteSeries}
-          onDeleteFromDate={handleCancelFromDate}
-          adminInitialFilter={adminInitialFilter}
-          adminHighlightId={adminHighlightId}
-          adminHighlightFilter={adminHighlightFilter}
-          cancelledBookingIds={cancelledBookingIds}
-          pendingBookingIds={pendingBookingIds}
-          onAdminAddRecurring={handleAdminAddRecurring}
-          onRefreshNotifications={onRefreshNotifications}
-          onMarkAdminSeen={onMarkAdminSeen}
-          onManageUsers={()=>setView('users')}
-          T={T}
-        />
-      )}
-    </div>
-  );
+    {view==='admin'&&<AdminPanel bookings={bookings} exceptions={exceptions}
+      onBack={handleAdminLogout}
+      onApprove={handleApprove} onReject={handleReject}
+      onDelete={handleAdminDelete} onDeleteSeries={handleAdminDeleteSeries}
+      onDeleteFromDate={handleCancelFromDate}
+      adminInitialFilter={adminInitialFilter}
+      adminHighlightId={adminHighlightId} adminHighlightFilter={adminHighlightFilter}
+      cancelledBookingIds={cancelledBookingIds} pendingBookingIds={pendingBookingIds}
+      onAdminAddRecurring={handleAdminAddRecurring}
+      onRefreshNotifications={onRefreshNotifications}
+      onMarkAdminSeen={onMarkAdminSeen}
+      onManageUsers={()=>setView('users')} T={T}/>}
+  </div>;
 }
