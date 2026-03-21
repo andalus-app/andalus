@@ -1379,26 +1379,13 @@ function MyBookings({bookings,exceptions,loading,onBack,onCancel,onCancelFromDat
           </button>
         )}
       </div>
-      {deleteSheet&&(()=>{
-        // Track viewport to move sheet up when keyboard opens
-        const SheetWithViewport=(()=>{
-          const [bottomOffset, setBottomOffset] = React.useState(0);
-          React.useEffect(()=>{
-            const vv=window.visualViewport;
-            if(!vv) return;
-            const upd=()=>setBottomOffset(Math.max(0,window.innerHeight-vv.height-vv.offsetTop));
-            vv.addEventListener('resize',upd);vv.addEventListener('scroll',upd);
-            return()=>{vv.removeEventListener('resize',upd);vv.removeEventListener('scroll',upd);};
-          },[]);
-          return (
-            <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.5)',zIndex:1000,
-              display:'flex',alignItems:'flex-end',justifyContent:'center',touchAction:'none'}}
-              onClick={()=>{setDeleteSheet(null);setCancelReason('');setCancelReasonError(false);}}>
-              <HideTabBar/>
-              <div onClick={e=>e.stopPropagation()} style={{background:T.sheetBg,borderRadius:'20px 20px 0 0',
-                padding:'24px 20px 36px',width:'100%',maxWidth:500,boxSizing:'border-box',
-                position:'relative',bottom:bottomOffset,
-                animation:'bsSlideUp .25s cubic-bezier(0.32,0.72,0,1)'}}>
+      {deleteSheet&&<div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.5)',zIndex:1000,
+        display:'flex',alignItems:'flex-end',justifyContent:'center',touchAction:'none'}}
+        onClick={()=>{setDeleteSheet(null);setCancelReason('');setCancelReasonError(false);}}>
+        <HideTabBar/>
+        <div onClick={e=>e.stopPropagation()} style={{background:T.sheetBg,borderRadius:'20px 20px 0 0',
+          padding:'24px 20px 36px',width:'100%',maxWidth:500,boxSizing:'border-box',
+          animation:'bsSlideUp .25s cubic-bezier(0.32,0.72,0,1)'}}>
           <div style={{fontSize:16,fontWeight:700,color:T.text,marginBottom:8}}>
             {deleteSheet.deleteAll?'Avboka hela serien?':'Avboka?'}
           </div>
@@ -1448,11 +1435,7 @@ function MyBookings({bookings,exceptions,loading,onBack,onCancel,onCancelFromDat
                 cursor:'pointer',WebkitTapHighlightColor:'transparent'}}>Avbryt</button>
           </div>
         </div>
-      </div>
-          );
-        };
-        return <SheetWithViewport/>;
-      })()}
+      </div>}
     </div>;
   }
 
