@@ -1754,19 +1754,17 @@ function AdminAddForm({bookings,exceptions,onSubmit,onClose,T}) {
   const bookedBlocks=useMemo(()=>getBookedBlocks(bookings,exceptions,iso),[bookings,exceptions,iso]);
   const dH=endH+endM/60-startH-startM/60;
   const slot=slotFromHM(startH,startM,endH===CLOSE_HOUR?0:endH,endM);
+  const occs=useMemo(()=>getOccurrencesForDate(bookings,exceptions,iso),[bookings,exceptions,iso]);
 
   const navigate=dir=>{
     if(navInProgressRef.current) return;
     navInProgressRef.current=true;
-    setSlideDir(dir);
-    setIncomingDir(null);
+    setSlideDir(dir);setIncomingDir(null);
     const d=new Date(anchor);
     dir==='next'?d.setMonth(d.getMonth()+1):d.setMonth(d.getMonth()-1);
     setAnchor(d);
     setTimeout(()=>{
-      setIncomingDir(dir);
-      setDisplayAnchor(d);
-      setSlideDir(null);
+      setIncomingDir(dir);setDisplayAnchor(d);setSlideDir(null);
       navInProgressRef.current=false;
       setTimeout(()=>setIncomingDir(null),400);
     },320);
@@ -1776,19 +1774,16 @@ function AdminAddForm({bookings,exceptions,onSubmit,onClose,T}) {
     const t=new Date(today.getFullYear(),today.getMonth(),1);
     const dir=t>anchor?'next':'prev';
     if(t.getMonth()===anchor.getMonth()&&t.getFullYear()===anchor.getFullYear()){
-      setSelectedDate(today); return;
+      setSelectedDate(today);return;
     }
-    setSlideDir(dir); setIncomingDir(null); setAnchor(t);
-    setTimeout(()=>{
-      setIncomingDir(dir); setDisplayAnchor(t); setSlideDir(null);
-      setTimeout(()=>setIncomingDir(null),400);
-    },320);
+    setSlideDir(dir);setIncomingDir(null);setAnchor(t);
+    setTimeout(()=>{setIncomingDir(dir);setDisplayAnchor(t);setSlideDir(null);
+      setTimeout(()=>setIncomingDir(null),400);},320);
     setSelectedDate(today);
   };
 
-  // Swipe handlers
   useEffect(()=>{
-    const el=gridRef.current; if(!el) return;
+    const el=gridRef.current;if(!el) return;
     const onMove=e=>{
       if(!swipeRef.current) return;
       const dx=Math.abs(e.touches[0].clientX-swipeRef.current.x);
@@ -1800,184 +1795,261 @@ function AdminAddForm({bookings,exceptions,onSubmit,onClose,T}) {
     return()=>el.removeEventListener('touchmove',onMove);
   },[step]);
 
-  const isToday=d=>{if(!d)return false;const c=new Date(d);c.setHours(0,0,0,0);return c.getTime()===today.getTime();};
-  const isSel=d=>{if(!d)return false;const c=new Date(d);c.setHours(0,0,0,0);return c.getTime()===selectedDate.getTime();};
-  const hasB=d=>d&&hasBookingsOnDate(bookings,exceptions,toISO(d));
+  const isToday_=d=>{if(!d)return false;const c=new Date(d);c.setHours(0,0,0,0);return c.getTime()===today.getTime();};
+  const isSel_=d=>{if(!d)return false;const c=new Date(d);c.setHours(0,0,0,0);return c.getTime()===selectedDate.getTime();};
+  const hasB_=d=>d&&hasBookingsOnDate(bookings,exceptions,toISO(d));
 
-  return <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.5)',zIndex:2500,
-    display:'flex',alignItems:'flex-end',justifyContent:'center'}} onClick={onClose}>
+  return <div style={{position:'fixed',inset:0,background:T.bg,zIndex:2500,
+    display:'flex',flexDirection:'column'}} onClick={e=>e.target===e.currentTarget&&onClose()}>
     <HideTabBar/>
-    <div onClick={e=>e.stopPropagation()} style={{background:T.sheetBg,borderRadius:'20px 20px 0 0',
-      width:'100%',maxWidth:500,boxSizing:'border-box',
-      animation:'bsSlideUp .25s cubic-bezier(0.32,0.72,0,1)',
-      height:'calc(100vh - env(safe-area-inset-top,44px) - 8px)',
-      display:'flex',flexDirection:'column'}}>
-      <div style={{padding:'16px 20px 0',flexShrink:0}}>
-        <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:8}}>
-          <div style={{fontSize:18,fontWeight:700,color:T.text}}>Lägg till bokning</div>
-          <button onClick={onClose} style={{background:'none',border:'none',fontSize:22,color:T.textMuted,
-            cursor:'pointer',padding:'0 4px',lineHeight:1,WebkitTapHighlightColor:'transparent'}}>×</button>
-        </div>
+    {/* Fixed header — year + nav + month title + day labels */}
+    <div style={{background:T.bg,flexShrink:0,
+      paddingTop:'max(16px,env(safe-area-inset-top,16px))'}}>
+      <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',
+        paddingLeft:20,paddingRight:20,paddingBottom:4}}>
+        <button onClick={onClose} style={{background:'none',border:'none',cursor:'pointer',
+          color:T.accent,fontSize:16,padding:0,WebkitTapHighlightColor:'transparent',
+          display:'flex',alignItems:'center',gap:4}}>
+          <svg width="8" height="14" viewBox="0 0 8 14" fill="none">
+            <path d="M7 1L1 7l6 6" stroke={T.accent} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+          </svg>
+          Stäng
+        </button>
+        <div style={{fontSize:17,fontWeight:700,color:T.text}}>Lägg till bokning</div>
+        {step==='date'
+          ?<button onClick={()=>{setYearPickerYear(anchor.getFullYear());setShowYearPicker(true);}}
+            style={{background:'none',border:'none',cursor:'pointer',color:T.textMuted,padding:0,
+              display:'flex',alignItems:'center',gap:4,WebkitTapHighlightColor:'transparent'}}>
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none"
+              stroke={T.textMuted} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <polyline points="15 18 9 12 15 6"/>
+            </svg>
+            <span style={{fontSize:15,fontWeight:500}}>{anchor.getFullYear()}</span>
+          </button>
+          :<div style={{width:60}}/>}
       </div>
-      <div style={{flex:1,overflowY:'auto',WebkitOverflowScrolling:'touch',position:'relative'}}>
       {step==='date'&&<>
-        {/* Calendar header */}
-        <div style={{padding:'0 16px'}}>
-          <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:4}}>
-            <button onClick={()=>{setYearPickerYear(anchor.getFullYear());setShowYearPicker(true);}}
-              style={{background:'none',border:'none',cursor:'pointer',
-              display:'flex',alignItems:'center',gap:5,color:T.textMuted,padding:0,WebkitTapHighlightColor:'transparent'}}>
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none"
-                stroke={T.textMuted} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <polyline points="15 18 9 12 15 6"/>
-              </svg>
-              <span style={{fontSize:16,fontWeight:500}}>{anchor.getFullYear()}</span>
-            </button>
-            <div style={{display:'flex',gap:8}}>
-              {['prev','next'].map(dir=>(
-                <button key={dir} onClick={()=>navigate(dir)}
-                  style={{width:32,height:32,borderRadius:'50%',border:'none',
-                    background:T.cardElevated,display:'flex',alignItems:'center',
-                    justifyContent:'center',cursor:'pointer',color:T.text,WebkitTapHighlightColor:'transparent'}}>
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none"
-                    stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                    {dir==='prev'?<polyline points="15 18 9 12 15 6"/>:<polyline points="9 18 15 12 9 6"/>}
-                  </svg>
-                </button>
-              ))}
-            </div>
-          </div>
-          {/* Month title with slide animation */}
-          <div style={{overflow:'hidden',marginBottom:12,height:36}}>
+        <div style={{paddingLeft:20,paddingRight:20,
+          display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:4}}>
+          {['prev','next'].map((dir,i)=>i===0?<button key={dir} onClick={()=>navigate(dir)}
+            style={{width:34,height:34,borderRadius:'50%',border:'none',
+              background:T.cardElevated,display:'flex',alignItems:'center',
+              justifyContent:'center',cursor:'pointer',color:T.text,WebkitTapHighlightColor:'transparent'}}>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none"
+              stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <polyline points="15 18 9 12 15 6"/>
+            </svg>
+          </button>:null)}
+          <div style={{overflow:'hidden',flex:1,height:36,marginLeft:8}}>
             <div key={displayAnchor.getMonth()+'_'+displayAnchor.getFullYear()} style={{
-              fontSize:28,fontWeight:700,color:T.text,fontFamily:'system-ui',
-              letterSpacing:'-.5px',lineHeight:'36px',
+              fontSize:30,fontWeight:700,color:T.text,fontFamily:'system-ui',
+              letterSpacing:'-.8px',lineHeight:'36px',
               animation:slideDir
-                ?(slideDir==='next'?'bsTitleSlideLeft 0.32s cubic-bezier(0.4,0,0.2,1) forwards':'bsTitleSlideRight 0.32s cubic-bezier(0.4,0,0.2,1) forwards')
+                ?(slideDir==='next'?'bsTitleSlideLeft 0.38s cubic-bezier(0.4,0,0.2,1) forwards':'bsTitleSlideRight 0.38s cubic-bezier(0.4,0,0.2,1) forwards')
                 :incomingDir
-                  ?(incomingDir==='next'?'bsTitleSlideInFromRight 0.32s cubic-bezier(0.4,0,0.2,1)':'bsTitleSlideInFromLeft 0.32s cubic-bezier(0.4,0,0.2,1)')
-                  :'none',
-            }}>
+                  ?(incomingDir==='next'?'bsTitleSlideInFromRight 0.38s cubic-bezier(0.4,0,0.2,1)':'bsTitleSlideInFromLeft 0.38s cubic-bezier(0.4,0,0.2,1)')
+                  :'none'}}>
               {MONTHS_SV[displayAnchor.getMonth()]}
             </div>
           </div>
-          {/* Day headers */}
-          <div style={{display:'grid',gridTemplateColumns:'repeat(7,1fr)',marginBottom:4}}>
-            {DAYS_SV.map(d=><div key={d} style={{textAlign:'center',fontSize:12,fontWeight:600,
-              color:T.textMuted,fontFamily:'system-ui',letterSpacing:'.5px'}}>{d}</div>)}
-          </div>
+          <button onClick={()=>navigate('next')}
+            style={{width:34,height:34,borderRadius:'50%',border:'none',
+              background:T.cardElevated,display:'flex',alignItems:'center',
+              justifyContent:'center',cursor:'pointer',color:T.text,WebkitTapHighlightColor:'transparent'}}>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none"
+              stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <polyline points="9 18 15 12 9 6"/>
+            </svg>
+          </button>
         </div>
-        {/* Grid with swipe */}
-        <div ref={gridRef}
-          onTouchStart={e=>{swipeRef.current={x:e.touches[0].clientX,y:e.touches[0].clientY,locked:null};}}
-          onTouchEnd={e=>{
-            if(!swipeRef.current) return;
-            const dx=e.changedTouches[0].clientX-swipeRef.current.x;
-            const dy=Math.abs(e.changedTouches[0].clientY-swipeRef.current.y);
-            const wasH=swipeRef.current.locked==='h';
-            swipeRef.current=null;
-            if(!wasH||Math.abs(dx)<40||dy>60) return;
-            if(dx<0) navigate('next'); else navigate('prev');
-          }}
-          style={{padding:'0 8px 8px',
-            animation:slideDir?(slideDir==='next'?'bsGridSlideLeft 0.32s cubic-bezier(0.4,0,0.2,1)':'bsGridSlideRight 0.32s cubic-bezier(0.4,0,0.2,1)'):'none'}}>
-          {mg.map((row,ri)=>(
-            <div key={ri} style={{display:'grid',gridTemplateColumns:'repeat(7,1fr)',gap:2,marginBottom:2}}>
-              {row.map((d,ci)=>{
-                if(!d) return <div key={ci}/>;
-                const tod=isToday(d),sel=isSel(d),hb=hasB(d);
-                return <button key={ci}
-                  onClick={()=>{const c=new Date(d);c.setHours(0,0,0,0);setSelectedDate(c);setStep('time');}}
-                  style={{borderRadius:10,border:'none',background:sel?T.calSelected:'none',
-                    padding:'6px 2px 5px',cursor:'pointer',
-                    display:'flex',flexDirection:'column',alignItems:'center',gap:2,
-                    WebkitTapHighlightColor:'transparent',transition:'background 0.15s'}}>
-                  <div style={{width:32,height:32,borderRadius:'50%',
-                    background:tod&&!sel?T.calToday:'none',
-                    display:'flex',alignItems:'center',justifyContent:'center'}}>
-                    <span style={{fontSize:16,fontWeight:tod?700:400,
-                      color:sel?'#fff':tod?'#fff':T.text,fontFamily:'system-ui'}}>{d.getDate()}</span>
-                  </div>
-                  {hb&&<div style={{width:5,height:5,borderRadius:'50%',background:sel?'#fff':T.accent}}/>}
-                </button>;
-              })}
+        <div style={{display:'grid',gridTemplateColumns:'repeat(7,1fr)',
+          paddingLeft:8,paddingRight:8,marginBottom:4}}>
+          {DAYS_SV.map(d=><div key={d} style={{textAlign:'center',fontSize:12,fontWeight:600,
+            color:T.textMuted,fontFamily:'system-ui',letterSpacing:'.5px'}}>{d}</div>)}
+        </div>
+      </>}
+    </div>
+    {/* Scrollable content */}
+    <div style={{flex:1,overflowY:'auto',WebkitOverflowScrolling:'touch',position:'relative'}}>
+    {step==='date'&&<>
+      {/* Calendar grid with swipe */}
+      <div ref={gridRef}
+        onTouchStart={e=>{swipeRef.current={x:e.touches[0].clientX,y:e.touches[0].clientY,locked:null};}}
+        onTouchEnd={e=>{
+          if(!swipeRef.current) return;
+          const dx=e.changedTouches[0].clientX-swipeRef.current.x;
+          const dy=Math.abs(e.changedTouches[0].clientY-swipeRef.current.y);
+          const wasH=swipeRef.current.locked==='h';swipeRef.current=null;
+          if(!wasH||Math.abs(dx)<40||dy>60) return;
+          if(dx<0) navigate('next'); else navigate('prev');
+        }}
+        style={{paddingLeft:8,paddingRight:8,
+          animation:slideDir?(slideDir==='next'?'bsGridSlideLeft 0.38s cubic-bezier(0.4,0,0.2,1)':'bsGridSlideRight 0.38s cubic-bezier(0.4,0,0.2,1)'):'none'}}>
+        {mg.map((row,ri)=>(
+          <div key={ri} style={{display:'grid',gridTemplateColumns:'repeat(7,1fr)',gap:2,marginBottom:2}}>
+            {row.map((d,ci)=>{
+              if(!d) return <div key={ci}/>;
+              const tod=isToday_(d),sel=isSel_(d),hb=hasB_(d);
+              return <button key={ci}
+                onClick={()=>{const c=new Date(d);c.setHours(0,0,0,0);setSelectedDate(c);}}
+                style={{borderRadius:10,border:'none',background:sel?T.calSelected:'none',
+                  padding:'6px 2px 5px',cursor:'pointer',
+                  display:'flex',flexDirection:'column',alignItems:'center',gap:2,
+                  WebkitTapHighlightColor:'transparent',transition:'background 0.15s'}}>
+                <div style={{width:32,height:32,borderRadius:'50%',
+                  background:tod&&!sel?T.calToday:'none',
+                  display:'flex',alignItems:'center',justifyContent:'center'}}>
+                  <span style={{fontSize:16,fontWeight:tod?700:400,
+                    color:sel?'#fff':tod?'#fff':T.text,fontFamily:'system-ui'}}>{d.getDate()}</span>
+                </div>
+                {hb&&<div style={{width:5,height:5,borderRadius:'50%',background:sel?'#fff':T.accent}}/>}
+              </button>;
+            })}
+          </div>
+        ))}
+      </div>
+      {/* Legend + Today chip */}
+      <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',
+        padding:'8px 20px 12px'}}>
+        <div style={{display:'flex',gap:12}}>
+          {[[T.accent,'Bokad'],[T.calToday,'Idag']].map(([c,l])=>(
+            <div key={l} style={{display:'flex',alignItems:'center',gap:4}}>
+              <div style={{width:7,height:7,borderRadius:'50%',background:c}}/>
+              <span style={{fontSize:11,color:T.textMuted,fontFamily:'system-ui'}}>{l}</span>
             </div>
           ))}
         </div>
-        {/* Legend + Today chip */}
-        <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',
-          padding:'4px 16px 16px',flexShrink:0}}>
-          <div style={{display:'flex',gap:12}}>
-            {[[T.accent,'Bokad'],[T.calToday,'Idag']].map(([c,l])=>(
-              <div key={l} style={{display:'flex',alignItems:'center',gap:4}}>
-                <div style={{width:7,height:7,borderRadius:'50%',background:c}}/>
-                <span style={{fontSize:11,color:T.textMuted,fontFamily:'system-ui'}}>{l}</span>
-              </div>
-            ))}
+        <TodayChip onPress={goToToday} T={T}/>
+      </div>
+      {/* Day panel — selected date activities */}
+      <div style={{height:'0.5px',background:T.separator,margin:'0 0 8px'}}/>
+      {/* Day header row */}
+      <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',
+        padding:'8px 20px 12px'}}>
+        <div style={{display:'flex',alignItems:'center',gap:8}}>
+          <div style={{width:38,height:38,borderRadius:'50%',
+            background:isToday_(selectedDate)?T.calToday:'none',
+            display:'flex',alignItems:'center',justifyContent:'center',
+            border:isToday_(selectedDate)?'none':`2px solid ${T.separator}`}}>
+            <span style={{fontSize:18,fontWeight:700,
+              color:isToday_(selectedDate)?'#fff':T.text,fontFamily:'system-ui'}}>
+              {selectedDate.getDate()}
+            </span>
           </div>
-          <TodayChip onPress={goToToday} T={T}/>
-        </div>
-        {/* YearView overlay */}
-        {showYearPicker&&<div style={{position:'absolute',inset:0,zIndex:10,borderRadius:'20px 20px 0 0',overflow:'hidden'}}>
-          <YearView year={yearPickerYear} bookings={bookings} exceptions={exceptions} T={T}
-            onBack={()=>setShowYearPicker(false)}
-            onSelectMonth={(y,m)=>{
-              const d=new Date(y,m,1);
-              setAnchor(d);setDisplayAnchor(d);
-              setYearPickerYear(y);
-              setShowYearPicker(false);
-            }}/>
-        </div>}
-      </>}
-      {step==='time'&&<>
-        <div style={{fontSize:12,fontWeight:700,color:T.textMuted,marginBottom:12,letterSpacing:'.3px'}}>
-          {isoToDisplay(iso)} — VÄLJ TID
-        </div>
-        <div style={{background:T.card,border:`0.5px solid ${T.border}`,borderRadius:12,overflow:'hidden',marginBottom:12}}>
-          <TimeAccordion label="Startar" hour={startH} minute={startM}
-            onConfirm={(h,m)=>{setStartH(h);setStartM(m);if(endH+endM/60<=h+m/60){setEndH(Math.min(h+1,CLOSE_HOUR));setEndM(0);}}}
-            bookedBlocks={bookedBlocks} isStart={true} pairedHour={startH} pairedMinute={startM} T={T}/>
-          <div style={{height:'0.5px',background:T.separator}}/>
-          <TimeAccordion label="Slutar" hour={endH} minute={endM}
-            onConfirm={(h,m)=>{setEndH(h);setEndM(m);}}
-            bookedBlocks={bookedBlocks} isStart={false} pairedHour={startH} pairedMinute={startM} T={T}/>
-        </div>
-        <button onClick={()=>setStep('details')}
-          style={{width:'100%',padding:'13px',borderRadius:12,border:'none',
-            background:T.accent,color:'#fff',fontSize:15,fontWeight:700,cursor:'pointer'}}>Nästa →</button>
-        <button onClick={()=>setStep('date')}
-          style={{marginTop:10,background:'none',border:'none',color:T.accent,
-            cursor:'pointer',fontSize:13,padding:0}}>← Byt datum</button>
-      </>}
-      {step==='details'&&<>
-        <div style={{background:`${T.accent}18`,borderRadius:10,padding:'8px 12px',marginBottom:16}}>
-          <span style={{fontSize:13,color:T.accent,fontWeight:600}}>{isoToDisplay(iso)} · {slot}</span>
-        </div>
-        <div style={{display:'flex',flexDirection:'column',gap:12}}>
-          <Input label="NAMN" value={form.name} onChange={v=>setForm(p=>({...p,name:v}))} placeholder="Namn på bokaren" required T={T}/>
-          <Input label="TELEFON" value={form.phone} onChange={v=>setForm(p=>({...p,phone:v}))} placeholder="Telefonnummer" T={T}/>
-          <Textarea label="AKTIVITET" value={form.activity} onChange={v=>setForm(p=>({...p,activity:v}))} placeholder="Beskriv aktiviteten..." T={T}/>
-          <Textarea label="ANTECKNINGAR" value={form.notes} onChange={v=>setForm(p=>({...p,notes:v}))} placeholder="Valfria anteckningar..." T={T}/>
-          <div style={{background:T.card,border:`0.5px solid ${T.border}`,borderRadius:12,padding:14}}>
-            <RecurrencePicker recurrence={recurrence} onChange={setRecurrence}
-              endDate={endDate} onEndDateChange={setEndDate} T={T}/>
+          <div>
+            <div style={{fontSize:15,fontWeight:600,color:T.text,fontFamily:'system-ui'}}>
+              {DAYS_FULL[(selectedDate.getDay()+6)%7]}
+            </div>
+            <div style={{fontSize:12,color:T.textMuted,fontFamily:'system-ui'}}>
+              {MONTHS_SV[selectedDate.getMonth()]} {selectedDate.getFullYear()}
+            </div>
           </div>
-          <button onClick={async()=>{
-            if(!form.name.trim()||!form.activity.trim()) return;
-            setLoading(true);
-            await onSubmit({...form,date:iso,time_slot:slot,duration_hours:dH,recurrence,end_date:endDate,skip_dates:[]});
-            setLoading(false);
-          }} disabled={loading||!form.name.trim()||!form.activity.trim()}
-            style={{padding:'13px',borderRadius:12,border:'none',background:T.accent,color:'#fff',
-              fontSize:15,fontWeight:700,cursor:'pointer'}}>
-            {loading?'Lägger till...':'Lägg till bokning ✓'}
-          </button>
         </div>
+        {/* + button to add booking for selected date */}
         <button onClick={()=>setStep('time')}
-          style={{marginTop:12,background:'none',border:'none',color:T.accent,cursor:'pointer',fontSize:13,padding:0}}>← Byt tid</button>
-      </>}
-      </div>{/* end scroll wrapper */}
-    </div>
+          style={{width:36,height:36,borderRadius:'50%',border:'none',
+            background:T.accent,color:'#fff',
+            display:'flex',alignItems:'center',justifyContent:'center',
+            cursor:'pointer',WebkitTapHighlightColor:'transparent',
+            boxShadow:`0 2px 10px ${T.accentGlow}`}}>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none"
+            stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+            <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+          </svg>
+        </button>
+      </div>
+      {/* Occurrences list */}
+      {occs.length===0
+        ?<div style={{textAlign:'center',paddingTop:24,paddingBottom:32,
+          fontSize:22,fontWeight:700,color:T.textMuted,fontFamily:'system-ui',
+          letterSpacing:'-.3px'}}>Inga aktiviteter</div>
+        :<div style={{display:'flex',flexDirection:'column',gap:8,padding:'0 20px 32px'}}>
+          {occs.map(o=>{
+            const sc={approved:'#34C759',edited:'#34C759',pending:'#FF9F0A',
+              edit_pending:'#FF9F0A',cancelled:'#8E8E93',rejected:'#FF3B30'}[o.status]||T.accent;
+            return <div key={o.id+(o.date||'')}
+              style={{background:T.card,border:`0.5px solid ${T.border}`,
+                borderRadius:14,padding:'12px 14px',
+                display:'flex',alignItems:'flex-start',gap:12}}>
+              <div style={{width:4,borderRadius:2,alignSelf:'stretch',flexShrink:0,background:sc}}/>
+              <div style={{flex:1,minWidth:0}}>
+                <div style={{fontSize:15,fontWeight:600,color:T.text,fontFamily:'system-ui',marginBottom:2}}>{o.activity}</div>
+                <div style={{fontSize:13,color:T.textMuted,fontFamily:'system-ui'}}>{o.time_slot} · {fmtDuration(o.duration_hours)}</div>
+                <div style={{fontSize:12,color:T.textMuted,fontFamily:'system-ui',marginTop:2}}>
+                  {o.name}{o.phone?` · ${o.phone}`:''}
+                </div>
+              </div>
+              <Badge status={o.status}/>
+            </div>;
+          })}
+        </div>}
+      {/* YearView overlay */}
+      {showYearPicker&&<div style={{position:'fixed',inset:0,zIndex:3000,background:T.bg}}>
+        <YearView year={yearPickerYear} bookings={bookings} exceptions={exceptions} T={T}
+          onBack={()=>setShowYearPicker(false)}
+          onSelectMonth={(y,m)=>{
+            const d=new Date(y,m,1);
+            setAnchor(d);setDisplayAnchor(d);setYearPickerYear(y);
+            setShowYearPicker(false);
+          }}/>
+      </div>}
+    </>}
+    {step==='time'&&<div style={{padding:'16px 20px'}}>
+      <div style={{fontSize:12,fontWeight:700,color:T.textMuted,marginBottom:12,letterSpacing:'.3px'}}>
+        {isoToDisplay(iso)} — VÄLJ TID
+      </div>
+      <div style={{background:T.card,border:`0.5px solid ${T.border}`,borderRadius:12,overflow:'hidden',marginBottom:12}}>
+        <TimeAccordion label="Startar" hour={startH} minute={startM}
+          onConfirm={(h,m)=>{setStartH(h);setStartM(m);if(endH+endM/60<=h+m/60){setEndH(Math.min(h+1,CLOSE_HOUR));setEndM(0);}}}
+          bookedBlocks={bookedBlocks} isStart={true} pairedHour={startH} pairedMinute={startM} T={T}/>
+        <div style={{height:'0.5px',background:T.separator}}/>
+        <TimeAccordion label="Slutar" hour={endH} minute={endM}
+          onConfirm={(h,m)=>{setEndH(h);setEndM(m);}}
+          bookedBlocks={bookedBlocks} isStart={false} pairedHour={startH} pairedMinute={startM} T={T}/>
+      </div>
+      <RecurrencePicker value={recurrence} onChange={setRecurrence}
+        endDate={endDate} onEndDateChange={setEndDate} T={T}/>
+      <div style={{marginTop:16,display:'flex',flexDirection:'column',gap:10}}>
+        <button onClick={()=>setStep('details')}
+          style={{padding:'14px',borderRadius:12,border:'none',
+            background:T.accent,color:'#fff',fontSize:15,fontWeight:700,
+            cursor:'pointer',WebkitTapHighlightColor:'transparent'}}>
+          Välj tid →
+        </button>
+        <button onClick={()=>setStep('date')}
+          style={{padding:'13px',borderRadius:12,border:`0.5px solid ${T.border}`,
+            background:'none',color:T.text,fontSize:14,fontWeight:600,
+            cursor:'pointer',WebkitTapHighlightColor:'transparent'}}>← Byt datum</button>
+      </div>
+    </div>}
+    {step==='details'&&<div style={{padding:'16px 20px'}}>
+      <div style={{fontSize:12,fontWeight:700,color:T.textMuted,marginBottom:12,letterSpacing:'.3px'}}>
+        {isoToDisplay(iso)} {slot} — DETALJER
+      </div>
+      <Textarea label="NAMN" value={form.name} onChange={v=>setForm(p=>({...p,name:v}))} placeholder="Bokningens namn" T={T}/>
+      <Textarea label="TELEFON" value={form.phone} onChange={v=>setForm(p=>({...p,phone:v}))} placeholder="07X-XXX XX XX" T={T}/>
+      <Textarea label="AKTIVITET" value={form.activity} onChange={v=>setForm(p=>({...p,activity:v}))} placeholder="Vad ska lokalen användas till?" T={T}/>
+      <Textarea label="ANTECKNINGAR (valfritt)" value={form.notes} onChange={v=>setForm(p=>({...p,notes:v}))} placeholder="Extra info..." T={T}/>
+      <div style={{marginTop:16,display:'flex',flexDirection:'column',gap:10}}>
+        <button onClick={async()=>{
+            if(!form.name.trim()||!form.activity.trim()){alert('Namn och aktivitet krävs.');return;}
+            setLoading(true);
+            await onSubmit({...form,date:iso,time_slot:slot,duration_hours:Math.round(dH*100)/100,recurrence,end_date:endDate});
+            setLoading(false);
+          }}
+          disabled={loading}
+          style={{padding:'14px',borderRadius:12,border:'none',
+            background:loading?T.textTertiary:T.success,color:'#fff',fontSize:15,fontWeight:700,
+            cursor:loading?'default':'pointer',WebkitTapHighlightColor:'transparent'}}>
+          {loading?'Sparar…':'Bekräfta bokning'}
+        </button>
+        <button onClick={()=>setStep('time')}
+          style={{padding:'13px',borderRadius:12,border:`0.5px solid ${T.border}`,
+            background:'none',color:T.text,fontSize:14,fontWeight:600,
+            cursor:'pointer',WebkitTapHighlightColor:'transparent'}}>← Byt tid</button>
+      </div>
+    </div>}
+    </div>{/* end scroll */}
   </div>;
 }
 
