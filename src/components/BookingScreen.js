@@ -1731,7 +1731,10 @@ function MyBookings({bookings,exceptions,loading,onBack,onCancel,onCancelFromDat
 function AdminAddForm({bookings,exceptions,onSubmit,onClose,T}) {
   const today=new Date();today.setHours(0,0,0,0);
   const[step,setStep]=useState('date');
-  const[anchor,setAnchor]=useState(today);
+  const[anchor,setAnchor]=useState(()=>new Date(today.getFullYear(),today.getMonth(),1));
+  const[displayAnchor,setDisplayAnchor]=useState(()=>new Date(today.getFullYear(),today.getMonth(),1));
+  const[slideDir,setSlideDir]=useState(null);
+  const[incomingDir,setIncomingDir]=useState(null);
   const[selectedDate,setSelectedDate]=useState(today);
   const[startH,setStartH]=useState(OPEN_HOUR);
   const[startM,setStartM]=useState(0);
@@ -1741,49 +1744,168 @@ function AdminAddForm({bookings,exceptions,onSubmit,onClose,T}) {
   const[endDate,setEndDate]=useState(null);
   const[form,setForm]=useState({name:'',phone:'',activity:'',notes:''});
   const[loading,setLoading]=useState(false);
+  const navInProgressRef=useRef(false);
+  const swipeRef=useRef(null);
+  const gridRef=useRef(null);
   const mg=useMemo(()=>getMonthGrid(anchor.getFullYear(),anchor.getMonth()),[anchor]);
   const iso=toISO(selectedDate);
   const bookedBlocks=useMemo(()=>getBookedBlocks(bookings,exceptions,iso),[bookings,exceptions,iso]);
   const dH=endH+endM/60-startH-startM/60;
   const slot=slotFromHM(startH,startM,endH===CLOSE_HOUR?0:endH,endM);
-  const navBtn=(dir)=>(
-    <button onClick={()=>{const d=new Date(anchor);dir==='prev'?d.setMonth(d.getMonth()-1):d.setMonth(d.getMonth()+1);setAnchor(d);}}
-      style={{width:32,height:32,borderRadius:8,border:`0.5px solid ${T.border}`,
-        background:T.card,display:'flex',alignItems:'center',justifyContent:'center',
-        cursor:'pointer',color:T.text}}>
-      <svg width="14" height="14" viewBox="0 0 24 24" fill="none"
-        stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-        {dir==='prev'?<polyline points="15 18 9 12 15 6"/>:<polyline points="9 18 15 12 9 6"/>}
-      </svg>
-    </button>
-  );
+
+  const navigate=dir=>{
+    if(navInProgressRef.current) return;
+    navInProgressRef.current=true;
+    setSlideDir(dir);
+    setIncomingDir(null);
+    const d=new Date(anchor);
+    dir==='next'?d.setMonth(d.getMonth()+1):d.setMonth(d.getMonth()-1);
+    setAnchor(d);
+    setTimeout(()=>{
+      setIncomingDir(dir);
+      setDisplayAnchor(d);
+      setSlideDir(null);
+      navInProgressRef.current=false;
+      setTimeout(()=>setIncomingDir(null),400);
+    },320);
+  };
+
+  const goToToday=()=>{
+    const t=new Date(today.getFullYear(),today.getMonth(),1);
+    const dir=t>anchor?'next':'prev';
+    if(t.getMonth()===anchor.getMonth()&&t.getFullYear()===anchor.getFullYear()){
+      setSelectedDate(today); return;
+    }
+    setSlideDir(dir); setIncomingDir(null); setAnchor(t);
+    setTimeout(()=>{
+      setIncomingDir(dir); setDisplayAnchor(t); setSlideDir(null);
+      setTimeout(()=>setIncomingDir(null),400);
+    },320);
+    setSelectedDate(today);
+  };
+
+  // Swipe handlers
+  useEffect(()=>{
+    const el=gridRef.current; if(!el) return;
+    const onMove=e=>{
+      if(!swipeRef.current) return;
+      const dx=Math.abs(e.touches[0].clientX-swipeRef.current.x);
+      const dy=Math.abs(e.touches[0].clientY-swipeRef.current.y);
+      if(swipeRef.current.locked===null&&(dx>4||dy>4)) swipeRef.current.locked=dx>dy?'h':'v';
+      if(swipeRef.current.locked==='h') e.preventDefault();
+    };
+    el.addEventListener('touchmove',onMove,{passive:false});
+    return()=>el.removeEventListener('touchmove',onMove);
+  },[step]);
+
+  const isToday=d=>{if(!d)return false;const c=new Date(d);c.setHours(0,0,0,0);return c.getTime()===today.getTime();};
+  const isSel=d=>{if(!d)return false;const c=new Date(d);c.setHours(0,0,0,0);return c.getTime()===selectedDate.getTime();};
+  const hasB=d=>d&&hasBookingsOnDate(bookings,exceptions,toISO(d));
+
   return <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.5)',zIndex:1000,
     display:'flex',alignItems:'flex-end',justifyContent:'center'}} onClick={onClose}>
     <div onClick={e=>e.stopPropagation()} style={{background:T.sheetBg,borderRadius:'20px 20px 0 0',
-      padding:'24px 20px 36px',width:'100%',maxWidth:500,boxSizing:'border-box',
+      width:'100%',maxWidth:500,boxSizing:'border-box',
       animation:'bsSlideUp .25s cubic-bezier(0.32,0.72,0,1)',maxHeight:'90vh',overflowY:'auto'}}>
-      <div style={{fontSize:18,fontWeight:700,color:T.text,marginBottom:16}}>Lägg till bokning</div>
+      <div style={{padding:'20px 20px 0'}}>
+        <div style={{fontSize:18,fontWeight:700,color:T.text,marginBottom:12}}>Lägg till bokning</div>
+      </div>
       {step==='date'&&<>
-        <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:10}}>
-          {navBtn('prev')}
-          <span style={{fontSize:13,fontWeight:700,color:T.text}}>{MONTHS_SV[anchor.getMonth()]} {anchor.getFullYear()}</span>
-          {navBtn('next')}
+        {/* Calendar header */}
+        <div style={{padding:'0 16px'}}>
+          <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:4}}>
+            <button onClick={()=>{}} style={{background:'none',border:'none',cursor:'pointer',
+              display:'flex',alignItems:'center',gap:5,color:T.textMuted,padding:0,WebkitTapHighlightColor:'transparent'}}>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none"
+                stroke={T.textMuted} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <polyline points="15 18 9 12 15 6"/>
+              </svg>
+              <span style={{fontSize:16,fontWeight:500}}>{anchor.getFullYear()}</span>
+            </button>
+            <div style={{display:'flex',gap:8}}>
+              {['prev','next'].map(dir=>(
+                <button key={dir} onClick={()=>navigate(dir)}
+                  style={{width:32,height:32,borderRadius:'50%',border:'none',
+                    background:T.cardElevated,display:'flex',alignItems:'center',
+                    justifyContent:'center',cursor:'pointer',color:T.text,WebkitTapHighlightColor:'transparent'}}>
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none"
+                    stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                    {dir==='prev'?<polyline points="15 18 9 12 15 6"/>:<polyline points="9 18 15 12 9 6"/>}
+                  </svg>
+                </button>
+              ))}
+            </div>
+          </div>
+          {/* Month title with slide animation */}
+          <div style={{overflow:'hidden',marginBottom:12,height:36}}>
+            <div key={displayAnchor.getMonth()+'_'+displayAnchor.getFullYear()} style={{
+              fontSize:28,fontWeight:700,color:T.text,fontFamily:'system-ui',
+              letterSpacing:'-.5px',lineHeight:'36px',
+              animation:slideDir
+                ?(slideDir==='next'?'bsTitleSlideLeft 0.32s cubic-bezier(0.4,0,0.2,1) forwards':'bsTitleSlideRight 0.32s cubic-bezier(0.4,0,0.2,1) forwards')
+                :incomingDir
+                  ?(incomingDir==='next'?'bsTitleSlideInFromRight 0.32s cubic-bezier(0.4,0,0.2,1)':'bsTitleSlideInFromLeft 0.32s cubic-bezier(0.4,0,0.2,1)')
+                  :'none',
+            }}>
+              {MONTHS_SV[displayAnchor.getMonth()]}
+            </div>
+          </div>
+          {/* Day headers */}
+          <div style={{display:'grid',gridTemplateColumns:'repeat(7,1fr)',marginBottom:4}}>
+            {DAYS_SV.map(d=><div key={d} style={{textAlign:'center',fontSize:12,fontWeight:600,
+              color:T.textMuted,fontFamily:'system-ui',letterSpacing:'.5px'}}>{d}</div>)}
+          </div>
         </div>
-        <div style={{display:'grid',gridTemplateColumns:'repeat(7,1fr)',gap:2,marginBottom:4}}>
-          {DAYS_SV.map(d=><div key={d} style={{textAlign:'center',fontSize:9,fontWeight:700,color:T.textMuted}}>{d}</div>)}
+        {/* Grid with swipe */}
+        <div ref={gridRef}
+          onTouchStart={e=>{swipeRef.current={x:e.touches[0].clientX,y:e.touches[0].clientY,locked:null};}}
+          onTouchEnd={e=>{
+            if(!swipeRef.current) return;
+            const dx=e.changedTouches[0].clientX-swipeRef.current.x;
+            const dy=Math.abs(e.changedTouches[0].clientY-swipeRef.current.y);
+            const wasH=swipeRef.current.locked==='h';
+            swipeRef.current=null;
+            if(!wasH||Math.abs(dx)<40||dy>60) return;
+            if(dx<0) navigate('next'); else navigate('prev');
+          }}
+          style={{padding:'0 8px 8px',
+            animation:slideDir?(slideDir==='next'?'bsGridSlideLeft 0.32s cubic-bezier(0.4,0,0.2,1)':'bsGridSlideRight 0.32s cubic-bezier(0.4,0,0.2,1)'):'none'}}>
+          {mg.map((row,ri)=>(
+            <div key={ri} style={{display:'grid',gridTemplateColumns:'repeat(7,1fr)',gap:2,marginBottom:2}}>
+              {row.map((d,ci)=>{
+                if(!d) return <div key={ci}/>;
+                const tod=isToday(d),sel=isSel(d),hb=hasB(d);
+                return <button key={ci}
+                  onClick={()=>{const c=new Date(d);c.setHours(0,0,0,0);setSelectedDate(c);setStep('time');}}
+                  style={{borderRadius:10,border:'none',background:sel?T.calSelected:'none',
+                    padding:'6px 2px 5px',cursor:'pointer',
+                    display:'flex',flexDirection:'column',alignItems:'center',gap:2,
+                    WebkitTapHighlightColor:'transparent',transition:'background 0.15s'}}>
+                  <div style={{width:32,height:32,borderRadius:'50%',
+                    background:tod&&!sel?T.calToday:'none',
+                    display:'flex',alignItems:'center',justifyContent:'center'}}>
+                    <span style={{fontSize:16,fontWeight:tod?700:400,
+                      color:sel?'#fff':tod?'#fff':T.text,fontFamily:'system-ui'}}>{d.getDate()}</span>
+                  </div>
+                  {hb&&<div style={{width:5,height:5,borderRadius:'50%',background:sel?'#fff':T.accent}}/>}
+                </button>;
+              })}
+            </div>
+          ))}
         </div>
-        {mg.map((row,ri)=><div key={ri} style={{display:'grid',gridTemplateColumns:'repeat(7,1fr)',gap:2,marginBottom:2}}>
-          {row.map((d,ci)=>{
-            if(!d) return <div key={ci}/>;
-            const isSel=selectedDate&&toISO(d)===toISO(selectedDate);
-            return <button key={ci} onClick={()=>{const c=new Date(d);c.setHours(0,0,0,0);setSelectedDate(c);setStep('time');}}
-              style={{borderRadius:8,border:isSel?`2px solid ${T.accent}`:'1px solid transparent',
-                background:isSel?`${T.accent}22`:'none',padding:'6px 2px',cursor:'pointer',
-                display:'flex',alignItems:'center',justifyContent:'center',WebkitTapHighlightColor:'transparent'}}>
-              <span style={{fontSize:13,fontWeight:isSel?700:400,color:isSel?T.accent:T.text}}>{d.getDate()}</span>
-            </button>;
-          })}
-        </div>)}
+        {/* Legend + Today chip */}
+        <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',
+          padding:'4px 16px 16px'}}>
+          <div style={{display:'flex',gap:12}}>
+            {[[T.accent,'Bokad'],[T.calToday,'Idag']].map(([c,l])=>(
+              <div key={l} style={{display:'flex',alignItems:'center',gap:4}}>
+                <div style={{width:7,height:7,borderRadius:'50%',background:c}}/>
+                <span style={{fontSize:11,color:T.textMuted,fontFamily:'system-ui'}}>{l}</span>
+              </div>
+            ))}
+          </div>
+          <TodayChip onPress={goToToday} T={T}/>
+        </div>
       </>}
       {step==='time'&&<>
         <div style={{fontSize:12,fontWeight:700,color:T.textMuted,marginBottom:12,letterSpacing:'.3px'}}>
@@ -2965,7 +3087,7 @@ export default function BookingScreen({
     return <div style={{padding:'80px 16px',background:T.bg,minHeight:'100%'}}><Spinner T={T}/></div>;
   }
 
-  return <div style={{background:T.bg,minHeight:'100%',fontFamily:'system-ui',overscrollBehavior:'contain'}}>
+  return <div style={{background:T.bg,minHeight:'100%',fontFamily:'system-ui'}}>
     <style>{`
       @keyframes bsFadeInUp{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
       @keyframes bsSlideUp{from{transform:translateY(100%)}to{transform:translateY(0)}}
@@ -3006,7 +3128,7 @@ export default function BookingScreen({
       onClose={()=>setShowSearch(false)} T={T}/>}
 
     {/* Calendar View */}
-    {view==='calendar'&&<div style={{background:T.bg,minHeight:'100%',overscrollBehavior:'contain',animation:'bsMonthZoomIn 0.32s cubic-bezier(0.4,0,0.2,1)'}}>
+    {view==='calendar'&&<div style={{background:T.bg,minHeight:'100%',animation:'bsMonthZoomIn 0.32s cubic-bezier(0.4,0,0.2,1)'}}>
       {/* Header */}
       <div style={{paddingTop:'max(20px,env(safe-area-inset-top,0px))',
         paddingLeft:20,paddingRight:20,paddingBottom:0,background:T.calHeaderBg}}>
