@@ -49,7 +49,9 @@ export function useBookingNotifications({ onNewCancelledNotif } = {}) {
     const isAdmin = isAdminRef.current;
     try {
       const userId = localStorage.getItem('islamnu_user_id');
-      if (userId || deviceId) {
+      // Admin accounts must never receive visitor (booking response) notifications —
+      // they are the ones making the changes. Skip the visitor branch entirely for admins.
+      if (!isAdmin && (userId || deviceId)) {
         const seenAt = parseInt(localStorage.getItem(STORAGE_VISITOR_SEEN) || '0', 10);
         let query = supabase
           .from('bookings')
