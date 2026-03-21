@@ -502,7 +502,10 @@ export default function NewHomeScreen({ stream, onGoToAdminLogin, onGoToMyBookin
               </div>
 
               {allItems.length === 0
-                ? <div style={{ padding: '20px 14px', fontSize: 13, color: T.textMuted, textAlign: 'center' }}>Inga meddelanden</div>
+                ? <div style={{ padding: '28px 20px', textAlign: 'center' }}>
+                    <div style={{ fontSize: 16, fontWeight: 700, color: T.text, fontFamily: "'Inter',system-ui,sans-serif", marginBottom: 6 }}>Inga meddelanden</div>
+                    <div style={{ fontSize: 12, color: T.textMuted, fontFamily: "'Inter',system-ui,sans-serif", lineHeight: 1.5 }}>Svar på bokningar visas här.</div>
+                  </div>
                 : allItems.map((item) => {
 
                   /* ── Admin pending notis ── */
@@ -733,6 +736,42 @@ export default function NewHomeScreen({ stream, onGoToAdminLogin, onGoToMyBookin
             </div>
           </SwipeableItem>
         ))}
+
+        {/* Empty state — shown when no notifications and no banners */}
+        {bellNotifs.length === 0 && activeBanners.length === 0 && !showAdminPending && (
+          <div style={{
+            display: 'flex', flexDirection: 'column', alignItems: 'center',
+            justifyContent: 'center', paddingTop: 48, paddingBottom: 32,
+            animation: 'fadeUp .35s ease both',
+          }}>
+            <div style={{
+              width: 56, height: 56, borderRadius: '50%',
+              background: T.isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              marginBottom: 16,
+            }}>
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none"
+                stroke={T.textMuted} strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/>
+                <path d="M13.73 21a2 2 0 0 1-3.46 0"/>
+              </svg>
+            </div>
+            <div style={{
+              fontSize: 20, fontWeight: 700, color: T.text,
+              fontFamily: "'Inter',system-ui,sans-serif",
+              letterSpacing: '-.3px', marginBottom: 6,
+            }}>
+              Inga meddelanden
+            </div>
+            <div style={{
+              fontSize: 13, color: T.textMuted,
+              fontFamily: "'Inter',system-ui,sans-serif",
+              textAlign: 'center', maxWidth: 220, lineHeight: 1.5,
+            }}>
+              Här visas svar på bokningar och meddelanden från moskén.
+            </div>
+          </div>
+        )}
 
         {/* YouTube live / upcoming */}
         {stream && (

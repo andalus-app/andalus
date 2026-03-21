@@ -292,7 +292,14 @@ function TimeAccordion({label,hour,minute,onConfirm,bookedBlocks,isStart,pairedH
   useEffect(()=>{if(open){setPendingH(hour);setPendingM(minute);}},[open,hour,minute]);
 
   const handleConfirm=()=>{onConfirm(pendingH,pendingM);setOpen(false);};
+  // Clicking the time chip in the header confirms immediately if open, otherwise toggles open
+  const handleHeaderChipClick=(e)=>{
+    e.stopPropagation();
+    if(open&&!isOccupied(pendingH,pendingM)){handleConfirm();}
+    else{setOpen(v=>!v);}
+  };
   const displayTime=String(hour).padStart(2,'0')+':'+String(minute).padStart(2,'0');
+  const pendingTime=String(pendingH).padStart(2,'0')+':'+String(pendingM).padStart(2,'0');
   const occ=isOccupied(pendingH,pendingM);
 
   return (
@@ -302,9 +309,18 @@ function TimeAccordion({label,hour,minute,onConfirm,bookedBlocks,isStart,pairedH
         padding:'13px 16px',cursor:'pointer',WebkitTapHighlightColor:'transparent'}}>
         <span style={{fontSize:16,color:T.text,fontFamily:'system-ui'}}>{label}</span>
         <div style={{display:'flex',alignItems:'center',gap:8}}>
-          <div style={{background:open?T.accent:`${T.accent}22`,color:open?'#fff':T.accent,
-            borderRadius:8,padding:'4px 10px',fontSize:15,fontWeight:600,transition:'all 0.2s'}}>
-            {displayTime}
+          {/* Time chip — when open shows pending time and confirms on tap */}
+          <div onClick={handleHeaderChipClick}
+            title={open?'Klicka för att bekräfta':''}
+            style={{
+              background:open?(occ?T.error:T.accent):`${T.accent}22`,
+              color:open?'#fff':T.accent,
+              borderRadius:8,padding:'4px 10px',fontSize:15,fontWeight:600,
+              transition:'all 0.2s',cursor:'pointer',
+              WebkitTapHighlightColor:'transparent',
+              boxShadow:open&&!occ?`0 0 0 2px ${T.accent}44`:'none',
+            }}>
+            {open?pendingTime:displayTime}
           </div>
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none"
             stroke={T.textMuted} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
@@ -318,7 +334,7 @@ function TimeAccordion({label,hour,minute,onConfirm,bookedBlocks,isStart,pairedH
         <div style={{borderTop:`0.5px solid ${T.separator}`,padding:'12px 16px 16px'}}>
           <div style={{display:'flex',alignItems:'center',justifyContent:'center',gap:0}}>
             <DrumPicker options={validHours} value={pendingH}
-              onChange={h=>{setPendingH(h);setPendingM(0);}} formatFn={h=>String(h).padStart(2,'0')} T={T} width={80}/>
+              onChange={h=>setPendingH(h)} formatFn={h=>String(h).padStart(2,'0')} T={T} width={80}/>
             <span style={{fontSize:22,fontWeight:700,color:T.text,margin:'0 4px',paddingBottom:2}}>:</span>
             <DrumPicker options={VALID_MINUTES} value={pendingM}
               onChange={m=>setPendingM(m)} formatFn={m=>String(m).padStart(2,'0')} T={T} width={80}/>
@@ -330,7 +346,7 @@ function TimeAccordion({label,hour,minute,onConfirm,bookedBlocks,isStart,pairedH
             border:'none',borderRadius:10,padding:'11px',fontSize:15,fontWeight:700,
             cursor:occ?'not-allowed':'pointer',fontFamily:'system-ui',
             WebkitTapHighlightColor:'transparent'}}>
-            Bekräfta {String(pendingH).padStart(2,'0')}:{String(pendingM).padStart(2,'0')}
+            Bekräfta {pendingTime}
           </button>
         </div>
       </div>
@@ -634,19 +650,37 @@ function CalendarView({bookings,exceptions,onSelectDate,isAdmin,selectedDate,T,o
     return new Date(today.getFullYear(),today.getMonth(),1);
   });
   const[slideDir,setSlideDir]=useState(null);
+  // displayAnchor lags behind anchor so the title can animate out before updating
+  const[displayAnchor,setDisplayAnchor]=useState(anchor);
   const swipeRef=useRef(null);
+  const navInProgressRef=useRef(false);
 
   useEffect(()=>{
-    if(selectedDate) setAnchor(new Date(selectedDate.getFullYear(),selectedDate.getMonth(),1));
-  },[selectedDate]);
+    if(selectedDate) {
+      const next=new Date(selectedDate.getFullYear(),selectedDate.getMonth(),1);
+      // Only animate if month actually changed
+      if(next.getMonth()!==anchor.getMonth()||next.getFullYear()!==anchor.getFullYear()){
+        const dir=next>anchor?'next':'prev';
+        setSlideDir(dir);
+        setAnchor(next);
+        setTimeout(()=>{setDisplayAnchor(next);setSlideDir(null);},380);
+      }
+    }
+  },[selectedDate]);// eslint-disable-line
 
   const navigate=dir=>{
+    if(navInProgressRef.current) return;
+    navInProgressRef.current=true;
     setSlideDir(dir);
+    const d=new Date(anchor);
+    dir==='next'?d.setMonth(d.getMonth()+1):d.setMonth(d.getMonth()-1);
+    setAnchor(d);
+    // Title slides out (380ms), then update displayAnchor and slide grid in
     setTimeout(()=>{
-      const d=new Date(anchor);
-      dir==='next'?d.setMonth(d.getMonth()+1):d.setMonth(d.getMonth()-1);
-      setAnchor(d);setSlideDir(null);
-    },200);
+      setDisplayAnchor(d);
+      setSlideDir(null);
+      navInProgressRef.current=false;
+    },380);
   };
   const handleSwipeStart=e=>{swipeRef.current={x:e.touches[0].clientX,y:e.touches[0].clientY};};
   const handleSwipeEnd=e=>{
@@ -696,9 +730,20 @@ function CalendarView({bookings,exceptions,onSelectDate,isAdmin,selectedDate,T,o
           ))}
         </div>
       </div>
-      <div style={{fontSize:32,fontWeight:700,color:T.text,fontFamily:'system-ui',
-        letterSpacing:'-.8px',lineHeight:1,marginBottom:16}}>
-        {MONTHS_SV[anchor.getMonth()]}
+      {/* Month title — slides out on navigate, new name slides in */}
+      <div style={{overflow:'hidden',marginBottom:16,height:36}}>
+        <div key={displayAnchor.getMonth()+'_'+displayAnchor.getFullYear()}
+          style={{
+            fontSize:32,fontWeight:700,color:T.text,fontFamily:'system-ui',
+            letterSpacing:'-.8px',lineHeight:'36px',
+            animation:slideDir
+              ? slideDir==='next'
+                ? 'bsTitleSlideLeft 0.38s cubic-bezier(0.4,0,0.2,1) forwards'
+                : 'bsTitleSlideRight 0.38s cubic-bezier(0.4,0,0.2,1) forwards'
+              : 'bsTitleSlideIn 0.38s cubic-bezier(0.4,0,0.2,1)',
+          }}>
+          {MONTHS_SV[displayAnchor.getMonth()]}
+        </div>
       </div>
       <div style={{display:'grid',gridTemplateColumns:'repeat(7,1fr)',marginBottom:4}}>
         {DAYS_SV.map(d=><div key={d} style={{textAlign:'center',fontSize:12,fontWeight:600,
@@ -707,17 +752,22 @@ function CalendarView({bookings,exceptions,onSelectDate,isAdmin,selectedDate,T,o
     </div>
     <div onTouchStart={handleSwipeStart} onTouchEnd={handleSwipeEnd}
       style={{paddingLeft:8,paddingRight:8,
-        animation:slideDir?`bsSlide${slideDir==='next'?'Left':'Right'} 0.2s ease`:'none'}}>
+        animation:slideDir
+          ? slideDir==='next'
+            ? 'bsGridSlideLeft 0.38s cubic-bezier(0.4,0,0.2,1)'
+            : 'bsGridSlideRight 0.38s cubic-bezier(0.4,0,0.2,1)'
+          : 'none'}}>
       {monthGrid.map((row,ri)=>(
         <div key={ri} style={{display:'grid',gridTemplateColumns:'repeat(7,1fr)',gap:2,marginBottom:2}}>
           {row.map((d,ci)=>{
             if(!d) return <div key={ci}/>;
             const tod=isToday(d),sel=isSel(d),past=isPast(d),hb=hasB(d);
             return <button key={ci}
-              onClick={()=>{if(past)return;const c=new Date(d);c.setHours(0,0,0,0);onSelectDate(c);}}
+              onClick={()=>{const c=new Date(d);c.setHours(0,0,0,0);onSelectDate(c);}}
               style={{borderRadius:10,border:'none',
                 background:sel?T.calSelected:'none',
-                padding:'6px 2px 5px',cursor:past?'default':'pointer',opacity:past?0.3:1,
+                padding:'6px 2px 5px',cursor:'pointer',
+                opacity:past?0.45:1,
                 display:'flex',flexDirection:'column',alignItems:'center',gap:2,
                 WebkitTapHighlightColor:'transparent',transition:'background 0.15s'}}>
               <div style={{width:32,height:32,borderRadius:'50%',
@@ -752,7 +802,7 @@ function CalendarView({bookings,exceptions,onSelectDate,isAdmin,selectedDate,T,o
 }
 
 // ─── Day Panel ────────────────────────────────────────────────────────────────
-function DayPanel({date,bookings,exceptions,isAdmin,onSelectBooking,onNewBooking,T}) {
+function DayPanel({date,bookings,exceptions,isAdmin,myBookingIds,onSelectBooking,onNewBooking,T}) {
   const iso=toISO(date);
   const occs=useMemo(()=>getOccurrencesForDate(bookings,exceptions,iso),[bookings,exceptions,iso]);
   const today=new Date();today.setHours(0,0,0,0);
@@ -776,17 +826,27 @@ function DayPanel({date,bookings,exceptions,isAdmin,onSelectBooking,onNewBooking
           </div>
         </div>
       </div>
-      <button onClick={()=>onNewBooking(date)}
-        style={{width:36,height:36,borderRadius:'50%',border:'none',
-          background:T.accent,color:'#fff',
-          display:'flex',alignItems:'center',justifyContent:'center',
-          cursor:'pointer',WebkitTapHighlightColor:'transparent',
-          boxShadow:`0 2px 10px ${T.accentGlow}`}}>
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none"
-          stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
-          <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
-        </svg>
-      </button>
+      {(()=>{
+        const isPastDate=date<today;
+        return <button
+          onClick={()=>{if(!isPastDate)onNewBooking(date);}}
+          disabled={isPastDate}
+          title={isPastDate?'Kan inte boka passerade datum':'Ny bokning'}
+          style={{width:36,height:36,borderRadius:'50%',border:'none',
+            background:isPastDate?T.cardElevated:T.accent,
+            color:isPastDate?T.textMuted:'#fff',
+            display:'flex',alignItems:'center',justifyContent:'center',
+            cursor:isPastDate?'default':'pointer',
+            WebkitTapHighlightColor:'transparent',
+            boxShadow:isPastDate?'none':`0 2px 10px ${T.accentGlow}`,
+            transition:'background 0.2s, box-shadow 0.2s',
+          }}>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none"
+            stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+            <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+          </svg>
+        </button>;
+      })()}
     </div>
     {occs.length===0?(
       <div style={{textAlign:'center',paddingTop:32,paddingBottom:20,
@@ -794,12 +854,20 @@ function DayPanel({date,bookings,exceptions,isAdmin,onSelectBooking,onNewBooking
         letterSpacing:'-.3px'}}>Inga aktiviteter</div>
     ):(
       <div style={{display:'flex',flexDirection:'column',gap:8}}>
-        {occs.map(o=>(
-          <div key={o.id+(o.date||'')} onClick={()=>onSelectBooking(o)}
-            style={{background:T.card,border:`0.5px solid ${T.border}`,
+        {occs.map(o=>{
+          // clickable if admin (all) or if it's user's own booking
+          const isOwn=isAdmin||(myBookingIds&&myBookingIds.has(o.id));
+          return (
+          <div key={o.id+(o.date||'')}
+            onClick={()=>{ if(isOwn) onSelectBooking(o); }}
+            style={{background:T.card,
+              border:`0.5px solid ${isOwn?T.border:T.separator}`,
               borderRadius:14,padding:'12px 14px',
-              cursor:'pointer',WebkitTapHighlightColor:'transparent',
-              display:'flex',alignItems:'flex-start',gap:12}}>
+              cursor:isOwn?'pointer':'default',
+              WebkitTapHighlightColor:'transparent',
+              display:'flex',alignItems:'flex-start',gap:12,
+              opacity:isOwn?1:0.72,
+            }}>
             <div style={{width:4,borderRadius:2,alignSelf:'stretch',flexShrink:0,
               background:o.status==='approved'||o.status==='edited'?T.accent:
                 o.status==='pending'||o.status==='edit_pending'?T.warning:T.textMuted}}/>
@@ -810,10 +878,15 @@ function DayPanel({date,bookings,exceptions,isAdmin,onSelectBooking,onNewBooking
                 {o.name}{o.phone?` · ${o.phone}`:''}
               </div>}
               {o.notes&&<div style={{fontSize:12,color:T.textMuted,fontFamily:'system-ui',marginTop:4,fontStyle:'italic'}}>{o.notes}</div>}
+              {!isOwn&&!isAdmin&&<div style={{fontSize:10,color:T.textMuted,fontFamily:'system-ui',marginTop:3}}>Annan bokning</div>}
             </div>
-            <Badge status={o.status}/>
+            <div style={{display:'flex',flexDirection:'column',alignItems:'flex-end',gap:4}}>
+              <Badge status={o.status}/>
+              {isOwn&&!isAdmin&&<div style={{fontSize:10,color:T.accent,fontWeight:600,fontFamily:'system-ui'}}>Din bokning</div>}
+            </div>
           </div>
-        ))}
+          );
+        })}
       </div>
     )}
   </div>;
@@ -825,15 +898,21 @@ function SearchPanel({bookings,exceptions,onSelectBooking,onClose,T}) {
   const inputRef=useRef(null);
   useEffect(()=>{setTimeout(()=>inputRef.current?.focus(),100);},[]);
   const todayISO=toISO(new Date());
-  const windowEnd=toISO(new Date(new Date().setFullYear(new Date().getFullYear()+2)));
+
+  // Deduplicate: one result per booking, not per occurrence.
+  // Match against the booking fields directly — no expansion needed.
   const results=useMemo(()=>{
     if(!query.trim()) return[];
     const q=query.toLowerCase();
-    return expandAll(bookings,exceptions,todayISO,windowEnd)
-      .filter(o=>(o.name||'').toLowerCase().includes(q)||(o.activity||'').toLowerCase().includes(q)||
-        (o.notes||'').toLowerCase().includes(q)||(o.time_slot||'').toLowerCase().includes(q))
-      .slice(0,40);
-  },[query,bookings,exceptions,todayISO,windowEnd]);
+    return bookings
+      .filter(b=>
+        (b.name||'').toLowerCase().includes(q)||
+        (b.activity||'').toLowerCase().includes(q)||
+        (b.notes||'').toLowerCase().includes(q)||
+        (b.time_slot||'').toLowerCase().includes(q)
+      )
+      .slice(0,30);
+  },[query,bookings]);
 
   return <div style={{position:'fixed',inset:0,background:T.bg,zIndex:200,
     display:'flex',flexDirection:'column',animation:'bsSlideUp .25s cubic-bezier(0.32,0.72,0,1)'}}>
@@ -858,22 +937,42 @@ function SearchPanel({bookings,exceptions,onSelectBooking,onClose,T}) {
           WebkitTapHighlightColor:'transparent',padding:0}}>Avbryt</button>
       </div>
     </div>
-    <div style={{flex:1,overflowY:'auto',padding:'0 16px 40px'}}>
+    <div style={{flex:1,overflowY:'auto',overscrollBehavior:'contain',padding:'0 16px 40px'}}>
       {query&&results.length===0&&<div style={{textAlign:'center',padding:'40px 0',
         color:T.textMuted,fontSize:14,fontFamily:'system-ui'}}>Inga resultat för "{query}"</div>}
-      {results.map((o,i)=>(
-        <div key={i} onClick={()=>onSelectBooking(o)}
-          style={{background:T.card,border:`0.5px solid ${T.border}`,borderRadius:14,
-            padding:'12px 14px',marginBottom:8,cursor:'pointer',WebkitTapHighlightColor:'transparent'}}>
-          <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:4}}>
-            <div style={{fontSize:15,fontWeight:600,color:T.text,fontFamily:'system-ui'}}>{o.activity}</div>
-            <Badge status={o.status}/>
+      {results.map((b)=>{
+        const isRecur=b.recurrence&&b.recurrence!=='none';
+        // Next upcoming occurrence for display date
+        const wEnd=toISO(new Date(new Date().setFullYear(new Date().getFullYear()+5)));
+        const nextOcc=isRecur?expandBooking(b,todayISO,wEnd,exceptions)[0]:null;
+        const displayDate=nextOcc?.date||b.start_date;
+        return (
+          <div key={b.id} onClick={()=>onSelectBooking(b)}
+            style={{background:T.card,border:`0.5px solid ${T.border}`,borderRadius:14,
+              padding:'12px 14px',marginBottom:8,cursor:'pointer',WebkitTapHighlightColor:'transparent'}}>
+            <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:6}}>
+              <div style={{fontSize:15,fontWeight:700,color:T.text,fontFamily:'system-ui',flex:1,marginRight:8}}>{b.activity}</div>
+              <Badge status={b.status}/>
+            </div>
+            {isRecur&&(
+              <div style={{marginBottom:5}}>
+                <RecurBadge recurrence={b.recurrence}/>
+              </div>
+            )}
+            <div style={{fontSize:13,color:T.textMuted,fontFamily:'system-ui'}}>
+              {isRecur?'Nästa: ':''}{isoToDisplay(displayDate)} · {b.time_slot}
+            </div>
+            {b.end_date&&<div style={{fontSize:11,color:T.textMuted,fontFamily:'system-ui',marginTop:2}}>
+              Slutar {isoToDisplay(b.end_date)}
+            </div>}
+            {!b.end_date&&isRecur&&<div style={{fontSize:11,color:T.textMuted,fontFamily:'system-ui',marginTop:2}}>
+              Inget slutdatum
+            </div>}
+            {b.name&&<div style={{fontSize:12,color:T.textMuted,fontFamily:'system-ui',marginTop:3}}>{b.name}</div>}
+            {b.notes&&<div style={{fontSize:12,color:T.textMuted,fontFamily:'system-ui',marginTop:2,fontStyle:'italic'}}>{b.notes}</div>}
           </div>
-          <div style={{fontSize:13,color:T.textMuted,fontFamily:'system-ui'}}>{isoToDisplay(o.date)} · {o.time_slot}</div>
-          {o.name&&<div style={{fontSize:12,color:T.textMuted,fontFamily:'system-ui',marginTop:2}}>{o.name}</div>}
-          {o.notes&&<div style={{fontSize:12,color:T.textMuted,fontFamily:'system-ui',marginTop:2,fontStyle:'italic'}}>{o.notes}</div>}
-        </div>
-      ))}
+        );
+      })}
     </div>
   </div>;
 }
@@ -1948,6 +2047,8 @@ export default function BookingScreen({
     return id&&name?{id,name}:null;
   });
   const[calendarAdminDetail,setCalendarAdminDetail]=useState(null);
+  // Universal booking detail — for search results and day panel clicks (all users)
+  const[bookingDetail,setBookingDetail]=useState(null);
 
   const deviceId=useRef((()=>{
     let id=localStorage.getItem(STORAGE_DEVICE);
@@ -2203,6 +2304,11 @@ export default function BookingScreen({
       @keyframes bsPulse{0%,100%{box-shadow:0 0 0 0 rgba(255,159,10,.4)}50%{box-shadow:0 0 0 6px rgba(255,159,10,0)}}
       @keyframes bsSlideLeft{from{opacity:.35;transform:translateX(7%)}to{opacity:1;transform:translateX(0)}}
       @keyframes bsSlideRight{from{opacity:.35;transform:translateX(-7%)}to{opacity:1;transform:translateX(0)}}
+      @keyframes bsGridSlideLeft{from{opacity:.4;transform:translateX(12%)}to{opacity:1;transform:translateX(0)}}
+      @keyframes bsGridSlideRight{from{opacity:.4;transform:translateX(-12%)}to{opacity:1;transform:translateX(0)}}
+      @keyframes bsTitleSlideLeft{from{opacity:1;transform:translateX(0)}to{opacity:0;transform:translateX(-30%)}}
+      @keyframes bsTitleSlideRight{from{opacity:1;transform:translateX(0)}to{opacity:0;transform:translateX(30%)}}
+      @keyframes bsTitleSlideIn{from{opacity:0;transform:translateX(0)}to{opacity:1;transform:translateX(0)}}
       @keyframes bsHighlight{0%,100%{box-shadow:0 0 0 3px var(--hl,rgba(45,139,120,.3))}50%{box-shadow:0 0 0 8px transparent}}
       @keyframes bsYearIn{from{opacity:0;transform:scale(0.93)}to{opacity:1;transform:scale(1)}}
       @keyframes bsMonthZoomIn{from{opacity:0;transform:scale(0.88)}to{opacity:1;transform:scale(1)}}
@@ -2221,9 +2327,10 @@ export default function BookingScreen({
 
     {/* Search overlay */}
     {showSearch&&<SearchPanel bookings={adminMode ? bookings : myBookings} exceptions={exceptions}
-      onSelectBooking={o=>{
+      onSelectBooking={b=>{
         setShowSearch(false);
-        const d=parseISO(o.date);d.setHours(0,0,0,0);setSelectedDate(d);
+        // Open booking detail sheet directly
+        setBookingDetail(b);
       }}
       onClose={()=>setShowSearch(false)} T={T}/>}
 
@@ -2280,7 +2387,18 @@ export default function BookingScreen({
 
       <DayPanel date={selectedDate} bookings={bookings} exceptions={exceptions}
         isAdmin={adminMode}
-        onSelectBooking={o=>{if(adminMode) setCalendarAdminDetail(o);}}
+        myBookingIds={new Set(myBookings.map(b=>b.id))}
+        onSelectBooking={o=>{
+          const parent=bookings.find(b=>b.id===o.id)||o;
+          if(adminMode){
+            setCalendarAdminDetail(o);
+          } else {
+            const userId=localStorage.getItem(STORAGE_USER_ID);
+            const deviceId_=localStorage.getItem(STORAGE_DEVICE);
+            const isOwn=(userId&&parent.user_id===userId)||(deviceId_&&parent.device_id===deviceId_);
+            if(isOwn) setBookingDetail(parent);
+          }
+        }}
         onNewBooking={d=>{setPendingFormDate(d);setView('form');}} T={T}/>
 
       <div style={{height:100}}/>
@@ -2315,6 +2433,104 @@ export default function BookingScreen({
               cursor:'pointer',WebkitTapHighlightColor:'transparent'}}>
             Öppna i adminpanel →
           </button>
+        </div>
+      </div>;
+    })()}
+
+    {/* Universal Booking Detail Sheet — shown for all users from search & day panel */}
+    {bookingDetail&&(()=>{
+      const b=bookingDetail;
+      const isRecur=b.recurrence&&b.recurrence!=='none';
+      const todayISO=toISO(new Date());
+      const wEnd=toISO(new Date(new Date().setFullYear(new Date().getFullYear()+5)));
+      const upcoming=isRecur?expandBooking(b,todayISO,wEnd,exceptions).slice(0,20):[{...b,date:b.start_date}];
+      const isOwn=myBookings.some(mb=>mb.id===b.id);
+      const sc={approved:'#34C759',edited:'#34C759',pending:'#FF9F0A',edit_pending:'#FF9F0A',cancelled:'#8E8E93',rejected:'#FF3B30'}[b.status]||T.accent;
+      return <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.55)',zIndex:1100,
+        display:'flex',alignItems:'flex-end',justifyContent:'center'}}
+        onClick={()=>setBookingDetail(null)}>
+        <div onClick={e=>e.stopPropagation()} style={{background:T.sheetBg,borderRadius:'20px 20px 0 0',
+          width:'100%',maxWidth:500,boxSizing:'border-box',
+          maxHeight:'85vh',display:'flex',flexDirection:'column',
+          animation:'bsSlideUp .28s cubic-bezier(0.32,0.72,0,1)'}}>
+          {/* Header */}
+          <div style={{padding:'20px 20px 0',flexShrink:0}}>
+            <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:12}}>
+              <div style={{display:'flex',alignItems:'center',gap:8}}>
+                <div style={{width:10,height:10,borderRadius:'50%',background:sc}}/>
+                <Badge status={b.status}/>
+                {isRecur&&<RecurBadge recurrence={b.recurrence}/>}
+              </div>
+              <button onClick={()=>setBookingDetail(null)}
+                style={{background:'none',border:'none',fontSize:22,color:T.textMuted,
+                  cursor:'pointer',padding:'0 4px',lineHeight:1,WebkitTapHighlightColor:'transparent'}}>×</button>
+            </div>
+            <div style={{fontSize:19,fontWeight:700,color:T.text,marginBottom:4}}>{b.activity}</div>
+            <div style={{fontSize:13,color:T.textMuted,marginBottom:2}}>{b.time_slot} · {fmtDuration(b.duration_hours)}</div>
+            {adminMode&&b.name&&<div style={{fontSize:13,color:T.textMuted,marginBottom:2}}>{b.name}{b.phone?` · ${b.phone}`:''}</div>}
+            {b.notes&&<div style={{fontSize:13,color:T.textMuted,fontStyle:'italic',marginBottom:2}}>{b.notes}</div>}
+            {b.admin_comment&&<div style={{fontSize:12,color:T.textMuted,fontStyle:'italic',marginTop:4,
+              background:`${T.accent}0d`,padding:'6px 10px',borderRadius:8}}>"{b.admin_comment}"</div>}
+            {/* Section title */}
+            <div style={{fontSize:11,fontWeight:700,color:T.textMuted,letterSpacing:'.6px',
+              marginTop:16,marginBottom:8}}>
+              {isRecur?`TILLFÄLLEN (${upcoming.length} visas)`:'DATUM'}
+            </div>
+          </div>
+          {/* Scrollable occurrences list */}
+          <div style={{flex:1,overflowY:'auto',overscrollBehavior:'contain',padding:'0 20px',paddingBottom:'max(24px,env(safe-area-inset-bottom,16px))'}}>
+            {upcoming.map((occ,i)=>{
+              const isSkipped=exceptions.some(e=>e.booking_id===b.id&&e.exception_date===occ.date&&e.type==='skip');
+              return <div key={occ.date+i} style={{
+                display:'flex',alignItems:'center',justifyContent:'space-between',
+                padding:'10px 0',
+                borderBottom:i<upcoming.length-1?`0.5px solid ${T.separator}`:'none',
+                opacity:isSkipped?0.4:1}}>
+                <div>
+                  <div style={{fontSize:14,fontWeight:600,color:T.text}}>{isoToDisplay(occ.date)}</div>
+                  <div style={{fontSize:12,color:T.textMuted}}>{occ.time_slot}</div>
+                </div>
+                <div style={{display:'flex',alignItems:'center',gap:8}}>
+                  {isSkipped&&<span style={{fontSize:11,color:T.textMuted}}>Inställd</span>}
+                  {/* Show remove button if: owns the booking OR is admin */}
+                  {(isOwn||adminMode)&&!isSkipped&&(b.status==='approved'||b.status==='edited'||b.status==='pending')&&(
+                    <button
+                      onClick={async()=>{
+                        if(adminMode){
+                          // Admin: skip this occurrence with an explanation prompt via handleAdminDelete
+                          const explanation=window.prompt('Anledning till borttagning (visas för besökaren):');
+                          if(explanation===null) return;
+                          await handleAdminDelete(b,occ.date,explanation||'Borttagen av admin');
+                        } else {
+                          // User: skip this occurrence
+                          await handleCancelOccurrence(b,occ.date,null);
+                        }
+                        setBookingDetail(null);
+                      }}
+                      style={{background:'none',border:`1px solid ${T.error}44`,borderRadius:8,
+                        padding:'4px 10px',cursor:'pointer',color:T.error,
+                        fontSize:12,fontWeight:600,WebkitTapHighlightColor:'transparent'}}>
+                      Ta bort
+                    </button>
+                  )}
+                </div>
+              </div>;
+            })}
+            {/* Admin: open in admin panel */}
+            {adminMode&&<button onClick={()=>{setBookingDetail(null);setView('admin');}}
+              style={{width:'100%',padding:'13px',borderRadius:12,border:`0.5px solid ${T.border}`,
+                background:T.cardElevated,color:T.accent,fontSize:14,fontWeight:700,
+                cursor:'pointer',WebkitTapHighlightColor:'transparent',marginTop:16}}>
+              Öppna i adminpanel →
+            </button>}
+            {/* User: go to my bookings for full detail */}
+            {!adminMode&&isOwn&&<button onClick={()=>{setBookingDetail(null);setView('my-bookings');}}
+              style={{width:'100%',padding:'13px',borderRadius:12,border:`0.5px solid ${T.border}`,
+                background:T.cardElevated,color:T.accent,fontSize:14,fontWeight:700,
+                cursor:'pointer',WebkitTapHighlightColor:'transparent',marginTop:16}}>
+              Se alla detaljer →
+            </button>}
+          </div>
         </div>
       </div>;
     })()}
