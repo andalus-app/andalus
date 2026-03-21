@@ -1256,7 +1256,9 @@ function MyBookings({bookings,exceptions,loading,onBack,onCancel,onCancelFromDat
     const isRecur=b.recurrence&&b.recurrence!=='none';
     const upcoming=isRecur?expandBooking(b,today,wEnd,exceptions).slice(0,10):[{...b,date:b.start_date}];
     return <div style={{paddingTop:'max(20px,env(safe-area-inset-top,0px))',
-      paddingLeft:16,paddingRight:16,paddingBottom:100,fontFamily:'system-ui'}}>
+      paddingLeft:16,paddingRight:16,
+      paddingBottom:'max(120px,calc(env(safe-area-inset-bottom,0px) + 110px))',
+      fontFamily:'system-ui',overscrollBehavior:'contain'}}>
       <BackButton onBack={()=>setSelectedId(null)} T={T}/>
       <div style={{fontSize:20,fontWeight:700,color:T.text,marginTop:16,marginBottom:16}}>Bokningsdetaljer</div>
       <div style={{background:T.card,border:`0.5px solid ${T.border}`,borderRadius:16,padding:16,marginBottom:12}}>
@@ -1387,7 +1389,9 @@ function MyBookings({bookings,exceptions,loading,onBack,onCancel,onCancelFromDat
   }
 
   return <div style={{paddingTop:'max(20px,env(safe-area-inset-top,0px))',
-    paddingLeft:16,paddingRight:16,paddingBottom:20}}>
+    paddingLeft:16,paddingRight:16,
+    paddingBottom:'max(100px,calc(env(safe-area-inset-bottom,0px) + 90px))',
+    overscrollBehavior:'contain'}}>
     <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:0}}>
       <BackButton onBack={onBack} T={T}/>
       <button onClick={onLogout} style={{padding:'7px 14px',borderRadius:20,
@@ -1676,7 +1680,9 @@ function AdminPanel({bookings,exceptions,onBack,onApprove,onReject,onDelete,onDe
     const isRecur=b.recurrence&&b.recurrence!=='none';
     const upcoming=isRecur?expandBooking(b,today,wEnd,exceptions).slice(0,10):null;
     return <div style={{paddingTop:'max(20px,env(safe-area-inset-top,0px))',
-      paddingLeft:16,paddingRight:16,paddingBottom:100}}>
+      paddingLeft:16,paddingRight:16,
+      paddingBottom:'max(120px,calc(env(safe-area-inset-bottom,0px) + 110px))',
+      overscrollBehavior:'contain'}}>
       <BackButton onBack={()=>{setSelected(null);setComment('');}} T={T}/>
       <div style={{fontSize:20,fontWeight:700,color:T.text,marginTop:16,marginBottom:16}}>Bokningsdetaljer</div>
       <div style={{background:T.card,border:`0.5px solid ${T.border}`,borderRadius:16,padding:16,marginBottom:12}}>
@@ -1752,7 +1758,7 @@ function AdminPanel({bookings,exceptions,onBack,onApprove,onReject,onDelete,onDe
     </div>;
   }
 
-  return <div style={{paddingTop:'max(20px,env(safe-area-inset-top,0px))',paddingLeft:16,paddingRight:16,paddingBottom:100}}>
+  return <div style={{paddingTop:'max(20px,env(safe-area-inset-top,0px))',paddingLeft:16,paddingRight:16,paddingBottom:'max(120px,calc(env(safe-area-inset-bottom,0px) + 110px))',overscrollBehavior:'contain'}}>
     <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:16}}>
       <div style={{fontSize:26,fontWeight:700,color:T.text,letterSpacing:'-.5px'}}>Adminpanel</div>
       <div style={{display:'flex',gap:8}}>
@@ -2219,6 +2225,7 @@ export default function BookingScreen({
     return id&&name?{id,name}:null;
   });
   const[calendarAdminDetail,setCalendarAdminDetail]=useState(null);
+  const[internalAdminHighlight,setInternalAdminHighlight]=useState(null);
   // Universal booking detail — for search results and day panel clicks (all users)
   const[bookingDetail,setBookingDetail]=useState(null);
   const[occDeleteDialog,setOccDeleteDialog]=useState(null); // admin: delete single occurrence from detail sheet
@@ -2231,12 +2238,35 @@ export default function BookingScreen({
 
   const showToast=useCallback(msg=>{setToast(msg);setTimeout(()=>setToast(''),3000);},[]);
 
+  // suppressFetchRef: timestamp until which fetchAll will not overwrite bookings state.
+  // Set by optimistic updates (approve/reject/cancel) to prevent Realtime from
+  // briefly showing stale data right after an admin action.
+  const suppressFetchRef=useRef(0);
+
   const fetchAll=useCallback(async()=>{
     const[{data:bData},{data:eData}]=await Promise.all([
       supabase.from('bookings').select('*').order('created_at',{ascending:false}),
       supabase.from('booking_exceptions').select('*'),
     ]);
-    if(bData) setBookings(bData);
+    // If an optimistic update was made recently, merge instead of replace.
+    // This ensures the in-flight DB write wins over a stale read.
+    if(bData){
+      if(Date.now()<suppressFetchRef.current){
+        // Merge: keep optimistic status/admin_comment for suppressed IDs,
+        // update everything else from DB.
+        setBookings(prev=>{
+          const optimisticMap=new Map(prev.map(b=>[b.id,b]));
+          return bData.map(dbRow=>{
+            const opt=optimisticMap.get(dbRow.id);
+            // If our optimistic version has a newer resolved_at, keep it
+            if(opt&&(opt.resolved_at||0)>(dbRow.resolved_at||0)) return opt;
+            return dbRow;
+          });
+        });
+      } else {
+        setBookings(bData);
+      }
+    }
     if(eData) setExceptions(eData);
     setDbLoading(false);
   },[]);
@@ -2250,7 +2280,8 @@ export default function BookingScreen({
 
   useEffect(()=>{
     let timer=null;
-    const debounced=()=>{clearTimeout(timer);timer=setTimeout(fetchAll,600);};
+    // Increase debounce to 1200ms — gives DB time to fully commit before we read back.
+    const debounced=()=>{clearTimeout(timer);timer=setTimeout(fetchAll,1200);};
     const ch=supabase.channel('booking-v3-rt')
       .on('postgres_changes',{event:'*',schema:'public',table:'bookings'},debounced)
       .on('postgres_changes',{event:'*',schema:'public',table:'booking_exceptions'},debounced)
@@ -2296,6 +2327,9 @@ export default function BookingScreen({
     if(!showYearViewRef.current) onTabBarShow?.();
     if(view==='my-bookings') markVisitorSeen?.();
     if(view==='admin') onMarkAdminSeen?.();
+    // Reset Shell scroll to top and show tab bar on every internal view change
+    // This prevents the scroll-hide from keeping tab bar hidden after navigating
+    window.dispatchEvent(new CustomEvent('scrollToTop'));
   },[view]);// eslint-disable-line
 
   const myBookings=useMemo(()=>{
@@ -2367,16 +2401,20 @@ export default function BookingScreen({
   },[showToast]);
 
   const handleApprove=useCallback(async(bookingId,comment)=>{
-    const{error}=await supabase.from('bookings').update({status:'approved',admin_comment:comment||'',resolved_at:Date.now()}).eq('id',bookingId);
+    const resolvedAt=Date.now();
+    const{error}=await supabase.from('bookings').update({status:'approved',admin_comment:comment||'',resolved_at:resolvedAt}).eq('id',bookingId);
     if(error){showToast('Något gick fel.');return;}
-    setBookings(prev=>prev.map(b=>b.id===bookingId?{...b,status:'approved',admin_comment:comment||''}:b));
+    suppressFetchRef.current=Date.now()+5000; // suppress stale Realtime read for 5s
+    setBookings(prev=>prev.map(b=>b.id===bookingId?{...b,status:'approved',admin_comment:comment||'',resolved_at:resolvedAt}:b));
     showToast('Bokning godkänd ✓');
   },[showToast]);
 
   const handleReject=useCallback(async(bookingId,comment)=>{
-    const{error}=await supabase.from('bookings').update({status:'rejected',admin_comment:comment,resolved_at:Date.now()}).eq('id',bookingId);
+    const resolvedAt=Date.now();
+    const{error}=await supabase.from('bookings').update({status:'rejected',admin_comment:comment,resolved_at:resolvedAt}).eq('id',bookingId);
     if(error){showToast('Något gick fel.');return;}
-    setBookings(prev=>prev.map(b=>b.id===bookingId?{...b,status:'rejected',admin_comment:comment}:b));
+    suppressFetchRef.current=Date.now()+5000;
+    setBookings(prev=>prev.map(b=>b.id===bookingId?{...b,status:'rejected',admin_comment:comment,resolved_at:resolvedAt}:b));
     showToast('Bokning avböjd.');
   },[showToast]);
 
@@ -2476,7 +2514,7 @@ export default function BookingScreen({
     return <div style={{padding:'80px 16px',background:T.bg,minHeight:'100%'}}><Spinner T={T}/></div>;
   }
 
-  return <div style={{background:T.bg,minHeight:'100%',fontFamily:'system-ui'}}>
+  return <div style={{background:T.bg,minHeight:'100%',fontFamily:'system-ui',overscrollBehavior:'contain'}}>
     <style>{`
       @keyframes bsFadeInUp{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
       @keyframes bsSlideUp{from{transform:translateY(100%)}to{transform:translateY(0)}}
@@ -2571,7 +2609,8 @@ export default function BookingScreen({
         onSelectBooking={o=>{
           const parent=bookings.find(b=>b.id===o.id)||o;
           if(adminMode){
-            setCalendarAdminDetail(o);
+            // Admin: open BookingDetailSheet directly — shows all details + "Öppna i adminpanel"
+            setBookingDetail(parent);
           } else {
             const userId=localStorage.getItem(STORAGE_USER_ID);
             const deviceId_=localStorage.getItem(STORAGE_DEVICE);
@@ -2695,7 +2734,11 @@ export default function BookingScreen({
               </div>;
             })}
             {/* Admin: open in admin panel */}
-            {adminMode&&<button onClick={()=>{setBookingDetail(null);setView('admin');}}
+            {adminMode&&<button onClick={()=>{
+                setInternalAdminHighlight(b.id);
+                setBookingDetail(null);
+                setView('admin');
+              }}
               style={{width:'100%',padding:'13px',borderRadius:12,border:`0.5px solid ${T.border}`,
                 background:T.cardElevated,color:T.accent,fontSize:14,fontWeight:700,
                 cursor:'pointer',WebkitTapHighlightColor:'transparent',marginTop:16}}>
@@ -2747,7 +2790,8 @@ export default function BookingScreen({
       onDelete={handleAdminDelete} onDeleteSeries={handleAdminDeleteSeries}
       onDeleteFromDate={handleCancelFromDate}
       adminInitialFilter={adminInitialFilter}
-      adminHighlightId={adminHighlightId} adminHighlightFilter={adminHighlightFilter}
+      adminHighlightId={internalAdminHighlight||adminHighlightId}
+      adminHighlightFilter={internalAdminHighlight?'all':adminHighlightFilter}
       cancelledBookingIds={cancelledBookingIds} pendingBookingIds={pendingBookingIds}
       onAdminAddRecurring={handleAdminAddRecurring}
       onRefreshNotifications={onRefreshNotifications}
