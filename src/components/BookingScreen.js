@@ -671,7 +671,7 @@ function RecurrencePicker({recurrence,onChange,endDate,onEndDateChange,T}) {
               <span style={{fontSize:13,fontWeight:isSel?700:400,color:isSel?T.accent:T.text}}>{d.getDate()}</span>
             </button>;
           })}
-        </div>)}
+        </div>))}
       </div>}
     </div>}
   </div>;
