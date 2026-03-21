@@ -257,6 +257,269 @@ const QA_DATA = [
   },
 ];
 
+// ── Lärdomar data — 14 lärdomar med exakta texter från bilderna ──
+const LARDOMAR_DATA = [
+  {
+    nr: 1,
+    titel: 'När Allah vill en människa väl',
+    stycken: [
+      'Profeten ښ sa: "Den som Allah vill väl, skänker han förståelse i religionen." (al-Bukhari nr. 71)',
+      'En av de mest betydelsefulla formerna av förståelse är att en människa fördjupar sin kunskap om Allah. Kunskap om Allah är grunden för all rättfärdighet, verklig framgång och räddning – både i detta liv och i det kommande.',
+      'Ju djupare en människas kunskap om Allah är, desto starkare blir hennes gudsfruktan. Hennes dyrkan blir mer uppriktig och hängiven, och hennes vilja att undvika synd stärks.',
+      'När människor brister i sin dyrkan beror det ofta på att deras kunskap om Allah är ofullständig – om hans rättigheter, hans storhet och hans fullkomlighet.',
+    ],
+  },
+  {
+    nr: 2,
+    titel: 'Att lära känna Allah genom hans namn',
+    stycken: [
+      'Profeten ښ sa: "Allah har nittionio namn – hundra minus ett. Den som gör ihsa av dessa namn kommer att träda in i paradiset." (al-Bukhari nr. 2736, Muslim nr. 2677)',
+      'Att göra ihsa av Allahs namn innebär inte bara att känna till dem, utan sker på flera nivåer:',
+      'Första nivån: att memorera namnen. Detta innebär att lära sig Allahs namn och bära dem i sitt minne.',
+      'Andra nivån: att förstå namnen. Det innebär att förstå deras betydelse och vad de säger om Allah och hans fullkomliga egenskaper.',
+      'Tredje nivån: att leva i enlighet med namnen. Den som vet att Allah är den ende sanne guden vänder sig inte till någon annan i dyrkan. Och den som vet att Allah är al-Basir, den seende, aktar sig för synder även när ingen människa ser honom.',
+      'Fjärde nivån: att åkalla Allah med hans namn. Allah säger, i betydelse: "Till Allah hör de allra vackraste namnen, åkalla honom därför med dem." [al-A'raf 7:180]',
+      'Detta kan till exempel vara att säga:
+Ya Rahman (O, den Nåderike), visa mig barmhärtighet.
+Ya Ghafur (O, den Förlåtande), förlåt mig.
+Ya Tawwab (O, Ångermottagren), ta emot min ånger.',
+    ],
+  },
+  {
+    nr: 3,
+    titel: 'Det är förbjudet att beskriva Allah på ett sätt han inte själv har beskrivit sig',
+    stycken: [
+      'Allah är fullkomlig och upphöjd över alla brister. Därför är det inte tillåtet att beskriva Allah med namn eller egenskaper som han själv inte har nämnt i Koranen eller som profeten ښ inte har förmedlat. Människans förstånd är begränsat, och utan vägledning från uppenbarelsen riskerar man att tillskriva Allah sådant som inte passar honom.',
+      'Islam lär oss att tala om Allah med vördnad och försiktighet. När vi håller oss till de namn och egenskaper som finns i uppenbarelsen bevarar vi en korrekt och ren förståelse av tron. Att gå utöver detta, genom spekulation eller egna formuleringar, kan leda till förvirring och felaktiga föreställningar om Allah.',
+      'Därför är en grundläggande princip i islamisk tro att Allah endast beskrivs så som han själv har valt att beskriva sig. Detta är ett uttryck för ödmjukhet inför hans storhet och ett skydd för den sanna tron.',
+    ],
+  },
+  {
+    nr: 4,
+    titel: 'Kunskap om Allahs namn är nödvändig för att kunna dyrka honom med insikt',
+    stycken: [
+      'Dyrkan i islam handlar inte bara om yttre handlingar, utan om hjärtats närvaro och medvetenhet. För att en människa ska kunna dyrka Allah på ett meningsfullt sätt behöver hon känna honom. Denna kännedom kommer i första hand genom Allahs namn och egenskaper.',
+      'När en muslim lär sig vad Allahs namn betyder, förändras relationen till honom. Bönen blir mer uppriktig, tilliten starkare och gudsfruktan djupare. Man förstår vem man vänder sig till, vem som hör, ser, förlåter och visar barmhärtighet.',
+      'Utan kunskap om Allahs namn riskerar dyrkan att bli mekanisk och tom. Med kunskap blir den levande, medveten och fylld av mening. Därför är lärandet om Allahs namn och egenskaper en central del av tron och en nyckel till en djupare och mer äkta dyrkan.',
+    ],
+  },
+  {
+    nr: 5,
+    titel: 'Det finns ingen autentisk hadith som nämner alla de 99 namnen tillsammans',
+    stycken: [
+      'Det är fastslaget i autentiska hadither att Allah har nittionio namn och att den som gör ihsa av dem lovas paradiset. Däremot finns det ingen tillförlitlig hadith där alla dessa namn räknas upp i en och samma lista.',
+      'Därför bör man vara försiktig med att påstå att en specifik lista med namn med säkerhet utgör exakt de nittionio.',
+      'Detta innebär dock inte att kunskapen om Allahs namn förlorar sin betydelse. Tvärtom uppmanas muslimer att lära sig, reflektera över och leva med de namn som finns i Koranen och i autentiska hadither, även om de inte samlas i en enda lista.',
+    ],
+  },
+  {
+    nr: 6,
+    titel: 'Att lära känna Allah leder till kärlek till honom',
+    stycken: [
+      'När en människa lär känna Allah genom hans namn, egenskaper och handlingar, växer kärleken till honom naturligt i hjärtat. Kunskap om Allah gör tron levande och relationen personlig.',
+      'Ju mer man förstår om Allahs barmhärtighet, visdom, rättvisa och omsorg, desto mer känner man tacksamhet, hopp och tillit. Kärleken till Allah uppstår inte genom ord enbart, utan genom insikt och reflektion över vem han är och hur han tar hand om sina skapelser.',
+      'Denna kärlek blir i sin tur en drivkraft till lydnad, uppriktighet och tålamod. Att lära känna Allah är därför inte bara en intellektuell resa, utan en väg som leder hjärtat närmare honom.',
+    ],
+  },
+  {
+    nr: 7,
+    titel: 'Människans tillkortakommanden hänger samman med bristande kunskap om Allah',
+    stycken: [
+      'När en människa brister i sin tro, i sina handlingar eller i sin ånger inför Allah, är det sällan ett tecken på illvilja eller likgiltighet. Ofta har det sin grund i en bristande kunskap om Allah och vem han är.',
+      'Den som inte verkligen känner sin Herre har svårt att frukta honom på rätt sätt, att hoppas på honom fullt ut eller att vända sig till honom med uppriktighet. Människans praktiserande försvagas när tron på Allah blir svag, och handlingarna blir inkonsekventa när hjärtat saknar djup insikt.',
+      'Kunskap om Allah ger tron stadga. När en människa förstår Allahs storhet, barmhärtighet och visdom, stärks hennes iman, hennes handlingar blir mer uppriktiga och hennes ånger blir mer ärlig. Brist på kunskap leder ofta till slapphet, medan sann kunskap väcker hjärtat och driver människan mot förbättring och närhet till Allah.',
+    ],
+  },
+  {
+    nr: 8,
+    titel: 'Tron på Allahs namn och egenskaper formar hjärtat och handlingarna',
+    stycken: [
+      'Tron på Allahs namn och egenskaper är inte bara en teoretisk fråga, utan något som har en djup och konkret påverkan på människans inre och yttre liv. När en muslim verkligen tror på Allahs namn och reflekterar över deras innebörd, börjar denna tro sätta tydliga spår i hjärtat.',
+      'Kärlek till Allah växer när man lär känna hans barmhärtighet och omsorg. Fruktan uppstår när man inser hans storhet och rättvisa. Hopp stärks när man förstår hans förlåtelse och generositet. Och tilliten till Allah fördjupas när man ser hans visdom i allt som sker.',
+      'Denna inre förändring speglar sig i människans beteende. Hennes ord blir varsammare, hennes handlingar mer medvetna och hennes relation till Allah mer levande. Tron på Allahs namn och egenskaper formar därmed både hjärtat och vardagen, och leder till ett liv präglat av balans mellan kärlek, fruktan och hopp.',
+    ],
+  },
+  {
+    nr: 9,
+    titel: 'Tron på Allah ger livet riktning och mening',
+    stycken: [
+      'Att tro på Allah innebär mer än att acceptera en troslära. Det ger livet en tydlig riktning och ett djupare sammanhang. När en människa tror på Allah vet hon varifrån hon kommer, varför hon lever och vart hon är på väg. Detta skapar inre stabilitet, även när livet är prövande och ovisst.',
+      'Tron på Allah hjälper människan att tolka både glädje och svårigheter på ett meningsfullt sätt. Framgång leder till tacksamhet, och motgångar möts med tålamod och hopp. Livet upplevs inte som slumpmässigt, utan som en del av Allahs visdom och plan.',
+      'Denna övertygelse ger ro i hjärtat och skyddar mot tomhet och uppgivenhet. Tron på Allah gör att människan lever med syfte, ansvar och förtröstan.',
+    ],
+  },
+  {
+    nr: 10,
+    titel: 'Tron på Allah skapar inre styrka och trygghet',
+    stycken: [
+      'När en människa verkligen tror på Allah förändras hennes sätt att möta världen. Hon vet att hon aldrig är ensam, att Allah ser henne, hör henne och tar hand om henne. Detta skapar en djup inre trygghet som inte är beroende av yttre omständigheter.',
+      'Rädsla för människor, framtiden eller det okända minskar när tilliten till Allah växer. Tron ger mod att stå fast vid det rätta, även när det är svårt, och styrka att fortsätta när krafterna känns svaga.',
+      'Den som litar på Allah lär sig att göra sitt bästa och sedan överlåta resultatet till honom. Detta befriar hjärtat från ständig oro och ger en balanserad syn på ansvar och tillit.',
+    ],
+  },
+  {
+    nr: 11,
+    titel: 'Tron på Allah formar moral och ansvar',
+    stycken: [
+      'Tron på Allah påverkar hur en människa beter sig, även när ingen annan ser henne. Medvetenheten om att Allah ser allt och känner till allt gör att samvetet blir levande och starkt.',
+      'Den troende strävar efter ärlighet, rättvisa och god karaktär, inte för människors skull, utan för Allahs. Tron skapar ansvarstagande – i ord, handlingar och avsikter. Den påminner människan om att varje val har betydelse och att livet inte är utan ansvar.',
+      'På detta sätt blir tron på Allah inte bara något som finns i hjärtat, utan något som genomsyrar hela livet och formar människans relation till både sin Herre och till andra människor.',
+    ],
+  },
+  {
+    nr: 12,
+    titel: 'Trosfrågor tas från uppenbarelsen – inte från åsikter och spekulation',
+    stycken: [
+      'En grundläggande princip i Ahl us-Sunnas troslära är att tron bygger på uppenbarelsen. Det är Koranen och profetens ښ autentiska sunnah som utgör grunden för vad vi tror om Allah, om det osedda och om religionens kärna.',
+      'Trosfrågor formas inte av personliga åsikter, filosofiska resonemang eller kulturella trender. Människans förnuft har sin plats, men i frågor som rör Allah och det osedda är uppenbarelsen den yttersta vägledningen. Därför accepteras inte trosuppfattningar som saknar stöd i Koranen och sunnah, även om de kan framstå som logiska eller tilltalande.',
+      'Denna princip skyddar tron från att förändras över tid och bevarar dess renhet. Genom att hålla sig till uppenbarelsen förblir tron stabil, tydlig och gemensam för muslimer oavsett tid och plats.',
+    ],
+  },
+  {
+    nr: 13,
+    titel: 'Balans mellan bekräftelse och ödmjukhet i tron på Allah',
+    stycken: [
+      'Ahl us-Sunnas troslära kännetecknas av balans. När det gäller Allahs namn och egenskaper bekräftar man det som Allah har nämnt om sig själv, utan att förneka, förvränga eller spekulera om hur dessa egenskaper är.',
+      'Allahs namn och egenskaper accepteras som de har kommit i uppenbarelsen, samtidigt som man erkänner att Allah är olik sin skapelse och att människan inte kan föreställa sig hans verklighet. Tron kombinerar därmed bekräftelse med ödmjukhet inför Allahs storhet.',
+      'Denna balanserade hållning skyddar både från att tömma texterna på deras innebörd och från att likna Allah vid skapade varelser. Det är en väg som bevarar både tron och vördnaden.',
+    ],
+  },
+  {
+    nr: 14,
+    titel: 'Tron visar sig i hjärta, ord och handling',
+    stycken: [
+      'En central princip i Ahl us-Sunnas troslära är att tron inte enbart är något inre. Tron omfattar hjärtats övertygelse, tungans uttal och kroppens handlingar. Alla dessa delar hör samman och påverkar varandra.',
+      'Tron kan stärkas genom lydnad, goda handlingar och kunskap, och den kan försvagas genom synder och försummelse. Därför ses tron som levande och dynamisk, inte statisk eller oföränderlig.',
+      'Denna förståelse gör att religionen blir praktisk och verklighetsnära. Tron påverkar hur en människa ber, hur hon behandlar andra och hur hon lever sitt liv. På så sätt blir tron enligt Ahl us-Sunnas förståelse något som genomsyrar hela människans tillvaro.',
+    ],
+  },
+];
+
+// ── LardomarDetail — fullscreen detail for one lärdom ──
+function LardomarDetail({ lardom, onBack, T }) {
+  return (
+    <div style={{
+      position: 'absolute', inset: 0, zIndex: 25, background: T.bg,
+      display: 'flex', flexDirection: 'column',
+      fontFamily: "'Inter',system-ui,sans-serif",
+    }}>
+      <div style={{ flex: 1, overflowY: 'auto', WebkitOverflowScrolling: 'touch' }}>
+        <div style={{ padding: '18px 20px 60px' }}>
+          <button onClick={onBack} style={{
+            background: 'none', border: 'none', cursor: 'pointer', color: T.accent,
+            fontSize: 16, padding: 0, marginBottom: 20, WebkitTapHighlightColor: 'transparent',
+            display: 'flex', alignItems: 'center', gap: 4,
+          }}>
+            <svg width="8" height="14" viewBox="0 0 8 14" fill="none">
+              <path d="M7 1L1 7l6 6" stroke={T.accent} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+            </svg>
+            Tillbaka
+          </button>
+
+          <span style={{
+            display: 'inline-block',
+            background: T.accent, color: '#fff',
+            borderRadius: 20, padding: '4px 14px',
+            fontSize: 13, fontWeight: 700, marginBottom: 16,
+          }}>
+            Lärdom {lardom.nr}
+          </span>
+
+          <h1 style={{
+            fontSize: 28, fontWeight: 800, color: T.text,
+            lineHeight: 1.25, marginBottom: 24, margin: '0 0 24px 0',
+          }}>
+            {lardom.titel}
+          </h1>
+
+          {lardom.stycken.map((stycke, i) => (
+            <p key={i} style={{
+              fontSize: 16, color: T.text, lineHeight: 1.75,
+              marginBottom: 18, margin: '0 0 18px 0',
+              whiteSpace: 'pre-line',
+            }}>
+              {stycke}
+            </p>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── LardomarList — full list of 14 lärdomar ──
+function LardomarList({ onBack, T }) {
+  const [activeLardom, setActiveLardom] = useState(null);
+
+  return (
+    <div style={{
+      position: 'absolute', inset: 0, zIndex: 20, background: T.bg,
+      display: 'flex', flexDirection: 'column',
+      fontFamily: "'Inter',system-ui,sans-serif",
+    }}>
+      {/* Detail view */}
+      {activeLardom && (
+        <LardomarDetail
+          lardom={activeLardom}
+          onBack={() => setActiveLardom(null)}
+          T={T}
+        />
+      )}
+
+      {/* List view */}
+      <div style={{ padding: '18px 20px 8px', flexShrink: 0 }}>
+        <button onClick={onBack} style={{
+          background: 'none', border: 'none', cursor: 'pointer', color: T.accent,
+          fontSize: 16, padding: 0, marginBottom: 16, WebkitTapHighlightColor: 'transparent',
+          display: 'flex', alignItems: 'center', gap: 4,
+        }}>
+          <svg width="8" height="14" viewBox="0 0 8 14" fill="none">
+            <path d="M7 1L1 7l6 6" stroke={T.accent} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+          </svg>
+          Tillbaka
+        </button>
+        <div style={{ fontSize: 28, fontWeight: 800, color: T.text, marginBottom: 20 }}>Lärdomar</div>
+      </div>
+
+      <div style={{ flex: 1, overflowY: 'auto', padding: '0 16px 32px', WebkitOverflowScrolling: 'touch' }}>
+        {LARDOMAR_DATA.map((l) => (
+          <button
+            key={l.nr}
+            onClick={() => setActiveLardom(l)}
+            style={{
+              width: '100%', textAlign: 'left', display: 'flex', alignItems: 'flex-start', gap: 14,
+              background: T.card, border: `1px solid ${T.border}`,
+              borderRadius: 16, padding: '16px 16px', marginBottom: 10,
+              cursor: 'pointer', WebkitTapHighlightColor: 'transparent',
+              boxSizing: 'border-box',
+            }}
+          >
+            <div style={{
+              width: 32, height: 32, borderRadius: 16, flexShrink: 0,
+              background: T.accent, display: 'flex', alignItems: 'center', justifyContent: 'center',
+              fontSize: 13, fontWeight: 800, color: '#fff',
+            }}>
+              {l.nr}
+            </div>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontSize: 15, fontWeight: 700, color: T.text, lineHeight: 1.35, marginBottom: 5 }}>
+                {l.titel}
+              </div>
+              <div style={{
+                fontSize: 13, color: T.textMuted, lineHeight: 1.4,
+                overflow: 'hidden', display: '-webkit-box',
+                WebkitLineClamp: 2, WebkitBoxOrient: 'vertical',
+              }}>
+                {l.stycken[0]}
+              </div>
+            </div>
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 // ── Main screen ───────────────────────────────────────────────
 export default function AsmaulHusnaScreen({ onBack, onMount }) {
   const { theme: T } = useTheme();
@@ -265,6 +528,7 @@ export default function AsmaulHusnaScreen({ onBack, onMount }) {
   const [selected, setSelected] = useState(null);
   const [activeSection, setActiveSection] = useState(null);
   const [activeQA, setActiveQA] = useState(null);
+  const [showLardomar, setShowLardomar] = useState(false);
   const [favs, setFavs] = useState(loadFavs);
   const [filterFavs, setFilterFavs] = useState(false);
   const [search, setSearch] = useState('');
@@ -292,6 +556,7 @@ export default function AsmaulHusnaScreen({ onBack, onMount }) {
   useEffect(() => {
     const handler = () => {
       if (activeQA) { setActiveQA(null); return; }
+      if (showLardomar) { setShowLardomar(false); return; }
       if (activeSection) { setActiveSection(null); return; }
       if (selected) {
         setSelected(null);
@@ -345,6 +610,11 @@ export default function AsmaulHusnaScreen({ onBack, onMount }) {
           />
         )}
       </div>
+
+      {/* Lärdomar screen */}
+      {showLardomar && (
+        <LardomarList onBack={() => setShowLardomar(false)} T={T} />
+      )}
 
       {/* Q&A list screen */}
       {activeSection === 'qa' && !activeQA && (
@@ -431,8 +701,8 @@ export default function AsmaulHusnaScreen({ onBack, onMount }) {
 
       {/* List screen — täcker hela sin container, hanterar egen scroll */}
       <div style={{
-        visibility: (selected || activeSection || activeQA) ? 'hidden' : 'visible',
-        pointerEvents: (selected || activeSection || activeQA) ? 'none' : 'auto',
+        visibility: (selected || activeSection || activeQA || showLardomar) ? 'hidden' : 'visible',
+        pointerEvents: (selected || activeSection || activeQA || showLardomar) ? 'none' : 'auto',
         display: 'flex', flexDirection: 'column',
         position: 'absolute', inset: 0,
         background: T.bg,
@@ -481,9 +751,25 @@ export default function AsmaulHusnaScreen({ onBack, onMount }) {
           </button>
         </div>
 
-        {/* Q&A pill — snabbåtkomst, inga tomma placeholders */}
+        {/* Section pills — Lärdomar + Frågor & Svar */}
         {!search && !filterFavs && (
-          <div style={{ padding: '0 16px 12px', display: 'flex', gap: 8 }}>
+          <div style={{ padding: '0 16px 12px', display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+            <button
+              onClick={() => setShowLardomar(true)}
+              style={{
+                display: 'flex', alignItems: 'center', gap: 7,
+                background: `${T.accent}14`, border: `1px solid ${T.accent}33`,
+                borderRadius: 20, padding: '7px 14px',
+                cursor: 'pointer', WebkitTapHighlightColor: 'transparent',
+                fontFamily: "'Inter',system-ui,sans-serif",
+              }}
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={T.accent} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/>
+                <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/>
+              </svg>
+              <span style={{ fontSize: 13, fontWeight: 600, color: T.accent }}>Lärdomar</span>
+            </button>
             <button
               onClick={() => setActiveSection('qa')}
               style={{
