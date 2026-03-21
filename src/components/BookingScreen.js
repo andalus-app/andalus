@@ -1450,6 +1450,18 @@ function MyBookings({bookings,exceptions,loading,onBack,onCancel,onCancelFromDat
   const[deleteSheet,setDeleteSheet]=useState(null);
   const[cancelReason,setCancelReason]=useState('');
   const[cancelReasonError,setCancelReasonError]=useState(false);
+  const[dsKbOffset,setDsKbOffset]=useState(0);
+
+  // Track keyboard height for deleteSheet positioning
+  useEffect(()=>{
+    if(!deleteSheet) return;
+    const vv=window.visualViewport;
+    if(!vv) return;
+    const upd=()=>setDsKbOffset(Math.max(0,window.innerHeight-vv.height-vv.offsetTop));
+    vv.addEventListener('resize',upd); vv.addEventListener('scroll',upd);
+    upd();
+    return()=>{vv.removeEventListener('resize',upd); vv.removeEventListener('scroll',upd); setDsKbOffset(0);};
+  },[deleteSheet]);
   const[filter,setFilter]=useState(highlightFilter||'all');
   const highlightRef=useRef(null);
   const today=toISO(new Date());
@@ -1572,24 +1584,14 @@ function MyBookings({bookings,exceptions,loading,onBack,onCancel,onCancelFromDat
           </button>
         )}
       </div>
-      {deleteSheet&&(()=>{
-        // Track keyboard height to push sheet up
-        const [dsKbOffset, setDsKbOffset] = React.useState(0);
-        React.useEffect(()=>{
-          const vv=window.visualViewport;
-          if(!vv) return;
-          const upd=()=>setDsKbOffset(Math.max(0,window.innerHeight-vv.height-vv.offsetTop));
-          vv.addEventListener('resize',upd);vv.addEventListener('scroll',upd);
-          return()=>{vv.removeEventListener('resize',upd);vv.removeEventListener('scroll',upd);};
-        },[]);
-        return <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.5)',zIndex:1000,
+      {deleteSheet&&<div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.5)',zIndex:1000,
           display:'flex',alignItems:'flex-end',justifyContent:'center',touchAction:'none'}}
-          onClick={()=>{setDeleteSheet(null);setCancelReason('');setCancelReasonError(false);}}>
-          <HideTabBar/>
-          <div onClick={e=>e.stopPropagation()} style={{background:T.sheetBg,borderRadius:'20px 20px 0 0',
-            padding:'24px 20px 36px',width:'100%',maxWidth:500,boxSizing:'border-box',
-            position:'relative',bottom:dsKbOffset,
-            animation:'bsSlideUp .25s cubic-bezier(0.32,0.72,0,1)'}}>
+        onClick={()=>{setDeleteSheet(null);setCancelReason('');setCancelReasonError(false);}}>
+        <HideTabBar/>
+        <div onClick={e=>e.stopPropagation()} style={{background:T.sheetBg,borderRadius:'20px 20px 0 0',
+          padding:'24px 20px 36px',width:'100%',maxWidth:500,boxSizing:'border-box',
+          position:'relative',bottom:dsKbOffset,
+          animation:'bsSlideUp .25s cubic-bezier(0.32,0.72,0,1)'}}>
             <div style={{fontSize:16,fontWeight:700,color:T.text,marginBottom:4}}>
               {deleteSheet.deleteAll?'Radera hela serien':'Radera tillfälle'}
             </div>
@@ -1642,8 +1644,7 @@ function MyBookings({bookings,exceptions,loading,onBack,onCancel,onCancelFromDat
                 cursor:'pointer',WebkitTapHighlightColor:'transparent'}}>Avbryt</button>
           </div>
         </div>
-      </div>;
-      })()}
+      </div>}
     </div>;
   }
 
