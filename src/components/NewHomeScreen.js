@@ -208,6 +208,9 @@ function YoutubeCard({ stream, T }) {
 
 /* ── Booking notification label helpers ── */
 function bookingNotifText(n) {
+  if (n.is_exception) {
+    return `Tillfälle inställt — ${n.date ? n.date.split('-').reverse().join('/') : ''} · ${n.time_slot || ''}`;
+  }
   const statusLabel = {
     approved:  'Din bokning har godkänts',
     rejected:  'Din bokning avböjdes',
@@ -217,8 +220,9 @@ function bookingNotifText(n) {
   const base = statusLabel[n.status] || 'Uppdatering på din bokning';
   return `${base} — ${n.date ? n.date.split('-').reverse().join('/') : ''} · ${n.time_slot || ''}`;
 }
-function bookingNotifColor(status) {
-  return status==='approved'?'#22c55e':status==='rejected'?'#ef4444':status==='edited'?'#3b82f6':'#64748b';
+function bookingNotifColor(status, isException) {
+  if (isException) return '#ef4444'; // admin-removed occurrence always red
+  return status==='approved'?'#22c55e':status==='rejected'?'#ef4444':status==='cancelled'?'#ef4444':status==='edited'?'#3b82f6':'#64748b';
 }
 
 
@@ -661,41 +665,49 @@ export default function NewHomeScreen({ stream, onGoToAdminLogin, onGoToMyBookin
 
         {/* Bokningssvar från admin — visas i feedet */}
         {bellNotifs.map((n, i) => {
-          const color = bookingNotifColor(n.status);
-          const statusLabel = {
-            approved:  'Bokning godkänd',
-            rejected:  'Bokning avböjd',
-            cancelled: 'Bokning inställd',
-            edited:    'Bokning ändrad av admin',
-          }[n.status] || 'Bokningsuppdatering';
+          const color = bookingNotifColor(n.status, n.is_exception);
+          const statusLabel = n.is_exception
+            ? 'Tillfälle inställt av admin'
+            : {
+                approved:  'Bokning godkänd',
+                rejected:  'Bokning avböjd',
+                cancelled: 'Bokning inställd',
+                edited:    'Bokning ändrad av admin',
+              }[n.status] || 'Bokningsuppdatering';
+          // For exceptions show the specific cancelled date, otherwise show start_date
+          const displayDate = n.date ? n.date.split('-').reverse().join('/') : '';
           return (
             <SwipeableItem key={`feed-booking-${n.id}`} onDismiss={() => markVisitorSeen()}>
               <div
-                onClick={() => { markVisitorSeen(); onGoToMyBookings?.(n.id, n.status); }}
+                onClick={() => { markVisitorSeen(); onGoToMyBookings?.(n.booking_id || n.id, n.status); }}
                 style={{
                   background: T.isDark ? `rgba(30,30,30,0.6)` : `rgba(255,255,255,0.55)`,
                   backdropFilter: 'blur(20px)',
                   WebkitBackdropFilter: 'blur(20px)',
                   border: `1px solid ${color}44`,
-                  borderLeft: `4px solid ${T.accent}`,
+                  borderLeft: `4px solid ${color}`,
                   borderRadius: 14, padding: '13px 14px',
                   display: 'flex', alignItems: 'flex-start', gap: 12,
                   cursor: 'pointer',
                   boxShadow: T.isDark
-                    ? `0 4px 20px rgba(0,0,0,0.35), 0 0 0 0 ${color}00, 0 1px 0 rgba(255,255,255,0.05) inset`
+                    ? `0 4px 20px rgba(0,0,0,0.35), 0 1px 0 rgba(255,255,255,0.05) inset`
                     : `0 4px 20px ${color}22, 0 1px 0 rgba(255,255,255,0.9) inset`,
                   animation: `bannerIn .3s ease both`, animationDelay: `${i * 60}ms`,
                 }}
               >
-                {/* Kalender-ikon från Boka lokal */}
                 <div style={{ width: 32, height: 32, borderRadius: 9, flexShrink: 0, background: `${color}22`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                   <CalendarClockIcon size={16} color={color} />
                 </div>
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ fontSize: 12, fontWeight: 700, color, marginBottom: 2, fontFamily: "'Inter',system-ui,sans-serif" }}>{statusLabel}</div>
                   <div style={{ fontSize: 13, color: T.text, lineHeight: 1.45, fontFamily: "'Inter',system-ui,sans-serif" }}>
-                    {n.date ? n.date.split('-').reverse().join('/') : ''}{n.time_slot ? ` · ${n.time_slot}` : ''}
+                    {displayDate}{n.time_slot ? ` · ${n.time_slot}` : ''}
                   </div>
+                  {n.is_exception && (
+                    <div style={{ fontSize: 11, color, fontWeight: 600, marginTop: 2, fontFamily: "'Inter',system-ui,sans-serif" }}>
+                      Enstaka tillfälle borttaget
+                    </div>
+                  )}
                   {n.admin_comment && (
                     <div style={{ fontSize: 11, color: T.textMuted, marginTop: 3, fontStyle: 'italic', fontFamily: "'Inter',system-ui,sans-serif" }}>"{n.admin_comment}"</div>
                   )}

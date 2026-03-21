@@ -2146,6 +2146,7 @@ export default function BookingScreen({
   const[calendarAdminDetail,setCalendarAdminDetail]=useState(null);
   // Universal booking detail — for search results and day panel clicks (all users)
   const[bookingDetail,setBookingDetail]=useState(null);
+  const[occDeleteDialog,setOccDeleteDialog]=useState(null); // admin: delete single occurrence from detail sheet
 
   const deviceId=useRef((()=>{
     let id=localStorage.getItem(STORAGE_DEVICE);
@@ -2552,7 +2553,7 @@ export default function BookingScreen({
       const sc={approved:'#34C759',edited:'#34C759',pending:'#FF9F0A',edit_pending:'#FF9F0A',cancelled:'#8E8E93',rejected:'#FF3B30'}[b.status]||T.accent;
       return <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.55)',zIndex:1100,
         display:'flex',alignItems:'flex-end',justifyContent:'center'}}
-        onClick={()=>setBookingDetail(null)}>
+        onClick={e=>{if(e.target===e.currentTarget)setBookingDetail(null);}}>
         <div onClick={e=>e.stopPropagation()} style={{background:T.sheetBg,borderRadius:'20px 20px 0 0',
           width:'100%',maxWidth:500,boxSizing:'border-box',
           maxHeight:'85vh',display:'flex',flexDirection:'column',
@@ -2599,17 +2600,12 @@ export default function BookingScreen({
                   {/* Show remove button if: owns the booking OR is admin */}
                   {(isOwn||adminMode)&&!isSkipped&&(b.status==='approved'||b.status==='edited'||b.status==='pending')&&(
                     <button
-                      onClick={async()=>{
+                      onClick={()=>{
                         if(adminMode){
-                          // Admin: skip this occurrence with an explanation prompt via handleAdminDelete
-                          const explanation=window.prompt('Anledning till borttagning (visas för besökaren):');
-                          if(explanation===null) return;
-                          await handleAdminDelete(b,occ.date,explanation||'Borttagen av admin');
+                          setOccDeleteDialog({booking:b,occurrence_date:occ.date});
                         } else {
-                          // User: skip this occurrence
-                          await handleCancelOccurrence(b,occ.date,null);
+                          handleCancelOccurrence(b,occ.date,null).then(()=>setBookingDetail(null));
                         }
-                        setBookingDetail(null);
                       }}
                       style={{background:'none',border:`1px solid ${T.error}44`,borderRadius:8,
                         padding:'4px 10px',cursor:'pointer',color:T.error,
@@ -2636,7 +2632,20 @@ export default function BookingScreen({
             </button>}
           </div>
         </div>
-      </div>;
+      </div>
+      {/* Admin delete single occurrence — rendered at z:1200 above the detail sheet */}
+      {occDeleteDialog&&(
+        <AdminDeleteSheet
+          dialog={{...occDeleteDialog,type:'one'}}
+          actionLoading={false}
+          onConfirm={async(explanation)=>{
+            await handleAdminDelete(occDeleteDialog.booking,occDeleteDialog.occurrence_date,explanation);
+            setOccDeleteDialog(null);
+            setBookingDetail(null);
+          }}
+          onCancel={()=>setOccDeleteDialog(null)}
+          T={T}/>
+      )};
     })()}
 
     {view==='form'&&pendingFormDate&&<BookingForm date={pendingFormDate}

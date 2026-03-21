@@ -53,7 +53,7 @@ export function useBookingNotifications({ onNewCancelledNotif } = {}) {
         const seenAt = parseInt(localStorage.getItem(STORAGE_VISITOR_SEEN) || '0', 10);
         let query = supabase
           .from('bookings')
-          .select('id, status, resolved_at, start_date, time_slot, admin_comment')
+          .select('id, status, resolved_at, start_date, time_slot, admin_comment, recurrence')
           .in('status', ['approved', 'rejected', 'edited', 'cancelled']);
         if (userId) query = query.eq('user_id', userId);
         else        query = query.eq('device_id', deviceId);
@@ -64,20 +64,66 @@ export function useBookingNotifications({ onNewCancelledNotif } = {}) {
             ? data.filter(b => b.resolved_at && b.resolved_at > seenAt)
             : data.filter(b => b.resolved_at != null);
           const filtered = timeFiltered.filter(b => {
+            // Filter out self-cancellations — user or admin who made the change should not get notified
+            if (b.admin_comment && userName) {
+              const selfPrefix1 = 'Avbokad av ' + userName + ':';
+              const selfPrefix2 = 'Avbokad av ' + userName + '.';
+              if (b.admin_comment.startsWith(selfPrefix1) || b.admin_comment.startsWith(selfPrefix2)) return false;
+            }
             if (b.status !== 'cancelled') return true;
             if (!b.admin_comment) return false;
-            if (userName) {
-              const p1 = 'Avbokad av ' + userName + ':';
-              const p2 = 'Avbokad av ' + userName + '.';
-              if (b.admin_comment.startsWith(p1) || b.admin_comment.startsWith(p2)) return false;
-            }
             return true;
           });
-          const newNotifs = filtered.map(b => ({
-            id: b.id, type: 'booking', status: b.status,
-            date: b.start_date, time_slot: b.time_slot,
-            admin_comment: b.admin_comment,
-          }));
+          // Also fetch exception skips for recurring bookings owned by this user
+          let exceptionNotifs = [];
+          const recurringIds = data
+            .filter(b => b.recurrence && b.recurrence !== 'none' && b.status !== 'cancelled' && b.status !== 'rejected')
+            .map(b => b.id);
+          if (recurringIds.length > 0) {
+            const { data: excData } = await supabase
+              .from('booking_exceptions')
+              .select('id, booking_id, exception_date, admin_comment, created_at')
+              .in('booking_id', recurringIds)
+              .eq('type', 'skip')
+              .not('admin_comment', 'is', null);
+            if (excData) {
+              const excSince = seenAt > 0 ? seenAt : 0;
+              exceptionNotifs = excData
+                .filter(e => {
+                  if (!e.admin_comment) return false;
+                  if (e.created_at && e.created_at < excSince) return false;
+                  // Filter out self-cancellations
+                  if (userName) {
+                    const sp1 = 'Avbokad av ' + userName + ':';
+                    const sp2 = 'Avbokad av ' + userName + '.';
+                    if (e.admin_comment.startsWith(sp1) || e.admin_comment.startsWith(sp2)) return false;
+                  }
+                  return true;
+                })
+                .map(e => {
+                  const parentBooking = data.find(b => b.id === e.booking_id);
+                  return {
+                    id: e.booking_id + '_exc_' + e.exception_date,
+                    booking_id: e.booking_id,
+                    type: 'booking',
+                    status: 'cancelled',
+                    date: e.exception_date,
+                    time_slot: parentBooking?.time_slot || '',
+                    admin_comment: e.admin_comment,
+                    is_exception: true,
+                  };
+                });
+            }
+          }
+          const newNotifs = [
+            ...filtered.map(b => ({
+              id: b.id, type: 'booking', status: b.status,
+              date: b.start_date, time_slot: b.time_slot,
+              admin_comment: b.admin_comment,
+              is_exception: false,
+            })),
+            ...exceptionNotifs,
+          ];
           const prevIds = new Set(prevBellNotifsRef.current.map(n => n.id));
           const brandNew = newNotifs.filter(n => !prevIds.has(n.id));
           if (brandNew.length > 0 && onNewCancelledNotif) {
