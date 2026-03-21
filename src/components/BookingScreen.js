@@ -388,6 +388,106 @@ function RecurBadge({recurrence}) {
   return <span style={{background:'#8b5cf622',color:'#8b5cf6',borderRadius:8,
     fontSize:10,fontWeight:700,padding:'2px 7px',fontFamily:'system-ui'}}>{fmtRecur(recurrence)}</span>;
 }
+// ─── OccurrenceRow — swipe-left to reveal delete, tap Ta bort to confirm ──────
+function OccurrenceRow({occ, booking, isSkipped, isOwn, isAdmin, onUserCancel, onAdminDelete, idx, total, T}) {
+  const [offsetX, setOffsetX] = React.useState(0);
+  const [revealed, setRevealed] = React.useState(false);
+  const startXRef = React.useRef(null);
+  const startYRef = React.useRef(null);
+  const axisRef = React.useRef(null);
+  const canDelete = !isSkipped && (booking.status==='approved'||booking.status==='edited'||booking.status==='pending');
+  const showActions = (isOwn&&!isAdmin) || isAdmin;
+
+  const onTouchStart = e => {
+    startXRef.current = e.touches[0].clientX;
+    startYRef.current = e.touches[0].clientY;
+    axisRef.current = null;
+  };
+  const onTouchMove = e => {
+    if (!startXRef.current) return;
+    const dx = e.touches[0].clientX - startXRef.current;
+    const dy = Math.abs(e.touches[0].clientY - startYRef.current);
+    if (!axisRef.current) {
+      axisRef.current = Math.abs(dx) > dy ? 'h' : 'v';
+    }
+    if (axisRef.current !== 'h') return;
+    e.stopPropagation();
+    const clamped = Math.max(-72, Math.min(0, dx + (revealed ? -72 : 0)));
+    setOffsetX(clamped);
+  };
+  const onTouchEnd = () => {
+    if (axisRef.current === 'h') {
+      if (offsetX < -36) { setOffsetX(-72); setRevealed(true); }
+      else { setOffsetX(0); setRevealed(false); }
+    }
+    startXRef.current = null;
+    axisRef.current = null;
+  };
+
+  const handleDelete = () => {
+    setOffsetX(0); setRevealed(false);
+    if (isAdmin) onAdminDelete(occ);
+    else onUserCancel(occ);
+  };
+
+  return (
+    <div style={{position:'relative', overflow:'hidden',
+      borderBottom: idx<total-1 ? `0.5px solid ${T.separator}` : 'none'}}>
+      {/* Red delete action revealed on swipe */}
+      <div style={{position:'absolute', right:0, top:0, bottom:0, width:72,
+        background:T.error, display:'flex', alignItems:'center', justifyContent:'center'}}>
+        <button onClick={handleDelete}
+          style={{background:'none',border:'none',cursor:'pointer',
+            display:'flex',flexDirection:'column',alignItems:'center',gap:3,
+            WebkitTapHighlightColor:'transparent'}}>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none"
+            stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <polyline points="3 6 5 6 21 6"/>
+            <path d="M19 6l-1 14H6L5 6"/>
+            <path d="M10 11v6M14 11v6"/>
+            <path d="M9 6V4h6v2"/>
+          </svg>
+          <span style={{fontSize:10,fontWeight:700,color:'#fff'}}>Ta bort</span>
+        </button>
+      </div>
+      {/* Row content — slides left on swipe */}
+      <div
+        onTouchStart={canDelete&&showActions ? onTouchStart : undefined}
+        onTouchMove={canDelete&&showActions ? onTouchMove : undefined}
+        onTouchEnd={canDelete&&showActions ? onTouchEnd : undefined}
+        style={{
+          display:'flex', alignItems:'center', justifyContent:'space-between',
+          padding:'10px 0', opacity: isSkipped ? 0.4 : 1,
+          transform: `translateX(${offsetX}px)`,
+          transition: startXRef.current ? 'none' : 'transform 0.22s cubic-bezier(0.4,0,0.2,1)',
+          background: T.sheetBg,
+          position:'relative', zIndex:1,
+          touchAction: canDelete&&showActions ? 'pan-y' : 'auto',
+        }}>
+        <div>
+          <div style={{fontSize:14,fontWeight:600,color:T.text}}>{isoToDisplay(occ.date)}</div>
+          <div style={{fontSize:12,color:T.textMuted}}>{occ.time_slot}</div>
+        </div>
+        <div style={{display:'flex',alignItems:'center',gap:8}}>
+          {isSkipped && <span style={{fontSize:11,color:T.textMuted}}>Inställd</span>}
+          {/* Ta bort button — visible when not swiped, works on tap */}
+          {canDelete && showActions && !isSkipped && (
+            <button
+              onClick={handleDelete}
+              style={{background:'none',border:`1px solid ${T.error}44`,borderRadius:8,
+                padding:'4px 10px',cursor:'pointer',color:T.error,
+                fontSize:12,fontWeight:600,
+                WebkitTapHighlightColor:'transparent',
+                touchAction:'manipulation'}}>
+              Ta bort
+            </button>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // Hides tab bar on mount, restores on unmount — used inside sheets
 function HideTabBar() {
   useEffect(()=>{
@@ -869,7 +969,112 @@ function CalendarView({bookings,exceptions,onSelectDate,isAdmin,selectedDate,T,o
 }
 
 // ─── Day Panel ────────────────────────────────────────────────────────────────
-function DayPanel({date,bookings,exceptions,isAdmin,myBookingIds,onSelectBooking,onNewBooking,T}) {
+// ─── DayPanelCard — swipe-left to reveal delete in activity list ──────────────
+function DayPanelCard({occ, isOwn, isAdmin, onPress, onSwipeDelete, T}) {
+  const [offsetX, setOffsetX] = React.useState(0);
+  const [revealed, setRevealed] = React.useState(false);
+  const startXRef = React.useRef(null);
+  const startYRef = React.useRef(null);
+  const axisRef = React.useRef(null);
+  const canSwipe = !!onSwipeDelete && (occ.status==='approved'||occ.status==='edited'||occ.status==='pending');
+  const REVEAL = 80;
+
+  const onTouchStart = e => {
+    startXRef.current = e.touches[0].clientX;
+    startYRef.current = e.touches[0].clientY;
+    axisRef.current = null;
+  };
+  const onTouchMove = e => {
+    if (!startXRef.current) return;
+    const dx = e.touches[0].clientX - startXRef.current;
+    const dy = Math.abs(e.touches[0].clientY - startYRef.current);
+    if (!axisRef.current) {
+      axisRef.current = Math.abs(dx) > dy ? 'h' : 'v';
+    }
+    if (axisRef.current !== 'h') return;
+    e.stopPropagation();
+    const base = revealed ? -REVEAL : 0;
+    const clamped = Math.max(-REVEAL, Math.min(0, base + dx));
+    setOffsetX(clamped);
+  };
+  const onTouchEnd = () => {
+    if (axisRef.current === 'h') {
+      if (offsetX < -REVEAL / 2) { setOffsetX(-REVEAL); setRevealed(true); }
+      else { setOffsetX(0); setRevealed(false); }
+    }
+    startXRef.current = null; axisRef.current = null;
+  };
+
+  const handleDelete = e => {
+    e.stopPropagation();
+    setOffsetX(0); setRevealed(false);
+    onSwipeDelete?.();
+  };
+
+  const accentColor = occ.status==='approved'||occ.status==='edited' ? T.accent
+    : occ.status==='pending'||occ.status==='edit_pending' ? T.warning : T.textMuted;
+
+  return (
+    <div style={{position:'relative', borderRadius:14, overflow:'hidden'}}>
+      {/* Delete action revealed on swipe */}
+      {canSwipe && <div style={{
+        position:'absolute', right:0, top:0, bottom:0, width:REVEAL,
+        background:T.error, borderRadius:'0 14px 14px 0',
+        display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', gap:3,
+      }}>
+        <button onClick={handleDelete}
+          style={{background:'none',border:'none',cursor:'pointer',
+            display:'flex',flexDirection:'column',alignItems:'center',gap:3,
+            WebkitTapHighlightColor:'transparent',touchAction:'manipulation'}}>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none"
+            stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <polyline points="3 6 5 6 21 6"/>
+            <path d="M19 6l-1 14H6L5 6"/>
+            <path d="M10 11v6M14 11v6M9 6V4h6v2"/>
+          </svg>
+          <span style={{fontSize:10,fontWeight:700,color:'#fff'}}>Ta bort</span>
+        </button>
+      </div>}
+      {/* Card content */}
+      <div
+        onTouchStart={canSwipe ? onTouchStart : undefined}
+        onTouchMove={canSwipe ? onTouchMove : undefined}
+        onTouchEnd={canSwipe ? onTouchEnd : undefined}
+        onClick={axisRef.current === 'h' ? undefined : onPress}
+        style={{
+          background: T.card,
+          border: `0.5px solid ${isOwn ? T.border : T.separator}`,
+          borderRadius: 14, padding: '12px 14px',
+          cursor: isOwn ? 'pointer' : 'default',
+          WebkitTapHighlightColor: 'transparent',
+          display: 'flex', alignItems: 'flex-start', gap: 12,
+          opacity: isOwn ? 1 : 0.72,
+          transform: `translateX(${offsetX}px)`,
+          transition: startXRef.current ? 'none' : 'transform 0.22s cubic-bezier(0.4,0,0.2,1)',
+          touchAction: canSwipe ? 'pan-y' : 'auto',
+          position: 'relative', zIndex: 1,
+        }}>
+        <div style={{width:4, borderRadius:2, alignSelf:'stretch', flexShrink:0,
+          background: accentColor}}/>
+        <div style={{flex:1, minWidth:0}}>
+          <div style={{fontSize:15,fontWeight:600,color:T.text,fontFamily:'system-ui',marginBottom:2}}>{occ.activity}</div>
+          <div style={{fontSize:13,color:T.textMuted,fontFamily:'system-ui'}}>{occ.time_slot} · {fmtDuration(occ.duration_hours)}</div>
+          {isAdmin && <div style={{fontSize:12,color:T.textMuted,fontFamily:'system-ui',marginTop:2}}>
+            {occ.name}{occ.phone ? ` · ${occ.phone}` : ''}
+          </div>}
+          {occ.notes && <div style={{fontSize:12,color:T.textMuted,fontFamily:'system-ui',marginTop:4,fontStyle:'italic'}}>{occ.notes}</div>}
+          {!isOwn && !isAdmin && <div style={{fontSize:10,color:T.textMuted,fontFamily:'system-ui',marginTop:3}}>Annan bokning</div>}
+        </div>
+        <div style={{display:'flex',flexDirection:'column',alignItems:'flex-end',gap:4}}>
+          <Badge status={occ.status}/>
+          {isOwn && !isAdmin && <div style={{fontSize:10,color:T.accent,fontWeight:600,fontFamily:'system-ui'}}>Din bokning</div>}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function DayPanel({date,bookings,exceptions,isAdmin,myBookingIds,onSelectBooking,onNewBooking,onSwipeDelete,T}) {
   const iso=toISO(date);
   const occs=useMemo(()=>getOccurrencesForDate(bookings,exceptions,iso),[bookings,exceptions,iso]);
   const today=new Date();today.setHours(0,0,0,0);
@@ -925,33 +1130,11 @@ function DayPanel({date,bookings,exceptions,isAdmin,myBookingIds,onSelectBooking
           // clickable if admin (all) or if it's user's own booking
           const isOwn=isAdmin||(myBookingIds&&myBookingIds.has(o.id));
           return (
-          <div key={o.id+(o.date||'')}
-            onClick={()=>{ if(isOwn) onSelectBooking(o); }}
-            style={{background:T.card,
-              border:`0.5px solid ${isOwn?T.border:T.separator}`,
-              borderRadius:14,padding:'12px 14px',
-              cursor:isOwn?'pointer':'default',
-              WebkitTapHighlightColor:'transparent',
-              display:'flex',alignItems:'flex-start',gap:12,
-              opacity:isOwn?1:0.72,
-            }}>
-            <div style={{width:4,borderRadius:2,alignSelf:'stretch',flexShrink:0,
-              background:o.status==='approved'||o.status==='edited'?T.accent:
-                o.status==='pending'||o.status==='edit_pending'?T.warning:T.textMuted}}/>
-            <div style={{flex:1,minWidth:0}}>
-              <div style={{fontSize:15,fontWeight:600,color:T.text,fontFamily:'system-ui',marginBottom:2}}>{o.activity}</div>
-              <div style={{fontSize:13,color:T.textMuted,fontFamily:'system-ui'}}>{o.time_slot} · {fmtDuration(o.duration_hours)}</div>
-              {isAdmin&&<div style={{fontSize:12,color:T.textMuted,fontFamily:'system-ui',marginTop:2}}>
-                {o.name}{o.phone?` · ${o.phone}`:''}
-              </div>}
-              {o.notes&&<div style={{fontSize:12,color:T.textMuted,fontFamily:'system-ui',marginTop:4,fontStyle:'italic'}}>{o.notes}</div>}
-              {!isOwn&&!isAdmin&&<div style={{fontSize:10,color:T.textMuted,fontFamily:'system-ui',marginTop:3}}>Annan bokning</div>}
-            </div>
-            <div style={{display:'flex',flexDirection:'column',alignItems:'flex-end',gap:4}}>
-              <Badge status={o.status}/>
-              {isOwn&&!isAdmin&&<div style={{fontSize:10,color:T.accent,fontWeight:600,fontFamily:'system-ui'}}>Din bokning</div>}
-            </div>
-          </div>
+          <DayPanelCard key={o.id+(o.date||'')}
+            occ={o} isOwn={isOwn} isAdmin={isAdmin}
+            onPress={()=>{ if(isOwn) onSelectBooking(o); }}
+            onSwipeDelete={isOwn&&onSwipeDelete ? ()=>onSwipeDelete(o) : null}
+            T={T}/>
           );
         })}
       </div>
@@ -2371,6 +2554,7 @@ export default function BookingScreen({
   const[internalHighlightBooking,setInternalHighlightBooking]=useState(null); // the actual booking object, avoids find() race
   // Universal booking detail — for search results and day panel clicks (all users)
   const[bookingDetail,setBookingDetail]=useState(null);
+  const[clickedOccurrenceDate,setClickedOccurrenceDate]=useState(null); // which occurrence was tapped
   const[occDeleteDialog,setOccDeleteDialog]=useState(null); // admin: delete single occurrence from detail sheet
   const[userCancelConfirm,setUserCancelConfirm]=useState(null); // user: confirm before cancelling
 
@@ -2427,25 +2611,25 @@ export default function BookingScreen({
     const devId=localStorage.getItem(STORAGE_DEVICE);
     if(!userId&&!devId){setDbLoading(false);return;}
 
-    // Phase 1 — fetch this user's own bookings immediately (fast, small query)
-    // This ensures DayPanel shows the user's bookings as clickable on first render
-    // before the full table fetch completes.
-    const quickFetch=async()=>{
-      if(!userId) return; // device-only users get full fetch below
-      let q=supabase.from('bookings').select('*').eq('user_id',userId);
-      const{data}=await q;
-      if(data&&data.length>0){
-        // Merge into bookings state — don't replace, as full fetch may already be running
-        setBookings(prev=>{
-          if(prev.length>0) return prev; // full fetch already populated, skip
-          return data;
-        });
+    // Single smart fetch: fetch user's own bookings first (fast), then full table.
+    // We run them as two awaited fetches so myBookings is populated before full data arrives.
+    const initFetch=async()=>{
+      // Step 1: fetch only this user's bookings — arrives fast, populates myBookings immediately
+      if(userId){
+        const{data:mine}=await supabase
+          .from('bookings').select('*')
+          .eq('user_id',userId)
+          .order('created_at',{ascending:false});
+        if(mine&&mine.length>0){
+          setBookings(mine);        // calendar + DayPanel can render clickable immediately
+          setDbLoading(false);      // show calendar right away, no spinner
+        }
       }
+      // Step 2: full table fetch (all bookings for calendar dots, admin-view, other users' blocks)
+      // This runs right after and replaces/merges the initial data
+      await fetchAll();
     };
-    quickFetch();
-
-    // Phase 2 — full fetch (all bookings for calendar dots, other users' blocks, admin)
-    fetchAll();
+    initFetch();
   },[fetchAll]);
 
   useEffect(()=>{
@@ -2510,6 +2694,9 @@ export default function BookingScreen({
     const userId=localStorage.getItem(STORAGE_USER_ID);
     return bookings.filter(b=>(userId&&b.user_id===userId)||b.device_id===deviceId);
   },[bookings,deviceId]);
+
+  // Memoize as Set so DayPanel doesn't get a new object every render
+  const myBookingIds=useMemo(()=>new Set(myBookings.map(b=>b.id)),[myBookings]);
 
   // ── DB actions ────────────────────────────────────────────────────────────────
   const handleSubmitBooking=useCallback(async formData=>{
@@ -2783,17 +2970,34 @@ export default function BookingScreen({
 
       <DayPanel date={selectedDate} bookings={bookings} exceptions={exceptions}
         isAdmin={adminMode}
-        myBookingIds={new Set(myBookings.map(b=>b.id))}
+        myBookingIds={myBookingIds}
+        onSwipeDelete={o=>{
+          // Swipe left on activity card → open confirm/delete for this occurrence
+          const parent=bookings.find(b=>b.id===o.id)||o;
+          const userId=localStorage.getItem(STORAGE_USER_ID);
+          const deviceId_=localStorage.getItem(STORAGE_DEVICE);
+          const isOwn=adminMode||(userId&&parent.user_id===userId)||(deviceId_&&parent.device_id===deviceId_);
+          if(!isOwn) return;
+          if(adminMode){
+            setOccDeleteDialog({booking:parent,occurrence_date:o.date||parent.start_date});
+          } else {
+            setUserCancelConfirm({booking:parent,occurrence_date:o.date||parent.start_date});
+          }
+        }}
         onSelectBooking={o=>{
           const parent=bookings.find(b=>b.id===o.id)||o;
           if(adminMode){
             // Admin: open BookingDetailSheet directly — shows all details + "Öppna i adminpanel"
+            setClickedOccurrenceDate(o.date||null);
             setBookingDetail(parent);
           } else {
             const userId=localStorage.getItem(STORAGE_USER_ID);
             const deviceId_=localStorage.getItem(STORAGE_DEVICE);
             const isOwn=(userId&&parent.user_id===userId)||(deviceId_&&parent.device_id===deviceId_);
-            if(isOwn) setBookingDetail(parent);
+            if(isOwn){
+              setClickedOccurrenceDate(o.date||null);
+              setBookingDetail(parent);
+            }
           }
         }}
         onNewBooking={d=>{setPendingFormDate(d);setView('form');}} T={T}/>
@@ -2850,17 +3054,17 @@ export default function BookingScreen({
       return <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.55)',zIndex:1100,
         display:'flex',alignItems:'flex-end',justifyContent:'center',
         touchAction:'none'}}
-        onClick={e=>{if(e.target===e.currentTarget)setBookingDetail(null);}}>
+        onClick={e=>{if(e.target===e.currentTarget){setBookingDetail(null);setClickedOccurrenceDate(null);}}}>
         <HideTabBar/>
         <div onClick={e=>e.stopPropagation()} style={{background:T.sheetBg,borderRadius:'20px 20px 0 0',
           width:'100%',maxWidth:500,boxSizing:'border-box',
           maxHeight:'92vh',display:'flex',flexDirection:'column',
-          touchAction:'pan-y',
+          touchAction:'manipulation',
           animation:'bsSlideUp .28s cubic-bezier(0.32,0.72,0,1)'}}>
           {/* Header */}
           <div style={{padding:'20px 20px 0',flexShrink:0}}>
             <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:12}}>
-              <button onClick={()=>setBookingDetail(null)}
+              <button onClick={()=>{setBookingDetail(null);setClickedOccurrenceDate(null);}}
                 style={{background:'none',border:'none',cursor:'pointer',color:T.accent,
                   fontSize:16,padding:0,WebkitTapHighlightColor:'transparent',
                   display:'flex',alignItems:'center',gap:4}}>
@@ -2885,52 +3089,61 @@ export default function BookingScreen({
             {b.notes&&<div style={{fontSize:13,color:T.textMuted,fontStyle:'italic',marginBottom:2}}>{b.notes}</div>}
             {b.admin_comment&&<div style={{fontSize:12,color:T.textMuted,fontStyle:'italic',marginTop:4,
               background:`${T.accent}0d`,padding:'6px 10px',borderRadius:8}}>"{b.admin_comment}"</div>}
-            {/* Section title */}
-            <div style={{fontSize:11,fontWeight:700,color:T.textMuted,letterSpacing:'.6px',
+            {/* Section title — only show if no specific occurrence was clicked */}
+            {!clickedOccurrenceDate&&<div style={{fontSize:11,fontWeight:700,color:T.textMuted,letterSpacing:'.6px',
               marginTop:16,marginBottom:8}}>
               {isRecur?`TILLFÄLLEN (${upcoming.length} visas)`:'DATUM'}
-            </div>
+            </div>}
+            {/* For non-recurring show single date */}
+            {!isRecur&&!clickedOccurrenceDate&&<div style={{fontSize:11,fontWeight:700,color:T.textMuted,letterSpacing:'.6px',
+              marginTop:16,marginBottom:8}}>DATUM</div>}
           </div>
           {/* Scrollable occurrences list */}
           <div style={{flex:1,overflowY:'auto',overscrollBehavior:'contain',
             WebkitOverflowScrolling:'touch',
             minHeight:0,
             padding:'0 20px',paddingBottom:'max(24px,env(safe-area-inset-bottom,16px))'}}>
+            {/* Denna bokning — the specific occurrence that was tapped */}
+            {clickedOccurrenceDate&&isRecur&&(()=>{
+              const isSkipped=exceptions.some(e=>e.booking_id===b.id&&e.exception_date===clickedOccurrenceDate&&e.type==='skip');
+              const canAct=!isSkipped&&(b.status==='approved'||b.status==='edited'||b.status==='pending');
+              return <div style={{marginBottom:12}}>
+                <div style={{fontSize:11,fontWeight:700,color:T.accent,letterSpacing:'.6px',marginBottom:6}}>
+                  DENNA BOKNING
+                </div>
+                <OccurrenceRow
+                  occ={{date:clickedOccurrenceDate,time_slot:b.time_slot}}
+                  booking={b}
+                  isSkipped={isSkipped}
+                  isOwn={isOwn}
+                  isAdmin={adminMode}
+                  idx={0} total={1}
+                  onUserCancel={occ=>{setUserCancelConfirm({booking:b,occurrence_date:occ.date});}}
+                  onAdminDelete={occ=>{setOccDeleteDialog({booking:b,occurrence_date:occ.date});}}
+                  T={T}
+                />
+                {isRecur&&upcoming.length>0&&<div style={{
+                  fontSize:11,fontWeight:700,color:T.textMuted,letterSpacing:'.6px',
+                  marginTop:14,marginBottom:6}}>
+                  KOMMANDE TILLFÄLLEN ({upcoming.length} visas)
+                </div>}
+              </div>;
+            })()}
             {upcoming.map((occ,i)=>{
               const isSkipped=exceptions.some(e=>e.booking_id===b.id&&e.exception_date===occ.date&&e.type==='skip');
-              return <div key={occ.date+i} style={{
-                display:'flex',alignItems:'center',justifyContent:'space-between',
-                padding:'10px 0',
-                borderBottom:i<upcoming.length-1?`0.5px solid ${T.separator}`:'none',
-                opacity:isSkipped?0.4:1}}>
-                <div>
-                  <div style={{fontSize:14,fontWeight:600,color:T.text}}>{isoToDisplay(occ.date)}</div>
-                  <div style={{fontSize:12,color:T.textMuted}}>{occ.time_slot}</div>
-                </div>
-                <div style={{display:'flex',alignItems:'center',gap:8}}>
-                  {isSkipped&&<span style={{fontSize:11,color:T.textMuted}}>Inställd</span>}
-                  {/* User: Ta bort this occurrence */}
-                  {isOwn&&!adminMode&&!isSkipped&&(b.status==='approved'||b.status==='edited'||b.status==='pending')&&(
-                    <button
-                      onClick={()=>setUserCancelConfirm({booking:b,occurrence_date:occ.date})}
-                      style={{background:'none',border:`1px solid ${T.error}44`,borderRadius:8,
-                        padding:'4px 10px',cursor:'pointer',color:T.error,
-                        fontSize:12,fontWeight:600,WebkitTapHighlightColor:'transparent'}}>
-                      Ta bort
-                    </button>
-                  )}
-                  {/* Admin: Ta bort this occurrence */}
-                  {adminMode&&!isSkipped&&(b.status==='approved'||b.status==='edited'||b.status==='pending')&&(
-                    <button
-                      onClick={()=>setOccDeleteDialog({booking:b,occurrence_date:occ.date})}
-                      style={{background:'none',border:`1px solid ${T.error}44`,borderRadius:8,
-                        padding:'4px 10px',cursor:'pointer',color:T.error,
-                        fontSize:12,fontWeight:600,WebkitTapHighlightColor:'transparent'}}>
-                      Ta bort
-                    </button>
-                  )}
-                </div>
-              </div>;
+              return <OccurrenceRow
+                key={occ.date+i}
+                occ={occ}
+                booking={b}
+                isSkipped={isSkipped}
+                isOwn={isOwn}
+                isAdmin={adminMode}
+                idx={i}
+                total={upcoming.length}
+                onUserCancel={occ=>setUserCancelConfirm({booking:b,occurrence_date:occ.date})}
+                onAdminDelete={occ=>setOccDeleteDialog({booking:b,occurrence_date:occ.date})}
+                T={T}
+              />;
             })}
             {/* Inställda tillfällen — visas sist under kommande tillfällen */}
             {isRecur&&<CancelledOccurrencesList
