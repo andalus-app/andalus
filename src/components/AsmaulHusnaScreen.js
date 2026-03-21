@@ -473,7 +473,7 @@ function LardomarList({ onBack, T }) {
     };
     window.addEventListener('edgeSwipeBack', handler);
     return () => window.removeEventListener('edgeSwipeBack', handler);
-  }, []); // eslint-disable-line — refs handle freshness
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleOpenLardom = (l) => {
     savedScrollRef.current = scrollRef.current?.scrollTop || 0;
