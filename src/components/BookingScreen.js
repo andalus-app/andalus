@@ -2584,6 +2584,7 @@ export default function BookingScreen({
   adminHighlightId=null,adminHighlightFilter=null,
   cancelledBookingIds=[],pendingBookingIds=[],
   visitorUnread=0,
+  refreshKey=0,
 }) {
   const{theme:T}=useTheme();
   const[bookings,setBookings]=useState([]);
@@ -2670,31 +2671,41 @@ export default function BookingScreen({
     setDbLoading(false);
   },[]);
 
+  const hasFetchedRef=useRef(false);
+
   useEffect(()=>{
     const userId=localStorage.getItem(STORAGE_USER_ID);
     const devId=localStorage.getItem(STORAGE_DEVICE);
     if(!userId&&!devId){setDbLoading(false);return;}
 
-    // Single smart fetch: fetch user's own bookings first (fast), then full table.
-    // We run them as two awaited fetches so myBookings is populated before full data arrives.
     const initFetch=async()=>{
-      // Step 1: fetch only this user's bookings — arrives fast, populates myBookings immediately
+      // Step 1: fetch only this user's bookings — fast, makes DayPanel clickable immediately
       if(userId){
         const{data:mine}=await supabase
           .from('bookings').select('*')
           .eq('user_id',userId)
           .order('created_at',{ascending:false});
         if(mine&&mine.length>0){
-          setBookings(mine);        // calendar + DayPanel can render clickable immediately
-          setDbLoading(false);      // show calendar right away, no spinner
+          setBookings(mine);
+          setDbLoading(false);
         }
       }
-      // Step 2: full table fetch (all bookings for calendar dots, admin-view, other users' blocks)
-      // This runs right after and replaces/merges the initial data
+      // Step 2: full table fetch
       await fetchAll();
+      hasFetchedRef.current=true;
     };
     initFetch();
   },[fetchAll]);
+
+  // Re-fetch when user taps "Boka lokal" tab (refreshKey increments each press)
+  // Skip the very first value (handled by initFetch above)
+  useEffect(()=>{
+    if(!hasFetchedRef.current) return; // initial fetch not done yet, skip
+    const userId=localStorage.getItem(STORAGE_USER_ID);
+    const devId=localStorage.getItem(STORAGE_DEVICE);
+    if(!userId&&!devId) return;
+    fetchAll();
+  },[refreshKey]); // eslint-disable-line
 
   useEffect(()=>{
     let timer=null;
