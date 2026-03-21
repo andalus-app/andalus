@@ -466,7 +466,7 @@ function OccurrenceRow({occ, booking, isSkipped, isOwn, isAdmin, onUserCancel, o
         }}>
         <div>
           <div style={{fontSize:14,fontWeight:600,color:T.text}}>{isoToDisplay(occ.date)}</div>
-          <div style={{fontSize:12,color:T.textMuted}}>{occ.time_slot}</div>
+          <div style={{fontSize:12,color:T.textMuted}}>{occ.time_slot}{booking.duration_hours?' · '+fmtDuration(booking.duration_hours):''}</div>
         </div>
         <div style={{display:'flex',alignItems:'center',gap:8}}>
           {isSkipped && <span style={{fontSize:11,color:T.textMuted}}>Inställd</span>}
@@ -1506,7 +1506,9 @@ function MyBookings({bookings,exceptions,loading,onBack,onCancel,onCancelFromDat
   if(selected) {
     const b=selected;
     const isRecur=b.recurrence&&b.recurrence!=='none';
-    const upcoming=isRecur?expandBooking(b,today,wEnd,exceptions).slice(0,10):[{...b,date:b.start_date}];
+    const allUpcoming=isRecur?expandBooking(b,today,wEnd,exceptions):[];
+    const [upcomingLimit,setUpcomingLimit]=useState(10);
+    const upcoming=isRecur?allUpcoming.slice(0,upcomingLimit):[{...b,date:b.start_date}];
     return <div style={{paddingTop:'max(20px,env(safe-area-inset-top,0px))',
       paddingLeft:16,paddingRight:16,
       paddingBottom:'max(120px,calc(env(safe-area-inset-bottom,0px) + 110px))',
@@ -1532,7 +1534,7 @@ function MyBookings({bookings,exceptions,loading,onBack,onCancel,onCancelFromDat
           <div style={{fontSize:10,fontWeight:700,color:T.textMuted,letterSpacing:'.5px',marginBottom:2}}>SLUTDATUM</div>
           <div style={{fontSize:14,color:T.text}}>{isoToDisplay(b.end_date)}</div>
         </div>}
-        {b.admin_comment&&<div style={{padding:'8px 10px',background:`${T.accent}11`,borderRadius:8}}>
+        {b.admin_comment&&(!isRecur||b.status==='cancelled'||b.status==='rejected')&&<div style={{padding:'8px 10px',background:`${T.accent}11`,borderRadius:8}}>
           <div style={{fontSize:10,fontWeight:700,color:T.textMuted,letterSpacing:'.5px',marginBottom:2}}>KOMMENTAR FRÅN ADMIN</div>
           <div style={{fontSize:13,color:T.text}}>{b.admin_comment}</div>
         </div>}
@@ -1544,7 +1546,7 @@ function MyBookings({bookings,exceptions,loading,onBack,onCancel,onCancelFromDat
         </div>
         {upcoming.map((occ,i)=><div key={i} style={{display:'flex',alignItems:'center',
           justifyContent:'space-between',padding:'8px 0',
-          borderBottom:i<upcoming.length-1?`0.5px solid ${T.separator}`:'none'}}>
+          borderBottom:i<upcoming.length-1||upcomingLimit<allUpcoming.length?`0.5px solid ${T.separator}`:'none'}}>
           <div>
             <div style={{fontSize:13,fontWeight:600,color:T.text}}>{isoToDisplay(occ.date)}</div>
             <div style={{fontSize:11,color:T.textMuted}}>{occ.time_slot}</div>
@@ -1557,7 +1559,16 @@ function MyBookings({bookings,exceptions,loading,onBack,onCancel,onCancelFromDat
                 fontSize:12,fontWeight:600,WebkitTapHighlightColor:'transparent',
                 touchAction:'manipulation'}}>Radera</button>
           </div>
-        </div>)}
+        </div>))}
+        {isRecur&&upcomingLimit<allUpcoming.length&&(
+          <button onClick={()=>setUpcomingLimit(l=>l+20)}
+            style={{width:'100%',marginTop:8,padding:'10px',borderRadius:10,
+              border:`0.5px solid ${'#8b5cf6'}44`,background:`${'#8b5cf6'}11`,
+              color:'#8b5cf6',fontSize:13,fontWeight:700,cursor:'pointer',
+              WebkitTapHighlightColor:'transparent',touchAction:'manipulation'}}>
+            Visa mer ({allUpcoming.length-upcomingLimit} kvar)
+          </button>
+        )}
       </div>}
       {/* Inställda tillfällen — admin-borttagna enstaka dagar med kommentar */}
       {isRecur&&<CancelledOccurrencesList
@@ -1580,7 +1591,7 @@ function MyBookings({bookings,exceptions,loading,onBack,onCancel,onCancelFromDat
             style={{padding:'13px',borderRadius:12,border:`1px solid ${T.error}33`,
               background:`${T.error}11`,color:T.error,fontSize:14,fontWeight:700,
               cursor:'pointer',WebkitTapHighlightColor:'transparent'}}>
-            Radera aktivitet
+            Radera bokning
           </button>
         )}
       </div>
@@ -1593,10 +1604,10 @@ function MyBookings({bookings,exceptions,loading,onBack,onCancel,onCancelFromDat
           position:'relative',bottom:dsKbOffset,
           animation:'bsSlideUp .25s cubic-bezier(0.32,0.72,0,1)'}}>
             <div style={{fontSize:16,fontWeight:700,color:T.text,marginBottom:4}}>
-              {deleteSheet.deleteAll?'Radera hela serien':'Radera tillfälle'}
+              Radera bokning
             </div>
             <div style={{fontSize:13,color:T.textMuted,marginBottom:12}}>
-              {isoToDisplay(deleteSheet.occurrence_date)} · {deleteSheet.booking.time_slot}
+              {isoToDisplay(deleteSheet.occurrence_date)} · {deleteSheet.booking.time_slot}{deleteSheet.booking.duration_hours?' · '+fmtDuration(deleteSheet.booking.duration_hours):''}
             </div>
           <textarea value={cancelReason}
             onChange={e=>{setCancelReason(e.target.value);setCancelReasonError(false);}}
@@ -1625,7 +1636,7 @@ function MyBookings({bookings,exceptions,loading,onBack,onCancel,onCancelFromDat
                 </button>
               </>:<button onClick={()=>validate(()=>{setDeleteSheet(null);setCancelReason('');setCancelReasonError(false);onCancel(deleteSheet.booking,deleteSheet.occurrence_date,getReason());})}
                 style={{padding:'14px',borderRadius:12,border:`1px solid ${T.error}33`,background:`${T.error}11`,color:T.error,fontSize:14,fontWeight:700,cursor:'pointer',WebkitTapHighlightColor:'transparent'}}>
-                Radera aktivitet
+                Radera bokning
               </button>;
             })()}
             {deleteSheet.deleteAll&&<button onClick={()=>{
@@ -1867,6 +1878,8 @@ function UserDeleteSheet({booking, occurrence_date, onConfirmOccurrence, onConfi
         </div>
         <div style={{fontSize:14,color:T.textMuted,marginBottom:14,fontFamily:'system-ui',lineHeight:1.5}}>
           {isoToDisplay(occurrence_date)}
+          {booking.time_slot && <span> · {booking.time_slot}</span>}
+          {booking.duration_hours && <span> · {fmtDuration(booking.duration_hours)}</span>}
           {isRecur && <span style={{color:T.textMuted}}> · återkommande</span>}
         </div>
         <label style={{fontSize:12,fontWeight:600,color:T.textMuted,fontFamily:'system-ui',
@@ -1878,7 +1891,6 @@ function UserDeleteSheet({booking, occurrence_date, onConfirmOccurrence, onConfi
           onChange={e=>{setReason(e.target.value);setErr(false);}}
           placeholder="Varför avbokar du?"
           rows={3}
-          autoFocus
           onFocus={()=>_tabBarCallbacks.hide?.()}
           onBlur={()=>_tabBarCallbacks.show?.()}
           style={{width:'100%',boxSizing:'border-box',background:T.cardElevated,
@@ -1911,7 +1923,7 @@ function UserDeleteSheet({booking, occurrence_date, onConfirmOccurrence, onConfi
                 background:T.error,color:'#fff',fontSize:14,fontWeight:700,
                 cursor:'pointer',fontFamily:'system-ui',WebkitTapHighlightColor:'transparent',
                 touchAction:'manipulation'}}>
-              Radera aktivitet
+              Radera bokning
             </button>
           )}
           <button onClick={onCancel}
@@ -1941,7 +1953,7 @@ function AdminDeleteSheet({dialog,actionLoading,onConfirm,onCancel,T}) {
   const titleMap={
     series:'Radera hela serien?',
     one:`Radera ${dialog.occurrence_date?isoToDisplay(dialog.occurrence_date):'tillfälle'}?`,
-    single:'Radera aktivitet?',
+    single:'Radera bokning?',
   };
   const msgMap={
     series:'Alla kommande tillfällen tas bort och besökaren notifieras.',
@@ -1986,7 +1998,6 @@ function AdminDeleteSheet({dialog,actionLoading,onConfirm,onCancel,T}) {
           onChange={e=>{setReason(e.target.value);setErr(false);}}
           placeholder="Varför tas bokningen bort?"
           rows={3}
-          autoFocus
           onFocus={()=>_tabBarCallbacks.hide?.()}
           onBlur={()=>_tabBarCallbacks.show?.()}
           style={{width:'100%',boxSizing:'border-box',background:T.cardElevated,
@@ -2124,7 +2135,7 @@ function AdminPanel({bookings,exceptions,onBack,onApprove,onReject,onDelete,onDe
         style={{padding:'13px',borderRadius:12,border:`1px solid ${T.error}33`,background:`${T.error}11`,
           color:T.error,fontSize:14,fontWeight:700,cursor:'pointer',
           textAlign:'left',WebkitTapHighlightColor:'transparent',width:'100%'}}>
-        {isRecur?'Radera hela serien':'Radera aktivitet'}
+        {isRecur?'Radera hela serien':'Radera bokning'}
       </button>
       {/* Inline delete sheet — avoids position:fixed clipping from parent overflow:hidden */}
       {deleteDialog&&(
@@ -3161,10 +3172,9 @@ export default function BookingScreen({
               </div>
             </div>
             <div style={{fontSize:19,fontWeight:700,color:T.text,marginBottom:4}}>{b.activity}</div>
-            <div style={{fontSize:13,color:T.textMuted,marginBottom:2}}>{b.time_slot} · {fmtDuration(b.duration_hours)}</div>
             {adminMode&&b.name&&<div style={{fontSize:13,color:T.textMuted,marginBottom:2}}>{b.name}{b.phone?` · ${b.phone}`:''}</div>}
             {b.notes&&<div style={{fontSize:13,color:T.textMuted,fontStyle:'italic',marginBottom:2}}>{b.notes}</div>}
-            {b.admin_comment&&<div style={{fontSize:12,color:T.textMuted,fontStyle:'italic',marginTop:4,
+            {b.admin_comment&&b.status!=='cancelled'&&b.status!=='rejected'&&<div style={{fontSize:12,color:T.textMuted,fontStyle:'italic',marginTop:4,
               background:`${T.accent}0d`,padding:'6px 10px',borderRadius:8}}>"{b.admin_comment}"</div>}
             {/* Section title — only show if no specific occurrence was clicked */}
             {!clickedOccurrenceDate&&<div style={{fontSize:11,fontWeight:700,color:T.textMuted,letterSpacing:'.6px',
