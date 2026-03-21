@@ -1833,11 +1833,17 @@ function AdminPanel({bookings,exceptions,onBack,onApprove,onReject,onDelete,onDe
           <div style={{fontSize:10,fontWeight:700,color:T.textMuted,letterSpacing:'.5px',marginBottom:2}}>ANTECKNINGAR</div>
           <div style={{fontSize:14,color:T.text}}>{b.notes}</div>
         </div>}
-        {b.end_date&&<div style={{marginBottom:10}}>
+        {b.end_date&&<div style={{marginBottom:10,paddingBottom:10,borderBottom:`0.5px solid ${T.separator}`}}>
           <div style={{fontSize:10,fontWeight:700,color:T.textMuted,letterSpacing:'.5px',marginBottom:2}}>SLUTDATUM</div>
           <div style={{fontSize:14,color:T.text}}>{isoToDisplay(b.end_date)}</div>
         </div>}
+        {b.admin_comment&&<div style={{padding:'10px 12px',background:`${T.error}0d`,border:`0.5px solid ${T.error}33`,borderRadius:10}}>
+          <div style={{fontSize:10,fontWeight:700,color:T.error,letterSpacing:'.5px',marginBottom:4}}>AVBOKNINGSORSAK</div>
+          <div style={{fontSize:14,color:T.text,lineHeight:1.5}}>{b.admin_comment}</div>
+        </div>}
       </div>
+      {/* Inställda tillfällen — enstaka avbokade dagar med anledning */}
+      {isRecur&&<CancelledOccurrencesList bookingId={b.id} exceptions={exceptions} timeSlot={b.time_slot} T={T}/>}
       {isRecur&&upcoming&&<div style={{background:T.card,border:'1px solid #8b5cf644',borderRadius:14,padding:14,marginBottom:12}}>
         <div style={{fontSize:11,fontWeight:700,color:'#8b5cf6',letterSpacing:'.5px',marginBottom:10}}>KOMMANDE TILLFÄLLEN</div>
         {upcoming.map((occ,i)=><div key={i} style={{display:'flex',alignItems:'center',justifyContent:'space-between',
@@ -2878,6 +2884,7 @@ export default function BookingScreen({
           {/* Scrollable occurrences list */}
           <div style={{flex:1,overflowY:'auto',overscrollBehavior:'contain',
             WebkitOverflowScrolling:'touch',
+            minHeight:0,
             padding:'0 20px',paddingBottom:'max(24px,env(safe-area-inset-bottom,16px))'}}>
             {/* Inställda tillfällen — admin-borttagna enstaka dagar */}
             {isRecur&&<CancelledOccurrencesList

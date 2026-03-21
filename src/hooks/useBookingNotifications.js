@@ -167,27 +167,35 @@ export function useBookingNotifications({ onNewCancelledNotif } = {}) {
         const adminSeenAt = parseInt(localStorage.getItem(STORAGE_ADMIN_SEEN) || '0', 10);
         const thirtyDaysAgo = Date.now() - 30 * 24 * 60 * 60 * 1000;
         const cancelSince = adminSeenAt > 0 ? adminSeenAt : thirtyDaysAgo;
-        const { data: cancelData } = await supabase
-          .from('bookings').select('id, status, resolved_at, admin_comment')
-          .eq('status', 'cancelled').gt('resolved_at', cancelSince);
+        const [{ data: cancelData }, { data: excCancelData }] = await Promise.all([
+          supabase.from('bookings').select('id, status, resolved_at, admin_comment')
+            .eq('status', 'cancelled').gt('resolved_at', cancelSince),
+          // Also fetch occurrence cancellations by users (in booking_exceptions)
+          supabase.from('booking_exceptions').select('id, booking_id, admin_comment, created_at')
+            .eq('type', 'skip').gt('created_at', cancelSince).not('admin_comment', 'is', null),
+        ]);
+        const adminName = localStorage.getItem('islamnu_user_name') || '';
+        const isUserCancellation = (comment) => {
+          if (!comment) return false;
+          if (!comment.startsWith('Avbokad av ')) return false;
+          // Exclude if this admin did it themselves
+          if (adminName) {
+            const op1 = 'Avbokad av ' + adminName + ':';
+            const op2 = 'Avbokad av ' + adminName + '.';
+            if (comment.startsWith(op1) || comment.startsWith(op2)) return false;
+          }
+          return true;
+        };
+        const cancelledIds = new Set();
         if (cancelData) {
-          // Only show admin badge for user-initiated cancellations.
-          // Exclude cancellations made by the currently logged-in admin.
-          const adminName = localStorage.getItem('islamnu_user_name') || '';
-          const f = cancelData.filter(b => {
-            if (!b.admin_comment) return false;
-            if (!b.admin_comment.startsWith('Avbokad av ')) return false;
-            // Exclude if this admin cancelled it themselves
-            if (adminName) {
-              const ownPrefix1 = 'Avbokad av ' + adminName + ':';
-              const ownPrefix2 = 'Avbokad av ' + adminName + '.';
-              if (b.admin_comment.startsWith(ownPrefix1) || b.admin_comment.startsWith(ownPrefix2)) return false;
-            }
-            return true;
-          });
-          setCancelledUnread(f.length);
-          setCancelledBookingIds(f.map(b => b.id));
+          cancelData.filter(b => isUserCancellation(b.admin_comment)).forEach(b => cancelledIds.add(b.id));
         }
+        // Occurrence cancellations — add parent booking_id
+        if (excCancelData) {
+          excCancelData.filter(e => isUserCancellation(e.admin_comment)).forEach(e => cancelledIds.add(e.booking_id));
+        }
+        setCancelledUnread(cancelledIds.size);
+        setCancelledBookingIds([...cancelledIds]);
         return;
       }
 
