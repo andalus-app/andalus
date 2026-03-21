@@ -768,7 +768,7 @@ export default function NewHomeScreen({ stream, onGoToAdminLogin, onGoToMyBookin
               fontFamily: "'Inter',system-ui,sans-serif",
               textAlign: 'center', maxWidth: 220, lineHeight: 1.5,
             }}>
-              Här visas svar på bokningar och meddelanden från moskén.
+              Här visas meddelanden från Andalus Kunskapscenter.
             </div>
           </div>
         )}
