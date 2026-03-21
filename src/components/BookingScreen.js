@@ -3147,7 +3147,7 @@ export default function BookingScreen({
         <HideTabBar/>
         <div onClick={e=>e.stopPropagation()} style={{background:T.sheetBg,borderRadius:'20px 20px 0 0',
           width:'100%',maxWidth:500,boxSizing:'border-box',
-          maxHeight:'92vh',display:'flex',flexDirection:'column',
+          maxHeight:'min(92vh,calc(100vh - env(safe-area-inset-top,44px) - 8px))',display:'flex',flexDirection:'column',
           touchAction:'manipulation',
           animation:'bsSlideUp .28s cubic-bezier(0.32,0.72,0,1)'}}>
           {/* Header */}
