@@ -1032,7 +1032,7 @@ function DayPanelCard({occ, isOwn, isAdmin, onPress, onSwipeDelete, T}) {
             <path d="M19 6l-1 14H6L5 6"/>
             <path d="M10 11v6M14 11v6M9 6V4h6v2"/>
           </svg>
-          <span style={{fontSize:10,fontWeight:700,color:'#fff'}}>Ta bort</span>
+          <span style={{fontSize:10,fontWeight:700,color:'#fff'}}>Radera</span>
         </button>
       </div>}
       {/* Card content */}
@@ -1560,14 +1560,14 @@ function MyBookings({bookings,exceptions,loading,onBack,onCancel,onCancelFromDat
             style={{padding:'13px',borderRadius:12,border:`1px solid ${T.error}33`,
               background:`${T.error}11`,color:T.error,fontSize:14,fontWeight:700,
               cursor:'pointer',textAlign:'left',WebkitTapHighlightColor:'transparent'}}>
-            🗑 Avboka hela serien
+            Radera hela serien
           </button>
         ):(
           <button onClick={()=>setDeleteSheet({booking:b,occurrence_date:b.start_date})}
             style={{padding:'13px',borderRadius:12,border:`1px solid ${T.error}33`,
               background:`${T.error}11`,color:T.error,fontSize:14,fontWeight:700,
               cursor:'pointer',WebkitTapHighlightColor:'transparent'}}>
-            🗑 Avboka
+            Radera aktivitet
           </button>
         )}
       </div>
@@ -1579,7 +1579,7 @@ function MyBookings({bookings,exceptions,loading,onBack,onCancel,onCancelFromDat
           padding:'24px 20px 36px',width:'100%',maxWidth:500,boxSizing:'border-box',
           animation:'bsSlideUp .25s cubic-bezier(0.32,0.72,0,1)'}}>
           <div style={{fontSize:16,fontWeight:700,color:T.text,marginBottom:8}}>
-            {deleteSheet.deleteAll?'Avboka hela serien?':'Avboka?'}
+            {deleteSheet.deleteAll?'Radera hela serien?':'Radera aktivitet?'}
           </div>
           <textarea value={cancelReason}
             onChange={e=>{setCancelReason(e.target.value);setCancelReasonError(false);}}
@@ -1600,15 +1600,15 @@ function MyBookings({bookings,exceptions,loading,onBack,onCancel,onCancelFromDat
               return isR?<>
                 <button onClick={()=>validate(()=>{setDeleteSheet(null);setCancelReason('');setCancelReasonError(false);onCancel(deleteSheet.booking,deleteSheet.occurrence_date,getReason());})}
                   style={{padding:'14px',borderRadius:12,border:`1px solid ${T.error}33`,background:`${T.error}11`,color:T.error,fontSize:14,fontWeight:700,cursor:'pointer',textAlign:'left',WebkitTapHighlightColor:'transparent'}}>
-                  🗑 Bara detta tillfälle
+                  Radera detta tillfälle
                 </button>
                 <button onClick={()=>validate(()=>{setDeleteSheet(null);setCancelReason('');setCancelReasonError(false);onCancelFromDate(deleteSheet.booking,deleteSheet.occurrence_date,getReason());})}
                   style={{padding:'14px',borderRadius:12,border:`1px solid ${T.error}33`,background:`${T.error}11`,color:T.error,fontSize:14,fontWeight:700,cursor:'pointer',textAlign:'left',WebkitTapHighlightColor:'transparent'}}>
-                  🗑 Detta och alla kommande
+                  Radera från detta tillfälle
                 </button>
               </>:<button onClick={()=>validate(()=>{setDeleteSheet(null);setCancelReason('');setCancelReasonError(false);onCancel(deleteSheet.booking,deleteSheet.occurrence_date,getReason());})}
                 style={{padding:'14px',borderRadius:12,border:`1px solid ${T.error}33`,background:`${T.error}11`,color:T.error,fontSize:14,fontWeight:700,cursor:'pointer',WebkitTapHighlightColor:'transparent'}}>
-                🗑 Avboka bokningen
+                Radera aktivitet
               </button>;
             })()}
             {deleteSheet.deleteAll&&<button onClick={()=>{
@@ -1619,7 +1619,7 @@ function MyBookings({bookings,exceptions,loading,onBack,onCancel,onCancelFromDat
               onCancelSeries(deleteSheet.booking,reason);
             }} style={{padding:'14px',borderRadius:12,border:`1px solid ${T.error}33`,background:`${T.error}11`,
               color:T.error,fontSize:14,fontWeight:700,cursor:'pointer',WebkitTapHighlightColor:'transparent'}}>
-              🗑 Ja, avboka hela serien
+              Radera hela serien
             </button>}
             <button onClick={()=>{setDeleteSheet(null);setCancelReason('');setCancelReasonError(false);}}
               style={{padding:'13px',borderRadius:12,border:`0.5px solid ${T.border}`,
@@ -1825,6 +1825,14 @@ function UserDeleteSheet({booking, occurrence_date, onConfirmOccurrence, onConfi
     fn(`Avbokad av ${uName}: ${reason.trim()}`);
   };
 
+  const [kbOffset, setKbOffset] = React.useState(0);
+  React.useEffect(()=>{
+    const vv=window.visualViewport;
+    if(!vv) return;
+    const upd=()=>setKbOffset(Math.max(0,window.innerHeight-vv.height-vv.offsetTop));
+    vv.addEventListener('resize',upd); vv.addEventListener('scroll',upd);
+    return()=>{vv.removeEventListener('resize',upd); vv.removeEventListener('scroll',upd);};
+  },[]);
   return (
     <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.55)',
       zIndex:3000,display:'flex',alignItems:'flex-end',justifyContent:'center',
@@ -1835,6 +1843,7 @@ function UserDeleteSheet({booking, occurrence_date, onConfirmOccurrence, onConfi
         background:T.sheetBg,borderRadius:'20px 20px 0 0',
         padding:'24px 20px max(40px,env(safe-area-inset-bottom,28px))',
         width:'100%',maxWidth:500,boxSizing:'border-box',
+        position:'relative', bottom: kbOffset,
         animation:'bsSlideUp .28s cubic-bezier(0.32,0.72,0,1)'}}>
         <div style={{fontSize:18,fontWeight:700,color:T.text,marginBottom:4,fontFamily:'system-ui'}}>
           Radera bokning
@@ -1867,7 +1876,7 @@ function UserDeleteSheet({booking, occurrence_date, onConfirmOccurrence, onConfi
                 background:`${T.error}11`,color:T.error,fontSize:14,fontWeight:700,
                 cursor:'pointer',fontFamily:'system-ui',WebkitTapHighlightColor:'transparent',
                 touchAction:'manipulation',textAlign:'left'}}>
-              🗑 Radera detta tillfälle
+              Radera detta tillfälle
             </button>
           )}
           {isRecur && (
@@ -1876,7 +1885,7 @@ function UserDeleteSheet({booking, occurrence_date, onConfirmOccurrence, onConfi
                 background:`${T.error}11`,color:T.error,fontSize:14,fontWeight:700,
                 cursor:'pointer',fontFamily:'system-ui',WebkitTapHighlightColor:'transparent',
                 touchAction:'manipulation',textAlign:'left'}}>
-              🗑 Radera hela serien
+              Radera hela serien
             </button>
           )}
           {!isRecur && (
@@ -1885,7 +1894,7 @@ function UserDeleteSheet({booking, occurrence_date, onConfirmOccurrence, onConfi
                 background:T.error,color:'#fff',fontSize:14,fontWeight:700,
                 cursor:'pointer',fontFamily:'system-ui',WebkitTapHighlightColor:'transparent',
                 touchAction:'manipulation'}}>
-              🗑 Radera aktivitet
+              Radera aktivitet
             </button>
           )}
           <button onClick={onCancel}
@@ -1926,33 +1935,27 @@ function AdminDeleteSheet({dialog,actionLoading,onConfirm,onCancel,T}) {
     if(!reason.trim()){setErr(true);return;}
     await onConfirm(reason.trim());
   };
-  const sheetRef=React.useRef(null);
-  // Scroll the sheet into view when keyboard opens
+  const [kbOffset, setKbOffset] = React.useState(0);
   React.useEffect(()=>{
     const vv=window.visualViewport;
     if(!vv) return;
-    const onResize=()=>{
-      if(sheetRef.current){
-        sheetRef.current.style.bottom=Math.max(0,window.innerHeight-vv.height-vv.offsetTop)+'px';
-      }
-    };
-    vv.addEventListener('resize',onResize);
-    vv.addEventListener('scroll',onResize);
-    return()=>{vv.removeEventListener('resize',onResize);vv.removeEventListener('scroll',onResize);};
+    const upd=()=>setKbOffset(Math.max(0,window.innerHeight-vv.height-vv.offsetTop));
+    vv.addEventListener('resize',upd); vv.addEventListener('scroll',upd);
+    return()=>{vv.removeEventListener('resize',upd); vv.removeEventListener('scroll',upd);};
   },[]);
   return (
     <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.55)',
       zIndex:3000,display:'flex',alignItems:'flex-end',justifyContent:'center',
       touchAction:'none'}}
       onClick={onCancel}>
-      <div ref={sheetRef} onClick={e=>e.stopPropagation()} style={{
+      <div onClick={e=>e.stopPropagation()} style={{
         background:T.sheetBg,borderRadius:'20px 20px 0 0',
         padding:'24px 20px max(36px,env(safe-area-inset-bottom,24px))',
         width:'100%',maxWidth:500,boxSizing:'border-box',
-        position:'relative',
+        position:'relative', bottom: kbOffset,
         animation:'bsSlideUp .28s cubic-bezier(0.32,0.72,0,1)'}}>
         <div style={{fontSize:18,fontWeight:700,color:T.text,marginBottom:6,fontFamily:'system-ui'}}>
-          {titleMap[dialog.type]||'Ta bort?'}
+          {titleMap[dialog.type]||'Radera?'}
         </div>
         <div style={{fontSize:14,color:T.textMuted,marginBottom:16,fontFamily:'system-ui',lineHeight:1.5}}>
           {msgMap[dialog.type]||''}
@@ -2104,7 +2107,7 @@ function AdminPanel({bookings,exceptions,onBack,onApprove,onReject,onDelete,onDe
         style={{padding:'13px',borderRadius:12,border:`1px solid ${T.error}33`,background:`${T.error}11`,
           color:T.error,fontSize:14,fontWeight:700,cursor:'pointer',
           textAlign:'left',WebkitTapHighlightColor:'transparent',width:'100%'}}>
-        🗑 {isRecur?'Ta bort hela serien':'Ta bort bokning'}
+        {isRecur?'Radera hela serien':'Radera aktivitet'}
       </button>
       {/* Inline delete sheet — avoids position:fixed clipping from parent overflow:hidden */}
       {deleteDialog&&(
