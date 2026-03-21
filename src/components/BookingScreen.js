@@ -1535,7 +1535,7 @@ function MyBookings({bookings,exceptions,loading,onBack,onCancel,onCancelFromDat
           <div style={{fontSize:10,fontWeight:700,color:T.textMuted,letterSpacing:'.5px',marginBottom:2}}>SLUTDATUM</div>
           <div style={{fontSize:14,color:T.text}}>{isoToDisplay(b.end_date)}</div>
         </div>}
-        {b.admin_comment&&(!isRecur||b.status==='cancelled'||b.status==='rejected')&&<div style={{padding:'8px 10px',background:`${T.accent}11`,borderRadius:8}}>
+        {b.admin_comment&&(!b.admin_comment.startsWith('Avbokad av ')||b.status==='cancelled'||b.status==='rejected')&&(!isRecur||b.status==='cancelled'||b.status==='rejected')&&<div style={{padding:'8px 10px',background:`${T.accent}11`,borderRadius:8}}>
           <div style={{fontSize:10,fontWeight:700,color:T.textMuted,letterSpacing:'.5px',marginBottom:2}}>KOMMENTAR FRÅN ADMIN</div>
           <div style={{fontSize:13,color:T.text}}>{b.admin_comment}</div>
         </div>}
@@ -3175,7 +3175,7 @@ export default function BookingScreen({
             <div style={{fontSize:19,fontWeight:700,color:T.text,marginBottom:4}}>{b.activity}</div>
             {adminMode&&b.name&&<div style={{fontSize:13,color:T.textMuted,marginBottom:2}}>{b.name}{b.phone?` · ${b.phone}`:''}</div>}
             {b.notes&&<div style={{fontSize:13,color:T.textMuted,fontStyle:'italic',marginBottom:2}}>{b.notes}</div>}
-            {b.admin_comment&&b.status!=='cancelled'&&b.status!=='rejected'&&<div style={{fontSize:12,color:T.textMuted,fontStyle:'italic',marginTop:4,
+            {b.admin_comment&&b.status!=='cancelled'&&b.status!=='rejected'&&!b.admin_comment.startsWith('Avbokad av ')&&<div style={{fontSize:12,color:T.textMuted,fontStyle:'italic',marginTop:4,
               background:`${T.accent}0d`,padding:'6px 10px',borderRadius:8}}>"{b.admin_comment}"</div>}
             {/* Section title — only show if no specific occurrence was clicked */}
             {!clickedOccurrenceDate&&<div style={{fontSize:11,fontWeight:700,color:T.textMuted,letterSpacing:'.6px',
