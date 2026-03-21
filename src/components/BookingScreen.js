@@ -1140,6 +1140,78 @@ function BookingForm({date,onSubmit,onBack,loading,bookings,exceptions,T}) {
   </div>;
 }
 
+// ─── CancelledOccurrencesList ─────────────────────────────────────────────────
+// Shows admin-cancelled individual occurrences from booking_exceptions
+// Used in both MyBookings detail and BookingDetailSheet
+function CancelledOccurrencesList({bookingId, exceptions, timeSlot, T}) {
+  const adminCancelled = useMemo(() => {
+    return exceptions
+      .filter(e =>
+        e.booking_id === bookingId &&
+        e.type === 'skip' &&
+        e.admin_comment &&
+        e.admin_comment.trim().length > 0
+      )
+      .sort((a, b) => a.exception_date.localeCompare(b.exception_date));
+  }, [bookingId, exceptions]);
+
+  if (adminCancelled.length === 0) return null;
+
+  return (
+    <div style={{
+      background: `${T.error}0d`,
+      border: `1px solid ${T.error}33`,
+      borderRadius: 14, padding: 14, marginBottom: 12,
+    }}>
+      <div style={{
+        fontSize: 11, fontWeight: 700, color: T.error,
+        letterSpacing: '.6px', marginBottom: 10,
+        display: 'flex', alignItems: 'center', gap: 6,
+      }}>
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none"
+          stroke={T.error} strokeWidth="2.5" strokeLinecap="round">
+          <circle cx="12" cy="12" r="10"/>
+          <line x1="12" y1="8" x2="12" y2="12"/>
+          <line x1="12" y1="16" x2="12.01" y2="16"/>
+        </svg>
+        INSTÄLLDA TILLFÄLLEN ({adminCancelled.length})
+      </div>
+      {adminCancelled.map((exc, i) => {
+        // Extract just the explanation after "Avbokad av Name: "
+        const comment = exc.admin_comment || '';
+        const colonIdx = comment.indexOf(': ');
+        const reason = colonIdx !== -1 ? comment.slice(colonIdx + 2) : comment;
+        return (
+          <div key={exc.exception_date}
+            style={{
+              paddingTop: 10, paddingBottom: 10,
+              borderBottom: i < adminCancelled.length - 1
+                ? `0.5px solid ${T.error}22` : 'none',
+            }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 3 }}>
+              <div style={{ fontSize: 14, fontWeight: 700, color: T.text }}>
+                {isoToDisplay(exc.exception_date)}
+              </div>
+              <div style={{ fontSize: 11, color: T.error, fontWeight: 600,
+                background: `${T.error}18`, borderRadius: 6, padding: '2px 7px' }}>
+                Inställd
+              </div>
+            </div>
+            <div style={{ fontSize: 12, color: T.textMuted, marginBottom: reason ? 4 : 0 }}>
+              {timeSlot}
+            </div>
+            {reason && (
+              <div style={{ fontSize: 12, color: T.textMuted, fontStyle: 'italic' }}>
+                "{reason}"
+              </div>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 // ─── My Bookings ──────────────────────────────────────────────────────────────
 function MyBookings({bookings,exceptions,loading,onBack,onCancel,onCancelFromDate,onCancelSeries,highlightBookingId,highlightFilter,onLogout,T}) {
   const[selectedId,setSelectedId]=useState(null);
@@ -1232,6 +1304,9 @@ function MyBookings({bookings,exceptions,loading,onBack,onCancel,onCancelFromDat
           </div>
         </div>)}
       </div>}
+      {/* Inställda tillfällen — admin-borttagna enstaka dagar med kommentar */}
+      {isRecur&&<CancelledOccurrencesList
+        bookingId={b.id} exceptions={exceptions} timeSlot={b.time_slot} T={T}/>}
       <div style={{display:'flex',flexDirection:'column',gap:8}}>
         {(b.status==='cancelled'||b.status==='rejected')?(
           <div style={{padding:'10px 12px',background:`${T.accent}0d`,borderRadius:10,
@@ -2584,6 +2659,9 @@ export default function BookingScreen({
           </div>
           {/* Scrollable occurrences list */}
           <div style={{flex:1,overflowY:'auto',overscrollBehavior:'contain',padding:'0 20px',paddingBottom:'max(24px,env(safe-area-inset-bottom,16px))'}}>
+            {/* Inställda tillfällen — admin-borttagna enstaka dagar */}
+            {isRecur&&<CancelledOccurrencesList
+              bookingId={b.id} exceptions={exceptions} timeSlot={b.time_slot} T={T}/>}
             {upcoming.map((occ,i)=>{
               const isSkipped=exceptions.some(e=>e.booking_id===b.id&&e.exception_date===occ.date&&e.type==='skip');
               return <div key={occ.date+i} style={{
