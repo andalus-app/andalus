@@ -14,6 +14,9 @@ import React, {
 import { useTheme } from '../context/ThemeContext';
 import { supabase } from '../services/supabaseClient';
 
+// ─── Module-level tab bar callbacks (set by BookingScreen, used by sub-components) ──
+const _tabBarCallbacks = { hide: null, show: null };
+
 // ─── Storage keys ──────────────────────────────────────────────────────────────
 const STORAGE_ADMIN     = 'islamnu_admin_mode';
 const STORAGE_DEVICE    = 'islamnu_device_id';
@@ -385,6 +388,15 @@ function RecurBadge({recurrence}) {
   return <span style={{background:'#8b5cf622',color:'#8b5cf6',borderRadius:8,
     fontSize:10,fontWeight:700,padding:'2px 7px',fontFamily:'system-ui'}}>{fmtRecur(recurrence)}</span>;
 }
+// Hides tab bar on mount, restores on unmount — used inside sheets
+function HideTabBar() {
+  useEffect(()=>{
+    _tabBarCallbacks.hide?.();
+    return()=>_tabBarCallbacks.show?.();
+  },[]);
+  return null;
+}
+
 function Toast({message}) {
   if(!message) return null;
   return <div style={{position:'fixed',bottom:110,left:'50%',transform:'translateX(-50%)',
@@ -437,6 +449,8 @@ function Input({label,value,onChange,type='text',placeholder,required,T}) {
       {label}{required&&<span style={{color:T.error}}> *</span>}
     </label>
     <input type={type} value={value} onChange={e=>onChange(e.target.value)} placeholder={placeholder}
+      onFocus={()=>_tabBarCallbacks.hide?.()}
+      onBlur={()=>_tabBarCallbacks.show?.()}
       style={{background:T.card,border:`0.5px solid ${T.border}`,borderRadius:10,
         padding:'11px 14px',fontSize:16,color:T.text,fontFamily:'system-ui',
         outline:'none',width:'100%',boxSizing:'border-box'}}/>
@@ -446,6 +460,8 @@ function Textarea({label,value,onChange,placeholder,T}) {
   return <div style={{display:'flex',flexDirection:'column',gap:5}}>
     <label style={{fontSize:12,fontWeight:600,color:T.textMuted,fontFamily:'system-ui',letterSpacing:'.3px'}}>{label}</label>
     <textarea value={value} onChange={e=>onChange(e.target.value)} placeholder={placeholder} rows={3}
+      onFocus={()=>_tabBarCallbacks.hide?.()}
+      onBlur={()=>_tabBarCallbacks.show?.()}
       style={{background:T.card,border:`0.5px solid ${T.border}`,borderRadius:10,
         padding:'11px 14px',fontSize:16,color:T.text,fontFamily:'system-ui',
         outline:'none',width:'100%',boxSizing:'border-box',resize:'vertical'}}/>
@@ -650,6 +666,8 @@ function CalendarView({bookings,exceptions,onSelectDate,isAdmin,selectedDate,T,o
     return new Date(today.getFullYear(),today.getMonth(),1);
   });
   const[slideDir,setSlideDir]=useState(null);
+  // incomingDir: direction the NEW title slides in from (opposite of outgoing)
+  const[incomingDir,setIncomingDir]=useState(null);
   // displayAnchor lags behind anchor so the title can animate out before updating
   const[displayAnchor,setDisplayAnchor]=useState(anchor);
   const swipeRef=useRef(null);
@@ -680,8 +698,14 @@ function CalendarView({bookings,exceptions,onSelectDate,isAdmin,selectedDate,T,o
       if(next.getMonth()!==anchor.getMonth()||next.getFullYear()!==anchor.getFullYear()){
         const dir=next>anchor?'next':'prev';
         setSlideDir(dir);
+        setIncomingDir(null);
         setAnchor(next);
-        setTimeout(()=>{setDisplayAnchor(next);setSlideDir(null);},380);
+        setTimeout(()=>{
+          setIncomingDir(dir);
+          setDisplayAnchor(next);
+          setSlideDir(null);
+          setTimeout(()=>setIncomingDir(null),400);
+        },380);
       }
     }
   },[selectedDate]);// eslint-disable-line
@@ -690,14 +714,18 @@ function CalendarView({bookings,exceptions,onSelectDate,isAdmin,selectedDate,T,o
     if(navInProgressRef.current) return;
     navInProgressRef.current=true;
     setSlideDir(dir);
+    setIncomingDir(null); // clear incoming while outgoing plays
     const d=new Date(anchor);
     dir==='next'?d.setMonth(d.getMonth()+1):d.setMonth(d.getMonth()-1);
     setAnchor(d);
-    // Title slides out (380ms), then update displayAnchor and slide grid in
+    // Title slides out (380ms), then update displayAnchor and slide new title in
     setTimeout(()=>{
+      setIncomingDir(dir); // new title slides in from the same direction
       setDisplayAnchor(d);
       setSlideDir(null);
       navInProgressRef.current=false;
+      // Clear incoming after animation completes
+      setTimeout(()=>setIncomingDir(null), 400);
     },380);
   };
   const handleSwipeStart=e=>{
@@ -762,7 +790,11 @@ function CalendarView({bookings,exceptions,onSelectDate,isAdmin,selectedDate,T,o
               ? slideDir==='next'
                 ? 'bsTitleSlideLeft 0.38s cubic-bezier(0.4,0,0.2,1) forwards'
                 : 'bsTitleSlideRight 0.38s cubic-bezier(0.4,0,0.2,1) forwards'
-              : 'bsTitleSlideIn 0.38s cubic-bezier(0.4,0,0.2,1)',
+              : incomingDir
+                ? incomingDir==='next'
+                  ? 'bsTitleSlideInFromRight 0.38s cubic-bezier(0.4,0,0.2,1)'
+                  : 'bsTitleSlideInFromLeft 0.38s cubic-bezier(0.4,0,0.2,1)'
+                : 'none',
           }}>
           {MONTHS_SV[displayAnchor.getMonth()]}
         </div>
@@ -816,7 +848,20 @@ function CalendarView({bookings,exceptions,onSelectDate,isAdmin,selectedDate,T,o
       </div>
       <TodayChip onPress={()=>{
         const c=new Date(today);
-        setAnchor(new Date(today.getFullYear(),today.getMonth(),1));
+        const targetAnchor=new Date(today.getFullYear(),today.getMonth(),1);
+        // Only animate if we're not already on the current month
+        if(targetAnchor.getMonth()!==anchor.getMonth()||targetAnchor.getFullYear()!==anchor.getFullYear()){
+          const dir=targetAnchor>anchor?'next':'prev';
+          setSlideDir(dir);
+          setIncomingDir(null);
+          setAnchor(targetAnchor);
+          setTimeout(()=>{
+            setIncomingDir(dir);
+            setDisplayAnchor(targetAnchor);
+            setSlideDir(null);
+            setTimeout(()=>setIncomingDir(null),400);
+          },380);
+        }
         onSelectDate(c);
       }} T={T}/>
     </div>
@@ -948,6 +993,8 @@ function SearchPanel({bookings,exceptions,onSelectBooking,onClose,T}) {
           </svg>
           <input ref={inputRef} value={query} onChange={e=>setQuery(e.target.value)}
             placeholder="Sök bokningar..."
+            onFocus={()=>_tabBarCallbacks.hide?.()}
+            onBlur={()=>_tabBarCallbacks.show?.()}
             style={{flex:1,background:'none',border:'none',outline:'none',
               fontSize:16,color:T.text,fontFamily:'system-ui'}}/>
           {query&&<button onClick={()=>setQuery('')}
@@ -1113,7 +1160,8 @@ function BookingForm({date,onSubmit,onBack,loading,bookings,exceptions,T}) {
       </p>
     </div>
     {conflicts&&<div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.6)',zIndex:2000,
-      display:'flex',alignItems:'flex-end',justifyContent:'center'}} onClick={()=>setConflicts(null)}>
+      display:'flex',alignItems:'flex-end',justifyContent:'center',touchAction:'none'}} onClick={()=>setConflicts(null)}>
+      <HideTabBar/>
       <div onClick={e=>e.stopPropagation()} style={{
         background:T.sheetBg,borderRadius:'20px 20px 0 0',
         padding:'24px 20px 36px',width:'100%',maxWidth:500,boxSizing:'border-box',
@@ -1332,8 +1380,9 @@ function MyBookings({bookings,exceptions,loading,onBack,onCancel,onCancelFromDat
         )}
       </div>
       {deleteSheet&&<div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.5)',zIndex:1000,
-        display:'flex',alignItems:'flex-end',justifyContent:'center'}}
+        display:'flex',alignItems:'flex-end',justifyContent:'center',touchAction:'none'}}
         onClick={()=>{setDeleteSheet(null);setCancelReason('');setCancelReasonError(false);}}>
+        <HideTabBar/>
         <div onClick={e=>e.stopPropagation()} style={{background:T.sheetBg,borderRadius:'20px 20px 0 0',
           padding:'24px 20px 36px',width:'100%',maxWidth:500,boxSizing:'border-box',
           animation:'bsSlideUp .25s cubic-bezier(0.32,0.72,0,1)'}}>
@@ -1343,6 +1392,8 @@ function MyBookings({bookings,exceptions,loading,onBack,onCancel,onCancelFromDat
           <textarea value={cancelReason}
             onChange={e=>{setCancelReason(e.target.value);setCancelReasonError(false);}}
             placeholder="Anledning (obligatorisk)" rows={3}
+            onFocus={()=>_tabBarCallbacks.hide?.()}
+            onBlur={()=>_tabBarCallbacks.show?.()}
             style={{width:'100%',boxSizing:'border-box',background:T.cardElevated,
               border:`0.5px solid ${cancelReasonError?T.error:T.border}`,
               borderRadius:10,padding:'10px 12px',fontSize:16,color:T.text,
@@ -1564,12 +1615,65 @@ function AdminAddForm({bookings,exceptions,onSubmit,onClose,T}) {
   </div>;
 }
 
+// ─── UserCancelConfirmSheet ───────────────────────────────────────────────────
+// Confirm dialog for users before cancelling a single occurrence
+function UserCancelConfirmSheet({occurrence_date, onConfirm, onCancel, T}) {
+  // Hide tab bar immediately on mount
+  useEffect(()=>{
+    _tabBarCallbacks.hide?.();
+    return()=>_tabBarCallbacks.show?.();
+  },[]);
+
+  return (
+    <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.55)',
+      zIndex:3000,display:'flex',alignItems:'flex-end',justifyContent:'center',
+      touchAction:'none'}}
+      onClick={onCancel}>
+      <div onClick={e=>e.stopPropagation()} style={{
+        background:T.sheetBg,borderRadius:'20px 20px 0 0',
+        padding:'24px 20px max(40px,env(safe-area-inset-bottom,28px))',
+        width:'100%',maxWidth:500,boxSizing:'border-box',
+        animation:'bsSlideUp .28s cubic-bezier(0.32,0.72,0,1)'}}>
+        <div style={{fontSize:18,fontWeight:700,color:T.text,marginBottom:8,fontFamily:'system-ui'}}>
+          Avboka tillfälle?
+        </div>
+        <div style={{fontSize:14,color:T.textMuted,marginBottom:20,fontFamily:'system-ui',lineHeight:1.5}}>
+          Är du säker på att du vill avboka{' '}
+          <strong style={{color:T.text}}>{isoToDisplay(occurrence_date)}</strong>?{' '}
+          Övriga tillfällen påverkas inte.
+        </div>
+        <div style={{display:'flex',gap:10}}>
+          <button onClick={onCancel}
+            style={{flex:1,padding:'14px',borderRadius:12,
+              border:`0.5px solid ${T.border}`,background:'none',color:T.text,
+              fontSize:15,fontWeight:600,cursor:'pointer',fontFamily:'system-ui',
+              WebkitTapHighlightColor:'transparent'}}>
+            Avbryt
+          </button>
+          <button onClick={onConfirm}
+            style={{flex:1,padding:'14px',borderRadius:12,border:'none',
+              background:T.error,color:'#fff',
+              fontSize:15,fontWeight:700,cursor:'pointer',
+              fontFamily:'system-ui',WebkitTapHighlightColor:'transparent'}}>
+            Avboka tillfälle
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ─── AdminDeleteSheet — inline bottom overlay, no position:fixed ──────────────
 // Uses a full-screen overlay rendered inside the scroll root, so parent
 // overflow:hidden never clips it.
 function AdminDeleteSheet({dialog,actionLoading,onConfirm,onCancel,T}) {
   const[reason,setReason]=useState('');
   const[err,setErr]=useState(false);
+  // Hide tab bar while this sheet is open
+  useEffect(()=>{
+    _tabBarCallbacks.hide?.();
+    return()=>_tabBarCallbacks.show?.();
+  },[]);
   const titleMap={
     series:'Ta bort hela serien?',
     one:`Ta bort ${dialog.occurrence_date?isoToDisplay(dialog.occurrence_date):'tillfälle'}?`,
@@ -1586,7 +1690,8 @@ function AdminDeleteSheet({dialog,actionLoading,onConfirm,onCancel,T}) {
   };
   return (
     <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.55)',
-      zIndex:3000,display:'flex',alignItems:'flex-end',justifyContent:'center'}}
+      zIndex:3000,display:'flex',alignItems:'flex-end',justifyContent:'center',
+      touchAction:'none'}}
       onClick={onCancel}>
       <div onClick={e=>e.stopPropagation()} style={{
         background:T.sheetBg,borderRadius:'20px 20px 0 0',
@@ -1609,6 +1714,8 @@ function AdminDeleteSheet({dialog,actionLoading,onConfirm,onCancel,T}) {
           placeholder="Varför tas bokningen bort?"
           rows={3}
           autoFocus
+          onFocus={()=>_tabBarCallbacks.hide?.()}
+          onBlur={()=>_tabBarCallbacks.show?.()}
           style={{width:'100%',boxSizing:'border-box',background:T.cardElevated,
             border:`0.5px solid ${err?T.error:T.border}`,borderRadius:10,
             padding:'10px 12px',fontSize:16,color:T.text,
@@ -1937,7 +2044,10 @@ function UserLogin({onSuccess,onBack,T}) {
           <div style={{fontSize:13,color:T.textMuted,marginTop:4}}>Ange ditt telefonnummer</div>
         </div>
         <input type="tel" value={phone} onChange={e=>handlePhoneChange(e.target.value)}
-          onKeyDown={e=>e.key==='Enter'&&handlePhoneNext()} placeholder="07X-XXX XX XX" autoFocus style={inputS}/>
+          onKeyDown={e=>e.key==='Enter'&&handlePhoneNext()} placeholder="07X-XXX XX XX" autoFocus
+          onFocus={()=>_tabBarCallbacks.hide?.()}
+          onBlur={()=>_tabBarCallbacks.show?.()}
+          style={inputS}/>
         {error&&<div style={{fontSize:13,color:T.error,background:`${T.error}18`,padding:'10px 14px',borderRadius:8,marginTop:8}}>{error}</div>}
         <button onClick={handlePhoneNext} disabled={loading} style={btnS}>{loading?'Kontrollerar...':'Fortsätt →'}</button>
       </>}
@@ -2229,6 +2339,7 @@ export default function BookingScreen({
   // Universal booking detail — for search results and day panel clicks (all users)
   const[bookingDetail,setBookingDetail]=useState(null);
   const[occDeleteDialog,setOccDeleteDialog]=useState(null); // admin: delete single occurrence from detail sheet
+  const[userCancelConfirm,setUserCancelConfirm]=useState(null); // user: confirm before cancelling
 
   const deviceId=useRef((()=>{
     let id=localStorage.getItem(STORAGE_DEVICE);
@@ -2237,6 +2348,13 @@ export default function BookingScreen({
   })()).current;
 
   const showToast=useCallback(msg=>{setToast(msg);setTimeout(()=>setToast(''),3000);},[]);
+
+  // Make tab bar callbacks available to all sub-components (sheets, forms)
+  useEffect(()=>{
+    _tabBarCallbacks.hide = onTabBarHide;
+    _tabBarCallbacks.show = onTabBarShow;
+    return()=>{ _tabBarCallbacks.hide=null; _tabBarCallbacks.show=null; };
+  },[onTabBarHide,onTabBarShow]);
 
   // suppressFetchRef: timestamp until which fetchAll will not overwrite bookings state.
   // Set by optimistic updates (approve/reject/cancel) to prevent Realtime from
@@ -2526,7 +2644,8 @@ export default function BookingScreen({
       @keyframes bsGridSlideRight{from{opacity:.4;transform:translateX(-12%)}to{opacity:1;transform:translateX(0)}}
       @keyframes bsTitleSlideLeft{from{opacity:1;transform:translateX(0)}to{opacity:0;transform:translateX(-30%)}}
       @keyframes bsTitleSlideRight{from{opacity:1;transform:translateX(0)}to{opacity:0;transform:translateX(30%)}}
-      @keyframes bsTitleSlideIn{from{opacity:0;transform:translateX(0)}to{opacity:1;transform:translateX(0)}}
+      @keyframes bsTitleSlideInFromRight{from{opacity:0;transform:translateX(30%)}to{opacity:1;transform:translateX(0)}}
+      @keyframes bsTitleSlideInFromLeft{from{opacity:0;transform:translateX(-30%)}to{opacity:1;transform:translateX(0)}}
       @keyframes bsHighlight{0%,100%{box-shadow:0 0 0 3px var(--hl,rgba(45,139,120,.3))}50%{box-shadow:0 0 0 8px transparent}}
       @keyframes bsYearIn{from{opacity:0;transform:scale(0.93)}to{opacity:1;transform:scale(1)}}
       @keyframes bsMonthZoomIn{from{opacity:0;transform:scale(0.88)}to{opacity:1;transform:scale(1)}}
@@ -2666,11 +2785,13 @@ export default function BookingScreen({
       const isOwn=myBookings.some(mb=>mb.id===b.id);
       const sc={approved:'#34C759',edited:'#34C759',pending:'#FF9F0A',edit_pending:'#FF9F0A',cancelled:'#8E8E93',rejected:'#FF3B30'}[b.status]||T.accent;
       return <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.55)',zIndex:1100,
-        display:'flex',alignItems:'flex-end',justifyContent:'center'}}
+        display:'flex',alignItems:'flex-end',justifyContent:'center',
+        touchAction:'none'}}
         onClick={e=>{if(e.target===e.currentTarget)setBookingDetail(null);}}>
         <div onClick={e=>e.stopPropagation()} style={{background:T.sheetBg,borderRadius:'20px 20px 0 0',
           width:'100%',maxWidth:500,boxSizing:'border-box',
           maxHeight:'85vh',display:'flex',flexDirection:'column',
+          touchAction:'pan-y',
           animation:'bsSlideUp .28s cubic-bezier(0.32,0.72,0,1)'}}>
           {/* Header */}
           <div style={{padding:'20px 20px 0',flexShrink:0}}>
@@ -2697,7 +2818,9 @@ export default function BookingScreen({
             </div>
           </div>
           {/* Scrollable occurrences list */}
-          <div style={{flex:1,overflowY:'auto',overscrollBehavior:'contain',padding:'0 20px',paddingBottom:'max(24px,env(safe-area-inset-bottom,16px))'}}>
+          <div style={{flex:1,overflowY:'auto',overscrollBehavior:'contain',
+            WebkitOverflowScrolling:'touch',
+            padding:'0 20px',paddingBottom:'max(24px,env(safe-area-inset-bottom,16px))'}}>
             {/* Inställda tillfällen — admin-borttagna enstaka dagar */}
             {isRecur&&<CancelledOccurrencesList
               bookingId={b.id} exceptions={exceptions} timeSlot={b.time_slot} T={T}/>}
@@ -2721,7 +2844,8 @@ export default function BookingScreen({
                         if(adminMode){
                           setOccDeleteDialog({booking:b,occurrence_date:occ.date});
                         } else {
-                          handleCancelOccurrence(b,occ.date,null).then(()=>setBookingDetail(null));
+                          // Show confirm before cancelling
+                          setUserCancelConfirm({booking:b, occurrence_date:occ.date});
                         }
                       }}
                       style={{background:'none',border:`1px solid ${T.error}44`,borderRadius:8,
@@ -2765,6 +2889,19 @@ export default function BookingScreen({
             setBookingDetail(null);
           }}
           onCancel={()=>setOccDeleteDialog(null)}
+          T={T}/>
+      )}
+      {userCancelConfirm&&(
+        <UserCancelConfirmSheet
+          occurrence_date={userCancelConfirm.occurrence_date}
+          onConfirm={async()=>{
+            onTabBarHide?.();
+            await handleCancelOccurrence(userCancelConfirm.booking,userCancelConfirm.occurrence_date,null);
+            setUserCancelConfirm(null);
+            setBookingDetail(null);
+            onTabBarShow?.();
+          }}
+          onCancel={()=>{setUserCancelConfirm(null);onTabBarShow?.();}}
           T={T}/>
       )};
     })()}

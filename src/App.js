@@ -18,6 +18,7 @@ import { useYoutubeLive } from './hooks/useYoutubeLive';
 import { useBookingNotifications } from './hooks/useBookingNotifications';
 import { useIsPWA } from './hooks/useIsPWA';
 import { useScrollHide } from './hooks/useScrollHide';
+import { useKeyboardTabBar } from './hooks/useKeyboardTabBar';
 
 import DhikrMenuIcon     from './icons/dhikr-tab.svg';
 
@@ -86,6 +87,34 @@ function Shell() {
   const nudgeDoneKey = 'tab-nudge-done';
   const [nudging, setNudging] = useState(false);
   const { visible: tabBarScrollVisible, onScroll: onShellScroll, show: showTabBar } = useScrollHide({ threshold: 40 });
+
+  // Hide tab bar completely when soft keyboard opens (affects all text inputs app-wide)
+  // Primary: visualViewport resize (iOS Safari, Chrome)
+  useKeyboardTabBar({
+    onHide: () => { setTabBarVisible(false); },
+    onShow: () => { if (!tabBarHiddenByChild) setTabBarVisible(true); },
+  });
+  // Fallback: focusin/focusout on document (Android WebView, older browsers)
+  useEffect(() => {
+    const onFocusIn = (e) => {
+      const tag = e.target?.tagName;
+      if (tag === 'INPUT' || tag === 'TEXTAREA') {
+        setTabBarVisible(false);
+      }
+    };
+    const onFocusOut = () => {
+      // Small delay so visualViewport has time to resize first
+      setTimeout(() => {
+        if (!tabBarHiddenByChild) setTabBarVisible(true);
+      }, 150);
+    };
+    document.addEventListener('focusin', onFocusIn);
+    document.addEventListener('focusout', onFocusOut);
+    return () => {
+      document.removeEventListener('focusin', onFocusIn);
+      document.removeEventListener('focusout', onFocusOut);
+    };
+  }, [tabBarHiddenByChild]); // eslint-disable-line
   const { isLive, isUpcoming, stream } = useYoutubeLive();
   const { totalUnread, visitorUnread, adminUnread, adminPendingCount, cancelledUnread, cancelledBookingIds, pendingBookingIds, markVisitorSeen, markAdminSeen, activateForDevice, registerAdminDevice, dismissAdminDevice, adminPendingNotif, refresh: refreshNotifications } = useBookingNotifications();
 
