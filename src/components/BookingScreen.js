@@ -1560,7 +1560,7 @@ function MyBookings({bookings,exceptions,loading,onBack,onCancel,onCancelFromDat
                 fontSize:12,fontWeight:600,WebkitTapHighlightColor:'transparent',
                 touchAction:'manipulation'}}>Radera</button>
           </div>
-        </div>))}
+        </div>)}
         {isRecur&&upcomingLimit<allUpcoming.length&&(
           <button onClick={()=>setUpcomingLimit(l=>l+20)}
             style={{width:'100%',marginTop:8,padding:'10px',borderRadius:10,
