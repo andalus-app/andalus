@@ -1731,6 +1731,8 @@ function MyBookings({bookings,exceptions,loading,onBack,onCancel,onCancelFromDat
 function AdminAddForm({bookings,exceptions,onSubmit,onClose,T}) {
   const today=new Date();today.setHours(0,0,0,0);
   const[step,setStep]=useState('date');
+  const[showYearPicker,setShowYearPicker]=useState(false);
+  const[yearPickerYear,setYearPickerYear]=useState(today.getFullYear());
   const[anchor,setAnchor]=useState(()=>new Date(today.getFullYear(),today.getMonth(),1));
   const[displayAnchor,setDisplayAnchor]=useState(()=>new Date(today.getFullYear(),today.getMonth(),1));
   const[slideDir,setSlideDir]=useState(null);
@@ -1802,19 +1804,28 @@ function AdminAddForm({bookings,exceptions,onSubmit,onClose,T}) {
   const isSel=d=>{if(!d)return false;const c=new Date(d);c.setHours(0,0,0,0);return c.getTime()===selectedDate.getTime();};
   const hasB=d=>d&&hasBookingsOnDate(bookings,exceptions,toISO(d));
 
-  return <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.5)',zIndex:1000,
+  return <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.5)',zIndex:2500,
     display:'flex',alignItems:'flex-end',justifyContent:'center'}} onClick={onClose}>
+    <HideTabBar/>
     <div onClick={e=>e.stopPropagation()} style={{background:T.sheetBg,borderRadius:'20px 20px 0 0',
       width:'100%',maxWidth:500,boxSizing:'border-box',
-      animation:'bsSlideUp .25s cubic-bezier(0.32,0.72,0,1)',maxHeight:'90vh',overflowY:'auto'}}>
-      <div style={{padding:'20px 20px 0'}}>
-        <div style={{fontSize:18,fontWeight:700,color:T.text,marginBottom:12}}>Lägg till bokning</div>
+      animation:'bsSlideUp .25s cubic-bezier(0.32,0.72,0,1)',
+      height:'calc(100vh - env(safe-area-inset-top,44px) - 8px)',
+      display:'flex',flexDirection:'column'}}>
+      <div style={{padding:'16px 20px 0',flexShrink:0}}>
+        <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:8}}>
+          <div style={{fontSize:18,fontWeight:700,color:T.text}}>Lägg till bokning</div>
+          <button onClick={onClose} style={{background:'none',border:'none',fontSize:22,color:T.textMuted,
+            cursor:'pointer',padding:'0 4px',lineHeight:1,WebkitTapHighlightColor:'transparent'}}>×</button>
+        </div>
       </div>
+      <div style={{flex:1,overflowY:'auto',WebkitOverflowScrolling:'touch',position:'relative'}}>
       {step==='date'&&<>
         {/* Calendar header */}
         <div style={{padding:'0 16px'}}>
           <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:4}}>
-            <button onClick={()=>{}} style={{background:'none',border:'none',cursor:'pointer',
+            <button onClick={()=>{setYearPickerYear(anchor.getFullYear());setShowYearPicker(true);}}
+              style={{background:'none',border:'none',cursor:'pointer',
               display:'flex',alignItems:'center',gap:5,color:T.textMuted,padding:0,WebkitTapHighlightColor:'transparent'}}>
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none"
                 stroke={T.textMuted} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -1895,7 +1906,7 @@ function AdminAddForm({bookings,exceptions,onSubmit,onClose,T}) {
         </div>
         {/* Legend + Today chip */}
         <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',
-          padding:'4px 16px 16px'}}>
+          padding:'4px 16px 16px',flexShrink:0}}>
           <div style={{display:'flex',gap:12}}>
             {[[T.accent,'Bokad'],[T.calToday,'Idag']].map(([c,l])=>(
               <div key={l} style={{display:'flex',alignItems:'center',gap:4}}>
@@ -1906,6 +1917,17 @@ function AdminAddForm({bookings,exceptions,onSubmit,onClose,T}) {
           </div>
           <TodayChip onPress={goToToday} T={T}/>
         </div>
+        {/* YearView overlay */}
+        {showYearPicker&&<div style={{position:'absolute',inset:0,zIndex:10,borderRadius:'20px 20px 0 0',overflow:'hidden'}}>
+          <YearView year={yearPickerYear} bookings={bookings} exceptions={exceptions} T={T}
+            onBack={()=>setShowYearPicker(false)}
+            onSelectMonth={(y,m)=>{
+              const d=new Date(y,m,1);
+              setAnchor(d);setDisplayAnchor(d);
+              setYearPickerYear(y);
+              setShowYearPicker(false);
+            }}/>
+        </div>}
       </>}
       {step==='time'&&<>
         <div style={{fontSize:12,fontWeight:700,color:T.textMuted,marginBottom:12,letterSpacing:'.3px'}}>
@@ -1954,6 +1976,7 @@ function AdminAddForm({bookings,exceptions,onSubmit,onClose,T}) {
         <button onClick={()=>setStep('time')}
           style={{marginTop:12,background:'none',border:'none',color:T.accent,cursor:'pointer',fontSize:13,padding:0}}>← Byt tid</button>
       </>}
+      </div>{/* end scroll wrapper */}
     </div>
   </div>;
 }

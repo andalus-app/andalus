@@ -154,24 +154,6 @@ export default function MonthlyScreen({ onBack }) {
         </div>
       </div>
 
-      {/* Sticky column header — stays visible when header collapses */}
-      {days.length > 0 && (
-        <div style={{
-          flexShrink:0, display:'flex', alignItems:'center',
-          padding:'6px 14px',
-          background:T.bgSecondary,
-          borderBottom:`1px solid ${T.border}`,
-          zIndex: 10,
-          position:'sticky', top:0,
-        }}>
-          {/* Day col */}
-          <div style={{ width:DAY_W, flexShrink:0, fontSize:8, fontWeight:700, color:T.textMuted, textTransform:'uppercase', letterSpacing:.5 }}>Dag</div>
-          {COLS.map(c => (
-            <div key={c.key} style={cellStyle(true, false)}>{c.label}</div>
-          ))}
-        </div>
-      )}
-
       {/* No location */}
       {!location && (
         <div style={{ display:'flex', flexDirection:'column', alignItems:'center', padding:'60px 32px', gap:12 }}>
@@ -201,6 +183,19 @@ export default function MonthlyScreen({ onBack }) {
       {/* Scrollable table body */}
       {!loading && !error && days.length > 0 && (
         <div ref={scrollBodyRef} onScroll={onScroll} style={{ flex:1, overflowY:'auto', WebkitOverflowScrolling:'touch' }}>
+          {/* Sticky column header — inside scroll container so position:sticky works */}
+          <div style={{
+            position:'sticky', top:0, zIndex:10,
+            display:'flex', alignItems:'center',
+            padding:'6px 14px',
+            background:T.bgSecondary,
+            borderBottom:`1px solid ${T.border}`,
+          }}>
+            <div style={{ width:DAY_W, flexShrink:0, fontSize:8, fontWeight:700, color:T.textMuted, textTransform:'uppercase', letterSpacing:.5 }}>Dag</div>
+            {COLS.map(c => (
+              <div key={c.key} style={cellStyle(true, false)}>{c.label}</div>
+            ))}
+          </div>
           {days.map((d) => {
             const ht = isToday(d.gregorianDay);
             return (
