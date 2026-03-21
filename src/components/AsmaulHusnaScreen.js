@@ -394,6 +394,8 @@ const LARDOMAR_DATA = [
 
 // ── LardomarDetail — fullscreen detail for one lärdom ──
 function LardomarDetail({ lardom, onBack, T }) {
+  // No edgeSwipeBack listener here — LardomarList owns the handler
+  // to correctly restore scroll position when going back.
   return (
     <div style={{
       position: 'absolute', inset: 0, zIndex: 25, background: T.bg,
@@ -447,6 +449,33 @@ function LardomarDetail({ lardom, onBack, T }) {
 // ── LardomarList — full list of 14 lärdomar ──
 function LardomarList({ onBack, T }) {
   const [activeLardom, setActiveLardom] = useState(null);
+  const scrollRef = useRef(null);
+  const savedScrollRef = useRef(0);
+  const activeLardomRef = useRef(null);
+  activeLardomRef.current = activeLardom;
+
+  // Handle edge-swipe: if detail is open → go back to list at saved scroll;
+  // otherwise → go back to 99 names.
+  useEffect(() => {
+    const handler = () => {
+      if (activeLardomRef.current) {
+        setActiveLardom(null);
+        // Restore scroll position after paint
+        requestAnimationFrame(() => requestAnimationFrame(() => {
+          if (scrollRef.current) scrollRef.current.scrollTop = savedScrollRef.current;
+        }));
+      } else {
+        onBack();
+      }
+    };
+    window.addEventListener('edgeSwipeBack', handler);
+    return () => window.removeEventListener('edgeSwipeBack', handler);
+  }, [onBack]);
+
+  const handleOpenLardom = (l) => {
+    savedScrollRef.current = scrollRef.current?.scrollTop || 0;
+    setActiveLardom(l);
+  };
 
   return (
     <div style={{
@@ -458,7 +487,12 @@ function LardomarList({ onBack, T }) {
       {activeLardom && (
         <LardomarDetail
           lardom={activeLardom}
-          onBack={() => setActiveLardom(null)}
+          onBack={() => {
+            setActiveLardom(null);
+            requestAnimationFrame(() => requestAnimationFrame(() => {
+              if (scrollRef.current) scrollRef.current.scrollTop = savedScrollRef.current;
+            }));
+          }}
           T={T}
         />
       )}
@@ -478,11 +512,11 @@ function LardomarList({ onBack, T }) {
         <div style={{ fontSize: 28, fontWeight: 800, color: T.text, marginBottom: 20 }}>Lärdomar</div>
       </div>
 
-      <div style={{ flex: 1, overflowY: 'auto', padding: '0 16px 32px', WebkitOverflowScrolling: 'touch' }}>
+      <div ref={scrollRef} style={{ flex: 1, overflowY: 'auto', padding: '0 16px 32px', WebkitOverflowScrolling: 'touch' }}>
         {LARDOMAR_DATA.map((l) => (
           <button
             key={l.nr}
-            onClick={() => setActiveLardom(l)}
+            onClick={() => handleOpenLardom(l)}
             style={{
               width: '100%', textAlign: 'left', display: 'flex', alignItems: 'flex-start', gap: 14,
               background: T.card, border: `1px solid ${T.border}`,
@@ -553,7 +587,8 @@ export default function AsmaulHusnaScreen({ onBack, onMount }) {
   useEffect(() => {
     const handler = () => {
       if (activeQA) { setActiveQA(null); return; }
-      if (showLardomar) { setShowLardomar(false); return; }
+      // showLardomar edge-swipe is handled inside LardomarList itself
+      if (showLardomar) return;
       if (activeSection) { setActiveSection(null); return; }
       if (selected) {
         setSelected(null);
