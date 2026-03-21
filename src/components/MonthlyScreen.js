@@ -41,11 +41,13 @@ export default function MonthlyScreen({ onBack }) {
     return () => window.removeEventListener('edgeSwipeBack', handler);
   }, [onBack]);
 
-  const [month,   setMonth]   = useState(today.getMonth() + 1);
-  const [year,    setYear]    = useState(today.getFullYear());
-  const [days,    setDays]    = useState([]);
-  const [loading, setLoading] = useState(false);
-  const [error,   setError]   = useState(null);
+  const [month,      setMonth]   = useState(today.getMonth() + 1);
+  const [year,       setYear]    = useState(today.getFullYear());
+  const [days,       setDays]    = useState([]);
+  const [loading,    setLoading] = useState(false);
+  const [error,      setError]   = useState(null);
+  const [slideDir,   setSlideDir] = useState(null); // 'left' | 'right' | null
+  const navInProgress = useRef(false);
 
   const load = useCallback(async () => {
     if (!location) return;
@@ -69,8 +71,23 @@ export default function MonthlyScreen({ onBack }) {
 
   useEffect(() => { load(); }, [load]);
 
-  const prevMonth = () => { if (month===1){setMonth(12);setYear(y=>y-1);}else setMonth(m=>m-1); };
-  const nextMonth = () => { if (month===12){setMonth(1);setYear(y=>y+1);}else setMonth(m=>m+1); };
+  const navigate = (dir) => {
+    if (navInProgress.current) return;
+    navInProgress.current = true;
+    setSlideDir(dir === 'prev' ? 'right' : 'left');
+    setTimeout(() => {
+      if (dir === 'prev') {
+        if (month===1){setMonth(12);setYear(y=>y-1);}else setMonth(m=>m-1);
+      } else {
+        if (month===12){setMonth(1);setYear(y=>y+1);}else setMonth(m=>m+1);
+      }
+      setSlideDir(null);
+      navInProgress.current = false;
+      if (scrollBodyRef.current) scrollBodyRef.current.scrollTop = 0;
+    }, 0);
+  };
+  const prevMonth = () => navigate('prev');
+  const nextMonth = () => navigate('next');
   const isToday   = d => d === today.getDate() && month === today.getMonth()+1 && year === today.getFullYear();
 
   const navBtn = (label, onClick) => (
@@ -108,18 +125,23 @@ export default function MonthlyScreen({ onBack }) {
 
   return (
     <div style={{ background:T.bg, height:'100%', display:'flex', flexDirection:'column' }}>
+      <style>{`
+        @keyframes msSlideIn { from { opacity:0; transform:translateX(var(--ms-from,20px)); } to { opacity:1; transform:translateX(0); } }
+        @keyframes msSlideOutLeft { from { opacity:1; transform:translateX(0); } to { opacity:0; transform:translateX(-20px); } }
+        @keyframes msSlideOutRight { from { opacity:1; transform:translateX(0); } to { opacity:0; transform:translateX(20px); } }
+      `}</style>
 
-      {/* Top header — scroll-hide */}
+      {/* Collapsible top — title + PDF button */}
       <div style={{
-        flexShrink:0, padding:'16px 14px 10px',
+        flexShrink:0, padding:'0 14px',
         paddingTop: 'max(16px, env(safe-area-inset-top, 0px))',
-        borderBottom: headerVisible ? `1px solid ${T.border}` : 'none',
-        maxHeight: headerVisible ? 300 : 0,
+        maxHeight: headerVisible ? 200 : 0,
         overflow: 'hidden',
-        transition: 'max-height 0.28s cubic-bezier(0.4, 0, 0.2, 1)',
+        transition: 'max-height 0.28s cubic-bezier(0.4, 0, 0.2, 1), padding 0.28s',
+        paddingBottom: headerVisible ? 10 : 0,
         background: T.bg, zIndex: 20,
       }}>
-        <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:10 }}>
+        <div style={{ display:'flex', alignItems:'center', gap:8 }}>
           {onBack && (
             <button onClick={onBack} style={{
               background:'none', border:'none', cursor:'pointer', padding:'4px 6px 4px 0',
@@ -131,15 +153,12 @@ export default function MonthlyScreen({ onBack }) {
             <div style={{ fontSize:20, fontWeight:800, color:T.text, letterSpacing:'-0.3px' }}>Månadsöversikt</div>
           </button>
           {days.length > 0 && (
-            <button
-              onClick={downloadPdf}
-              style={{
-                display:'flex', alignItems:'center', gap:6,
-                background:T.accent, border:'none', borderRadius:20,
-                padding:'7px 14px', cursor:'pointer',
-                WebkitTapHighlightColor:'transparent',
-              }}
-            >
+            <button onClick={downloadPdf} style={{
+              display:'flex', alignItems:'center', gap:6,
+              background:T.accent, border:'none', borderRadius:20,
+              padding:'7px 14px', cursor:'pointer',
+              WebkitTapHighlightColor:'transparent',
+            }}>
               <img src={DownloadIcon} alt="" style={{ width:15, height:15, filter:'brightness(0) invert(1)' }}/>
               <span style={{ fontSize:12, fontWeight:700, color:'#fff', fontFamily:'system-ui', whiteSpace:'nowrap' }}>
                 Ladda ned PDF
@@ -147,11 +166,27 @@ export default function MonthlyScreen({ onBack }) {
             </button>
           )}
         </div>
-        <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between' }}>
-          {navBtn('‹', prevMonth)}
-          <span style={{ fontSize:15, fontWeight:700, color:T.text }}>{swedishMonthYear(month, year)}</span>
-          {navBtn('›', nextMonth)}
+      </div>
+
+      {/* Always-visible month nav bar */}
+      <div style={{
+        flexShrink:0, display:'flex', alignItems:'center',
+        justifyContent:'space-between', padding:'8px 14px',
+        borderBottom:`1px solid ${T.border}`,
+        background: T.bg, zIndex: 19,
+      }}>
+        {navBtn('‹', prevMonth)}
+        <div style={{ overflow:'hidden', height:28, flex:1, display:'flex', justifyContent:'center' }}>
+          <div key={`${month}-${year}`} style={{
+            fontSize:15, fontWeight:700, color:T.text, lineHeight:'28px',
+            animation: slideDir
+              ? (slideDir==='left'
+                ? 'msSlideOutLeft 0.22s cubic-bezier(0.4,0,0.2,1) forwards'
+                : 'msSlideOutRight 0.22s cubic-bezier(0.4,0,0.2,1) forwards')
+              : 'msSlideIn 0.22s cubic-bezier(0.4,0,0.2,1)',
+          }}>{swedishMonthYear(month, year)}</div>
         </div>
+        {navBtn('›', nextMonth)}
       </div>
 
       {/* No location */}
@@ -182,7 +217,22 @@ export default function MonthlyScreen({ onBack }) {
 
       {/* Scrollable table body */}
       {!loading && !error && days.length > 0 && (
-        <div ref={scrollBodyRef} onScroll={onScroll} style={{ flex:1, overflowY:'auto', WebkitOverflowScrolling:'touch' }}>
+        <div ref={scrollBodyRef} onScroll={onScroll}
+          onTouchStart={e=>{
+            const t=e.touches[0];
+            scrollBodyRef._sw={x:t.clientX,y:t.clientY};
+          }}
+          onTouchEnd={e=>{
+            const sw=scrollBodyRef._sw;
+            if(!sw) return;
+            const dx=e.changedTouches[0].clientX-sw.x;
+            const dy=Math.abs(e.changedTouches[0].clientY-sw.y);
+            scrollBodyRef._sw=null;
+            if(Math.abs(dx)>60&&dy<80){
+              if(dx<0) nextMonth(); else prevMonth();
+            }
+          }}
+          style={{ flex:1, overflowY:'auto', WebkitOverflowScrolling:'touch' }}>
           {/* Sticky column header — inside scroll container so position:sticky works */}
           <div style={{
             position:'sticky', top:0, zIndex:10,
