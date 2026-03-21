@@ -447,7 +447,7 @@ function OccurrenceRow({occ, booking, isSkipped, isOwn, isAdmin, onUserCancel, o
             <path d="M10 11v6M14 11v6"/>
             <path d="M9 6V4h6v2"/>
           </svg>
-          <span style={{fontSize:10,fontWeight:700,color:'#fff'}}>Ta bort</span>
+          <span style={{fontSize:10,fontWeight:700,color:'#fff'}}>Radera</span>
         </button>
       </div>
       {/* Row content — slides left on swipe */}
@@ -479,7 +479,7 @@ function OccurrenceRow({occ, booking, isSkipped, isOwn, isAdmin, onUserCancel, o
                 fontSize:12,fontWeight:600,
                 WebkitTapHighlightColor:'transparent',
                 touchAction:'manipulation'}}>
-              Ta bort
+              Radera
             </button>
           )}
         </div>
@@ -1807,14 +1807,23 @@ function AdminAddForm({bookings,exceptions,onSubmit,onClose,T}) {
   </div>;
 }
 
-// ─── UserCancelConfirmSheet ───────────────────────────────────────────────────
-// Confirm dialog for users before cancelling a single occurrence
-function UserCancelConfirmSheet({occurrence_date, onConfirm, onCancel, T}) {
-  // Hide tab bar immediately on mount
+// ─── UserDeleteSheet ──────────────────────────────────────────────────────────
+// Replaces UserCancelConfirmSheet — includes reason field + series options
+function UserDeleteSheet({booking, occurrence_date, onConfirmOccurrence, onConfirmSeries, onCancel, T}) {
+  const [reason, setReason] = useState('');
+  const [err, setErr] = useState(false);
+  const isRecur = booking.recurrence && booking.recurrence !== 'none';
+
   useEffect(()=>{
     _tabBarCallbacks.hide?.();
     return()=>_tabBarCallbacks.show?.();
   },[]);
+
+  const validate = (fn) => {
+    if (!reason.trim()) { setErr(true); return; }
+    const uName = localStorage.getItem(STORAGE_USER_NAME) || 'Besökaren';
+    fn(`Avbokad av ${uName}: ${reason.trim()}`);
+  };
 
   return (
     <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.55)',
@@ -1827,28 +1836,64 @@ function UserCancelConfirmSheet({occurrence_date, onConfirm, onCancel, T}) {
         padding:'24px 20px max(40px,env(safe-area-inset-bottom,28px))',
         width:'100%',maxWidth:500,boxSizing:'border-box',
         animation:'bsSlideUp .28s cubic-bezier(0.32,0.72,0,1)'}}>
-        <div style={{fontSize:18,fontWeight:700,color:T.text,marginBottom:8,fontFamily:'system-ui'}}>
-          Avboka tillfälle?
+        <div style={{fontSize:18,fontWeight:700,color:T.text,marginBottom:4,fontFamily:'system-ui'}}>
+          Radera bokning
         </div>
-        <div style={{fontSize:14,color:T.textMuted,marginBottom:20,fontFamily:'system-ui',lineHeight:1.5}}>
-          Är du säker på att du vill avboka{' '}
-          <strong style={{color:T.text}}>{isoToDisplay(occurrence_date)}</strong>?{' '}
-          Övriga tillfällen påverkas inte.
+        <div style={{fontSize:14,color:T.textMuted,marginBottom:14,fontFamily:'system-ui',lineHeight:1.5}}>
+          {isoToDisplay(occurrence_date)}
+          {isRecur && <span style={{color:T.textMuted}}> · återkommande</span>}
         </div>
-        <div style={{display:'flex',gap:10}}>
+        <label style={{fontSize:12,fontWeight:600,color:T.textMuted,fontFamily:'system-ui',
+          letterSpacing:'.3px',display:'block',marginBottom:6}}>
+          ANLEDNING <span style={{color:T.error}}>*</span>
+        </label>
+        <textarea
+          value={reason}
+          onChange={e=>{setReason(e.target.value);setErr(false);}}
+          placeholder="Varför avbokar du?"
+          rows={3}
+          autoFocus
+          onFocus={()=>_tabBarCallbacks.hide?.()}
+          onBlur={()=>_tabBarCallbacks.show?.()}
+          style={{width:'100%',boxSizing:'border-box',background:T.cardElevated,
+            border:`0.5px solid ${err?T.error:T.border}`,borderRadius:10,
+            padding:'10px 12px',fontSize:16,color:T.text,
+            fontFamily:'system-ui',resize:'none',outline:'none',marginBottom:err?4:12}}/>
+        {err && <div style={{fontSize:12,color:T.error,marginBottom:10,fontFamily:'system-ui'}}>Anledning krävs.</div>}
+        <div style={{display:'flex',flexDirection:'column',gap:8}}>
+          {isRecur && (
+            <button onClick={()=>validate(onConfirmOccurrence)}
+              style={{width:'100%',padding:'13px',borderRadius:12,border:`1px solid ${T.error}33`,
+                background:`${T.error}11`,color:T.error,fontSize:14,fontWeight:700,
+                cursor:'pointer',fontFamily:'system-ui',WebkitTapHighlightColor:'transparent',
+                touchAction:'manipulation',textAlign:'left'}}>
+              🗑 Radera detta tillfälle
+            </button>
+          )}
+          {isRecur && (
+            <button onClick={()=>validate(onConfirmSeries)}
+              style={{width:'100%',padding:'13px',borderRadius:12,border:`1px solid ${T.error}33`,
+                background:`${T.error}11`,color:T.error,fontSize:14,fontWeight:700,
+                cursor:'pointer',fontFamily:'system-ui',WebkitTapHighlightColor:'transparent',
+                touchAction:'manipulation',textAlign:'left'}}>
+              🗑 Radera hela serien
+            </button>
+          )}
+          {!isRecur && (
+            <button onClick={()=>validate(onConfirmOccurrence)}
+              style={{width:'100%',padding:'13px',borderRadius:12,border:'none',
+                background:T.error,color:'#fff',fontSize:14,fontWeight:700,
+                cursor:'pointer',fontFamily:'system-ui',WebkitTapHighlightColor:'transparent',
+                touchAction:'manipulation'}}>
+              🗑 Radera aktivitet
+            </button>
+          )}
           <button onClick={onCancel}
-            style={{flex:1,padding:'14px',borderRadius:12,
+            style={{width:'100%',padding:'13px',borderRadius:12,
               border:`0.5px solid ${T.border}`,background:'none',color:T.text,
-              fontSize:15,fontWeight:600,cursor:'pointer',fontFamily:'system-ui',
-              WebkitTapHighlightColor:'transparent'}}>
+              fontSize:14,fontWeight:600,cursor:'pointer',fontFamily:'system-ui',
+              WebkitTapHighlightColor:'transparent',touchAction:'manipulation'}}>
             Avbryt
-          </button>
-          <button onClick={onConfirm}
-            style={{flex:1,padding:'14px',borderRadius:12,border:'none',
-              background:T.error,color:'#fff',
-              fontSize:15,fontWeight:700,cursor:'pointer',
-              fontFamily:'system-ui',WebkitTapHighlightColor:'transparent'}}>
-            Avboka tillfälle
           </button>
         </div>
       </div>
@@ -1868,9 +1913,9 @@ function AdminDeleteSheet({dialog,actionLoading,onConfirm,onCancel,T}) {
     return()=>_tabBarCallbacks.show?.();
   },[]);
   const titleMap={
-    series:'Ta bort hela serien?',
-    one:`Ta bort ${dialog.occurrence_date?isoToDisplay(dialog.occurrence_date):'tillfälle'}?`,
-    single:'Ta bort bokning?',
+    series:'Radera hela serien?',
+    one:`Radera ${dialog.occurrence_date?isoToDisplay(dialog.occurrence_date):'tillfälle'}?`,
+    single:'Radera aktivitet?',
   };
   const msgMap={
     series:'Alla kommande tillfällen tas bort och besökaren notifieras.',
@@ -1945,7 +1990,7 @@ function AdminDeleteSheet({dialog,actionLoading,onConfirm,onCancel,T}) {
               fontSize:15,fontWeight:700,
               cursor:actionLoading?'default':'pointer',
               fontFamily:'system-ui',WebkitTapHighlightColor:'transparent'}}>
-            {actionLoading?'Tar bort…':'Ta bort'}
+            {actionLoading?'Raderar…':'Radera'}
           </button>
         </div>
       </div>
@@ -2972,16 +3017,17 @@ export default function BookingScreen({
         isAdmin={adminMode}
         myBookingIds={myBookingIds}
         onSwipeDelete={o=>{
-          // Swipe left on activity card → open confirm/delete for this occurrence
           const parent=bookings.find(b=>b.id===o.id)||o;
           const userId=localStorage.getItem(STORAGE_USER_ID);
           const deviceId_=localStorage.getItem(STORAGE_DEVICE);
           const isOwn=adminMode||(userId&&parent.user_id===userId)||(deviceId_&&parent.device_id===deviceId_);
           if(!isOwn) return;
+          const occDate=o.date||parent.start_date;
+          const isRecur=parent.recurrence&&parent.recurrence!=='none';
           if(adminMode){
-            setOccDeleteDialog({booking:parent,occurrence_date:o.date||parent.start_date});
+            setOccDeleteDialog({booking:parent,occurrence_date:occDate,isRecur});
           } else {
-            setUserCancelConfirm({booking:parent,occurrence_date:o.date||parent.start_date});
+            setUserCancelConfirm({booking:parent,occurrence_date:occDate});
           }
         }}
         onSelectBooking={o=>{
@@ -3119,7 +3165,7 @@ export default function BookingScreen({
                   isAdmin={adminMode}
                   idx={0} total={1}
                   onUserCancel={occ=>{setUserCancelConfirm({booking:b,occurrence_date:occ.date});}}
-                  onAdminDelete={occ=>{setOccDeleteDialog({booking:b,occurrence_date:occ.date});}}
+                  onAdminDelete={occ=>{const ir=b.recurrence&&b.recurrence!=='none';setOccDeleteDialog({booking:b,occurrence_date:occ.date,isRecur:ir});}}
                   T={T}
                 />
                 {isRecur&&upcoming.length>0&&<div style={{
@@ -3175,32 +3221,44 @@ export default function BookingScreen({
         </div>
       </div>
       {/* Admin delete single occurrence — rendered at z:1200 above the detail sheet */}
-      {occDeleteDialog&&(
-        <AdminDeleteSheet
-          dialog={{...occDeleteDialog,type:'one'}}
-          actionLoading={false}
-          onConfirm={async(explanation)=>{
-            await handleAdminDelete(occDeleteDialog.booking,occDeleteDialog.occurrence_date,explanation);
-            setOccDeleteDialog(null);
-            setBookingDetail(null);
-          }}
-          onCancel={()=>setOccDeleteDialog(null)}
-          T={T}/>
-      )}
-      {userCancelConfirm&&(
-        <UserCancelConfirmSheet
-          occurrence_date={userCancelConfirm.occurrence_date}
-          onConfirm={async()=>{
-            onTabBarHide?.();
-            await handleCancelOccurrence(userCancelConfirm.booking,userCancelConfirm.occurrence_date,null);
-            setUserCancelConfirm(null);
-            setBookingDetail(null);
-            onTabBarShow?.();
-          }}
-          onCancel={()=>{setUserCancelConfirm(null);onTabBarShow?.();}}
-          T={T}/>
-      )};
     })()}
+
+    {/* AdminDeleteSheet — top-level so it shows from both DayPanel swipe and detail sheet */}
+    {occDeleteDialog&&(
+      <AdminDeleteSheet
+        dialog={{...occDeleteDialog,type:occDeleteDialog.isRecur?'one':'single'}}
+        actionLoading={false}
+        onConfirm={async(explanation)=>{
+          if(occDeleteDialog.isRecur){
+            await handleAdminDelete(occDeleteDialog.booking,occDeleteDialog.occurrence_date,explanation);
+          } else {
+            await handleAdminDelete(occDeleteDialog.booking,null,explanation);
+          }
+          setOccDeleteDialog(null);
+          setBookingDetail(null);
+        }}
+        onCancel={()=>setOccDeleteDialog(null)}
+        T={T}/>
+    )}
+
+    {/* UserCancelSheet — top-level so it works from DayPanel swipe too */}
+    {userCancelConfirm&&(
+      <UserDeleteSheet
+        booking={userCancelConfirm.booking}
+        occurrence_date={userCancelConfirm.occurrence_date}
+        onConfirmOccurrence={async(reason)=>{
+          await handleCancelOccurrence(userCancelConfirm.booking,userCancelConfirm.occurrence_date,reason);
+          setUserCancelConfirm(null);
+          setBookingDetail(null);
+        }}
+        onConfirmSeries={async(reason)=>{
+          await handleCancelSeries(userCancelConfirm.booking,reason);
+          setUserCancelConfirm(null);
+          setBookingDetail(null);
+        }}
+        onCancel={()=>setUserCancelConfirm(null)}
+        T={T}/>
+    )}
 
     {view==='form'&&pendingFormDate&&<BookingForm date={pendingFormDate}
       onSubmit={handleSubmitBooking} onBack={()=>setView('calendar')}
