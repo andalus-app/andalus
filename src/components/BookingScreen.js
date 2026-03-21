@@ -671,7 +671,7 @@ function RecurrencePicker({recurrence,onChange,endDate,onEndDateChange,T}) {
               <span style={{fontSize:13,fontWeight:isSel?700:400,color:isSel?T.accent:T.text}}>{d.getDate()}</span>
             </button>;
           })}
-        </div>))}
+        </div>)}
       </div>}
     </div>}
   </div>;
@@ -1503,11 +1503,12 @@ function MyBookings({bookings,exceptions,loading,onBack,onCancel,onCancelFromDat
     return all;
   },[bookings,filter]);
 
+  const [upcomingLimit,setUpcomingLimit]=useState(10);
+
   if(selected) {
     const b=selected;
     const isRecur=b.recurrence&&b.recurrence!=='none';
     const allUpcoming=isRecur?expandBooking(b,today,wEnd,exceptions):[];
-    const [upcomingLimit,setUpcomingLimit]=useState(10);
     const upcoming=isRecur?allUpcoming.slice(0,upcomingLimit):[{...b,date:b.start_date}];
     return <div style={{paddingTop:'max(20px,env(safe-area-inset-top,0px))',
       paddingLeft:16,paddingRight:16,
