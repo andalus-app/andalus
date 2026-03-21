@@ -1261,8 +1261,9 @@ function CancelledOccurrencesList({bookingId, exceptions, timeSlot, T}) {
 }
 
 // ─── My Bookings ──────────────────────────────────────────────────────────────
-function MyBookings({bookings,exceptions,loading,onBack,onCancel,onCancelFromDate,onCancelSeries,highlightBookingId,highlightFilter,onLogout,T}) {
-  const[selectedId,setSelectedId]=useState(null);
+function MyBookings({bookings,exceptions,loading,onBack,onCancel,onCancelFromDate,onCancelSeries,highlightBookingId,highlightBooking,highlightFilter,onLogout,T}) {
+  // If a specific booking object is passed directly, open its detail immediately
+  const[selectedId,setSelectedId]=useState(()=>highlightBooking?.id||null);
   const[deleteSheet,setDeleteSheet]=useState(null);
   const[cancelReason,setCancelReason]=useState('');
   const[cancelReasonError,setCancelReasonError]=useState(false);
@@ -1271,17 +1272,25 @@ function MyBookings({bookings,exceptions,loading,onBack,onCancel,onCancelFromDat
   const today=toISO(new Date());
   const wEnd=toISO(new Date(new Date().setFullYear(new Date().getFullYear()+2)));
 
-  const selected=useMemo(()=>selectedId?bookings.find(b=>b.id===selectedId)||null:null,[selectedId,bookings]);
+  const selected=useMemo(()=>selectedId?(bookings.find(b=>b.id===selectedId)||highlightBooking||null):null,[selectedId,bookings,highlightBooking]);// eslint-disable-line
 
   useEffect(()=>{if(highlightFilter)setFilter(highlightFilter);},[highlightFilter]);
   useEffect(()=>{
-    if(highlightBookingId&&highlightRef.current){
-      setTimeout(()=>{
-        highlightRef.current?.scrollIntoView({behavior:'smooth',block:'center'});
-        if(navigator.vibrate) navigator.vibrate([60,40,60,40,120]);
-      },350);
+    // If a booking object was passed directly (from BookingDetailSheet "Se alla detaljer"),
+    // selectedId is already set via useState initializer — no need to find it.
+    if(highlightBooking) return;
+    if(highlightBookingId){
+      const target=bookings.find(b=>b.id===highlightBookingId);
+      if(target){
+        setSelectedId(target.id);
+      } else if(highlightRef.current){
+        setTimeout(()=>{
+          highlightRef.current?.scrollIntoView({behavior:'smooth',block:'center'});
+          if(navigator.vibrate) navigator.vibrate([60,40,60,40,120]);
+        },350);
+      }
     }
-  },[highlightBookingId,filter]);
+  },[highlightBookingId,highlightBooking,filter,bookings]);// eslint-disable-line
 
   const FILTERS=[{id:'all',label:'Alla'},{id:'pending',label:'Väntar'},{id:'approved',label:'Godkända'},{id:'cancelled',label:'Inställda'}];
   const counts={
@@ -2352,6 +2361,8 @@ export default function BookingScreen({
   });
   const[calendarAdminDetail,setCalendarAdminDetail]=useState(null);
   const[internalAdminHighlight,setInternalAdminHighlight]=useState(null);
+  const[internalHighlightId,setInternalHighlightId]=useState(null); // user: open specific booking in my-bookings
+  const[internalHighlightBooking,setInternalHighlightBooking]=useState(null); // the actual booking object, avoids find() race
   // Universal booking detail — for search results and day panel clicks (all users)
   const[bookingDetail,setBookingDetail]=useState(null);
   const[occDeleteDialog,setOccDeleteDialog]=useState(null); // admin: delete single occurrence from detail sheet
@@ -2916,7 +2927,12 @@ export default function BookingScreen({
               Öppna i adminpanel →
             </button>}
             {/* User: go to my bookings for full detail */}
-            {!adminMode&&isOwn&&<button onClick={()=>{setBookingDetail(null);setView('my-bookings');}}
+            {!adminMode&&isOwn&&<button onClick={()=>{
+                setInternalHighlightId(b.id);
+                setInternalHighlightBooking(b);
+                setBookingDetail(null);
+                setView('my-bookings');
+              }}
               style={{width:'100%',padding:'13px',borderRadius:12,border:`0.5px solid ${T.border}`,
                 background:T.cardElevated,color:T.accent,fontSize:14,fontWeight:700,
                 cursor:'pointer',WebkitTapHighlightColor:'transparent',marginTop:16}}>
@@ -2958,10 +2974,12 @@ export default function BookingScreen({
       loading={submitLoading} bookings={bookings} exceptions={exceptions} T={T}/>}
 
     {view==='my-bookings'&&<MyBookings bookings={myBookings} exceptions={exceptions}
-      loading={false} onBack={()=>setView('calendar')}
+      loading={false} onBack={()=>{setView('calendar');setInternalHighlightId(null);setInternalHighlightBooking(null);}}
       onCancel={handleCancelOccurrence} onCancelFromDate={handleCancelFromDate}
       onCancelSeries={handleCancelSeries}
-      highlightBookingId={highlightBookingId} highlightFilter={highlightFilter}
+      highlightBookingId={internalHighlightId||highlightBookingId}
+      highlightBooking={internalHighlightBooking}
+      highlightFilter={internalHighlightId?'all':highlightFilter}
       onLogout={handleUserLogout} T={T}/>}
 
     {view==='login'&&<UserLogin onSuccess={handleLoginSuccess} onBack={undefined} T={T}/>}
