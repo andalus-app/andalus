@@ -2409,6 +2409,25 @@ export default function BookingScreen({
     const userId=localStorage.getItem(STORAGE_USER_ID);
     const devId=localStorage.getItem(STORAGE_DEVICE);
     if(!userId&&!devId){setDbLoading(false);return;}
+
+    // Phase 1 — fetch this user's own bookings immediately (fast, small query)
+    // This ensures DayPanel shows the user's bookings as clickable on first render
+    // before the full table fetch completes.
+    const quickFetch=async()=>{
+      if(!userId) return; // device-only users get full fetch below
+      let q=supabase.from('bookings').select('*').eq('user_id',userId);
+      const{data}=await q;
+      if(data&&data.length>0){
+        // Merge into bookings state — don't replace, as full fetch may already be running
+        setBookings(prev=>{
+          if(prev.length>0) return prev; // full fetch already populated, skip
+          return data;
+        });
+      }
+    };
+    quickFetch();
+
+    // Phase 2 — full fetch (all bookings for calendar dots, other users' blocks, admin)
     fetchAll();
   },[fetchAll]);
 
@@ -2644,7 +2663,9 @@ export default function BookingScreen({
   },[showToast]);
 
   // ─── Render ───────────────────────────────────────────────────────────────────
-  if(dbLoading&&!adminMode){
+  // Only show full-screen spinner on very first load when we have NO data yet.
+  // If quick-fetch already populated bookings, show calendar immediately.
+  if(dbLoading&&!adminMode&&bookings.length===0){
     return <div style={{padding:'80px 16px',background:T.bg,minHeight:'100%'}}><Spinner T={T}/></div>;
   }
 
