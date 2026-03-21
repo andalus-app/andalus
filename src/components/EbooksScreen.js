@@ -505,17 +505,49 @@ function PdfReader({ book, onClose, onSetPage, onAddBookmark, onRemoveBookmark, 
 
         {status === 'loading' && (
           <div style={{ width:'85%', maxWidth:340 }}>
-            <style>{`@keyframes skshimmer{0%,100%{opacity:.35}50%{opacity:.65}}`}</style>
-            {/* Simulera boksidor med skeleton */}
-            <div style={{ background: T.isDark ? '#1a1a1a' : '#e8e8e8', borderRadius:8, padding:'24px 20px', animation:'skshimmer 1.4s ease-in-out infinite' }}>
-              {[100,80,100,65,100,90,100,55,100,75].map((w,i) => (
-                <div key={i} style={{ height:10, borderRadius:4, marginBottom:10,
-                  background: T.isDark ? '#333' : '#ccc',
-                  width:`${w}%`, opacity: i % 3 === 2 ? 0.5 : 1 }}/>
-              ))}
-              <div style={{ height:10, borderRadius:4, width:'40%', background: T.isDark ? '#333' : '#ccc', marginTop:24 }}/>
+            <style>{`
+              @keyframes skwave {
+                0%   { background-position: -400px 0; }
+                100% { background-position:  400px 0; }
+              }
+            `}</style>
+            {/* Book-page skeleton with moving shimmer */}
+            <div style={{
+              background: T.isDark ? '#1C1C1E' : '#FFFFFF',
+              borderRadius: 10,
+              padding: '28px 22px',
+              boxShadow: T.isDark
+                ? '0 2px 16px rgba(0,0,0,0.5)'
+                : '0 2px 20px rgba(0,0,0,0.10)',
+            }}>
+              {[100,78,100,62,100,88,100,52,100,72,100,84,100,58].map((w,i) => {
+                const shimmerBg = T.isDark
+                  ? 'linear-gradient(90deg, #2C2C2E 25%, #3A3A3C 50%, #2C2C2E 75%)'
+                  : 'linear-gradient(90deg, #F0F0F0 25%, #E0E0E0 50%, #F0F0F0 75%)';
+                return (
+                  <div key={i} style={{
+                    height: 10, borderRadius: 5, marginBottom: 11,
+                    width: `${w}%`,
+                    background: shimmerBg,
+                    backgroundSize: '800px 100%',
+                    animation: `skwave 1.6s ease-in-out infinite`,
+                    animationDelay: `${i * 60}ms`,
+                    opacity: i % 4 === 3 ? 0.55 : 1,
+                  }}/>
+                );
+              })}
+              {/* Page number line */}
+              <div style={{
+                height: 10, borderRadius: 5, width: '25%', marginTop: 28,
+                background: T.isDark
+                  ? 'linear-gradient(90deg, #2C2C2E 25%, #3A3A3C 50%, #2C2C2E 75%)'
+                  : 'linear-gradient(90deg, #F0F0F0 25%, #E0E0E0 50%, #F0F0F0 75%)',
+                backgroundSize: '800px 100%',
+                animation: 'skwave 1.6s ease-in-out infinite',
+                margin: '28px auto 0',
+              }}/>
             </div>
-            <div style={{ textAlign:'center', marginTop:16, color:T.textMuted, fontSize:12, fontFamily:'system-ui' }}>
+            <div style={{ textAlign:'center', marginTop:14, color:T.textMuted, fontSize:12, fontFamily:'system-ui' }}>
               Laddar sida {page}…
             </div>
           </div>

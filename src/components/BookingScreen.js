@@ -654,6 +654,24 @@ function CalendarView({bookings,exceptions,onSelectDate,isAdmin,selectedDate,T,o
   const[displayAnchor,setDisplayAnchor]=useState(anchor);
   const swipeRef=useRef(null);
   const navInProgressRef=useRef(false);
+  const gridRef=useRef(null);
+
+  // Register passive:false touchmove on the grid so preventDefault() works on iOS
+  useEffect(()=>{
+    const el=gridRef.current;
+    if(!el) return;
+    const onMove=e=>{
+      if(!swipeRef.current) return;
+      const dx=Math.abs(e.touches[0].clientX-swipeRef.current.x);
+      const dy=Math.abs(e.touches[0].clientY-swipeRef.current.y);
+      if(swipeRef.current.locked===null&&(dx>4||dy>4)){
+        swipeRef.current.locked=dx>dy?'h':'v';
+      }
+      if(swipeRef.current.locked==='h') e.preventDefault();
+    };
+    el.addEventListener('touchmove',onMove,{passive:false});
+    return()=>el.removeEventListener('touchmove',onMove);
+  },[]);
 
   useEffect(()=>{
     if(selectedDate) {
@@ -682,13 +700,17 @@ function CalendarView({bookings,exceptions,onSelectDate,isAdmin,selectedDate,T,o
       navInProgressRef.current=false;
     },380);
   };
-  const handleSwipeStart=e=>{swipeRef.current={x:e.touches[0].clientX,y:e.touches[0].clientY};};
+  const handleSwipeStart=e=>{
+    swipeRef.current={x:e.touches[0].clientX,y:e.touches[0].clientY,locked:null};
+  };
+
   const handleSwipeEnd=e=>{
     if(!swipeRef.current) return;
     const dx=e.changedTouches[0].clientX-swipeRef.current.x;
     const dy=Math.abs(e.changedTouches[0].clientY-swipeRef.current.y);
+    const wasHorizontal=swipeRef.current.locked==='h';
     swipeRef.current=null;
-    if(Math.abs(dx)<40||dy>60) return;
+    if(!wasHorizontal||Math.abs(dx)<40||dy>60) return;
     if(dx<0) navigate('next'); else navigate('prev');
   };
 
@@ -750,7 +772,7 @@ function CalendarView({bookings,exceptions,onSelectDate,isAdmin,selectedDate,T,o
           color:T.textMuted,fontFamily:'system-ui',letterSpacing:'.5px'}}>{d}</div>)}
       </div>
     </div>
-    <div onTouchStart={handleSwipeStart} onTouchEnd={handleSwipeEnd}
+    <div ref={gridRef} onTouchStart={handleSwipeStart} onTouchEnd={handleSwipeEnd}
       style={{paddingLeft:8,paddingRight:8,
         animation:slideDir
           ? slideDir==='next'
@@ -2335,7 +2357,7 @@ export default function BookingScreen({
       onClose={()=>setShowSearch(false)} T={T}/>}
 
     {/* Calendar View */}
-    {view==='calendar'&&<div style={{background:T.bg,minHeight:'100%',animation:'bsMonthZoomIn 0.32s cubic-bezier(0.4,0,0.2,1)'}}>
+    {view==='calendar'&&<div style={{background:T.bg,minHeight:'100%',overscrollBehavior:'contain',animation:'bsMonthZoomIn 0.32s cubic-bezier(0.4,0,0.2,1)'}}>
       {/* Header */}
       <div style={{paddingTop:'max(20px,env(safe-area-inset-top,0px))',
         paddingLeft:20,paddingRight:20,paddingBottom:0,background:T.calHeaderBg}}>
