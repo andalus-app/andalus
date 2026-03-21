@@ -1485,6 +1485,80 @@ function AdminAddForm({bookings,exceptions,onSubmit,onClose,T}) {
   </div>;
 }
 
+// ─── AdminDeleteSheet — inline bottom overlay, no position:fixed ──────────────
+// Uses a full-screen overlay rendered inside the scroll root, so parent
+// overflow:hidden never clips it.
+function AdminDeleteSheet({dialog,actionLoading,onConfirm,onCancel,T}) {
+  const[reason,setReason]=useState('');
+  const[err,setErr]=useState(false);
+  const titleMap={
+    series:'Ta bort hela serien?',
+    one:`Ta bort ${dialog.occurrence_date?isoToDisplay(dialog.occurrence_date):'tillfälle'}?`,
+    single:'Ta bort bokning?',
+  };
+  const msgMap={
+    series:'Alla kommande tillfällen tas bort och besökaren notifieras.',
+    one:'Bara detta tillfälle tas bort. Besökaren notifieras.',
+    single:'Bokningen tas bort. Besökaren notifieras.',
+  };
+  const handleConfirm=async()=>{
+    if(!reason.trim()){setErr(true);return;}
+    await onConfirm(reason.trim());
+  };
+  return (
+    <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.55)',
+      zIndex:3000,display:'flex',alignItems:'flex-end',justifyContent:'center'}}
+      onClick={onCancel}>
+      <div onClick={e=>e.stopPropagation()} style={{
+        background:T.sheetBg,borderRadius:'20px 20px 0 0',
+        padding:'24px 20px max(36px,env(safe-area-inset-bottom,24px))',
+        width:'100%',maxWidth:500,boxSizing:'border-box',
+        animation:'bsSlideUp .28s cubic-bezier(0.32,0.72,0,1)'}}>
+        <div style={{fontSize:18,fontWeight:700,color:T.text,marginBottom:6,fontFamily:'system-ui'}}>
+          {titleMap[dialog.type]||'Ta bort?'}
+        </div>
+        <div style={{fontSize:14,color:T.textMuted,marginBottom:16,fontFamily:'system-ui',lineHeight:1.5}}>
+          {msgMap[dialog.type]||''}
+        </div>
+        <label style={{fontSize:12,fontWeight:600,color:T.textMuted,
+          fontFamily:'system-ui',letterSpacing:'.3px',display:'block',marginBottom:6}}>
+          ANLEDNING (visas för besökaren) <span style={{color:T.error}}>*</span>
+        </label>
+        <textarea
+          value={reason}
+          onChange={e=>{setReason(e.target.value);setErr(false);}}
+          placeholder="Varför tas bokningen bort?"
+          rows={3}
+          autoFocus
+          style={{width:'100%',boxSizing:'border-box',background:T.cardElevated,
+            border:`0.5px solid ${err?T.error:T.border}`,borderRadius:10,
+            padding:'10px 12px',fontSize:16,color:T.text,
+            fontFamily:'system-ui',resize:'none',outline:'none',marginBottom:err?6:14}}/>
+        {err&&<div style={{fontSize:12,color:T.error,marginBottom:10,fontFamily:'system-ui'}}>
+          Anledning krävs.
+        </div>}
+        <div style={{display:'flex',gap:10}}>
+          <button onClick={onCancel}
+            style={{flex:1,padding:'13px',borderRadius:12,
+              border:`0.5px solid ${T.border}`,background:'none',color:T.text,
+              fontSize:15,fontWeight:600,cursor:'pointer',fontFamily:'system-ui',
+              WebkitTapHighlightColor:'transparent'}}>
+            Avbryt
+          </button>
+          <button onClick={handleConfirm} disabled={actionLoading}
+            style={{flex:1,padding:'13px',borderRadius:12,border:'none',
+              background:actionLoading?T.textTertiary:T.error,color:'#fff',
+              fontSize:15,fontWeight:700,
+              cursor:actionLoading?'default':'pointer',
+              fontFamily:'system-ui',WebkitTapHighlightColor:'transparent'}}>
+            {actionLoading?'Tar bort…':'Ta bort'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ─── Admin Panel ──────────────────────────────────────────────────────────────
 function AdminPanel({bookings,exceptions,onBack,onApprove,onReject,onDelete,onDeleteSeries,onDeleteFromDate,onAdminAddRecurring,onRefreshNotifications,onMarkAdminSeen,onManageUsers,adminInitialFilter,adminHighlightId=null,adminHighlightFilter=null,T}) {
   const[filter,setFilter]=useState(adminHighlightFilter||adminInitialFilter||'all');
@@ -1585,20 +1659,21 @@ function AdminPanel({bookings,exceptions,onBack,onApprove,onReject,onDelete,onDe
           textAlign:'left',WebkitTapHighlightColor:'transparent',width:'100%'}}>
         🗑 {isRecur?'Ta bort hela serien':'Ta bort bokning'}
       </button>
-      {deleteDialog&&<ConfirmDialog
-        title={deleteDialog.type==='series'?'Ta bort hela serien?':deleteDialog.type==='one'?`Ta bort ${isoToDisplay(deleteDialog.occurrence_date)}?`:'Ta bort bokning?'}
-        message={deleteDialog.type==='series'?'Alla tillfällen tas bort.':deleteDialog.type==='one'?'Bara detta tillfälle tas bort.':'Bokningen tas bort.'}
-        confirmLabel="Ta bort"
-        requireText="FÖRKLARING TILL BESÖKAREN"
-        requirePlaceholder="Varför tas bokningen bort?"
-        onConfirm={async(explanation)=>{
-          setActionLoading(true);
-          if(deleteDialog.type==='series') await onDeleteSeries(deleteDialog.booking,explanation);
-          else if(deleteDialog.type==='one') await onDelete(deleteDialog.booking,deleteDialog.occurrence_date,explanation);
-          else await onDelete(deleteDialog.booking,null,explanation);
-          setActionLoading(false);setDeleteDialog(null);setSelected(null);onRefreshNotifications?.();
-        }}
-        onCancel={()=>setDeleteDialog(null)} T={T}/>}
+      {/* Inline delete sheet — avoids position:fixed clipping from parent overflow:hidden */}
+      {deleteDialog&&(
+        <AdminDeleteSheet
+          dialog={deleteDialog}
+          actionLoading={actionLoading}
+          onConfirm={async(explanation)=>{
+            setActionLoading(true);
+            if(deleteDialog.type==='series') await onDeleteSeries(deleteDialog.booking,explanation);
+            else if(deleteDialog.type==='one') await onDelete(deleteDialog.booking,deleteDialog.occurrence_date,explanation);
+            else await onDelete(deleteDialog.booking,null,explanation);
+            setActionLoading(false);setDeleteDialog(null);setSelected(null);onRefreshNotifications?.();
+          }}
+          onCancel={()=>setDeleteDialog(null)}
+          T={T}/>
+      )}
     </div>;
   }
 
@@ -2237,6 +2312,13 @@ export default function BookingScreen({
       const{error}=await supabase.from('booking_exceptions').insert([exc]);
       if(error){showToast('Något gick fel.');return;}
       setExceptions(prev=>[...prev,exc]);
+      // Also update bookings.admin_comment + resolved_at so useBookingNotifications
+      // fires the instant notification for this specific cancellation.
+      await supabase.from('bookings').update({
+        admin_comment:comment,
+        resolved_at:Date.now(),
+      }).eq('id',booking.id);
+      setBookings(prev=>prev.map(b=>b.id===booking.id?{...b,admin_comment:comment,resolved_at:Date.now()}:b));
     } else {
       const{error}=await supabase.from('bookings').update({status:'cancelled',admin_comment:comment,resolved_at:Date.now()}).eq('id',booking.id);
       if(error){showToast('Något gick fel.');return;}
