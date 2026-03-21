@@ -1379,13 +1379,26 @@ function MyBookings({bookings,exceptions,loading,onBack,onCancel,onCancelFromDat
           </button>
         )}
       </div>
-      {deleteSheet&&<div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.5)',zIndex:1000,
-        display:'flex',alignItems:'flex-end',justifyContent:'center',touchAction:'none'}}
-        onClick={()=>{setDeleteSheet(null);setCancelReason('');setCancelReasonError(false);}}>
-        <HideTabBar/>
-        <div onClick={e=>e.stopPropagation()} style={{background:T.sheetBg,borderRadius:'20px 20px 0 0',
-          padding:'24px 20px 36px',width:'100%',maxWidth:500,boxSizing:'border-box',
-          animation:'bsSlideUp .25s cubic-bezier(0.32,0.72,0,1)'}}>
+      {deleteSheet&&(()=>{
+        // Track viewport to move sheet up when keyboard opens
+        const SheetWithViewport=(()=>{
+          const [bottomOffset, setBottomOffset] = React.useState(0);
+          React.useEffect(()=>{
+            const vv=window.visualViewport;
+            if(!vv) return;
+            const upd=()=>setBottomOffset(Math.max(0,window.innerHeight-vv.height-vv.offsetTop));
+            vv.addEventListener('resize',upd);vv.addEventListener('scroll',upd);
+            return()=>{vv.removeEventListener('resize',upd);vv.removeEventListener('scroll',upd);};
+          },[]);
+          return (
+            <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.5)',zIndex:1000,
+              display:'flex',alignItems:'flex-end',justifyContent:'center',touchAction:'none'}}
+              onClick={()=>{setDeleteSheet(null);setCancelReason('');setCancelReasonError(false);}}>
+              <HideTabBar/>
+              <div onClick={e=>e.stopPropagation()} style={{background:T.sheetBg,borderRadius:'20px 20px 0 0',
+                padding:'24px 20px 36px',width:'100%',maxWidth:500,boxSizing:'border-box',
+                position:'relative',bottom:bottomOffset,
+                animation:'bsSlideUp .25s cubic-bezier(0.32,0.72,0,1)'}}>
           <div style={{fontSize:16,fontWeight:700,color:T.text,marginBottom:8}}>
             {deleteSheet.deleteAll?'Avboka hela serien?':'Avboka?'}
           </div>
@@ -1435,7 +1448,11 @@ function MyBookings({bookings,exceptions,loading,onBack,onCancel,onCancelFromDat
                 cursor:'pointer',WebkitTapHighlightColor:'transparent'}}>Avbryt</button>
           </div>
         </div>
-      </div>}
+      </div>
+          );
+        };
+        return <SheetWithViewport/>;
+      })()}
     </div>;
   }
 
@@ -1629,6 +1646,7 @@ function UserCancelConfirmSheet({occurrence_date, onConfirm, onCancel, T}) {
       zIndex:3000,display:'flex',alignItems:'flex-end',justifyContent:'center',
       touchAction:'none'}}
       onClick={onCancel}>
+      <HideTabBar/>
       <div onClick={e=>e.stopPropagation()} style={{
         background:T.sheetBg,borderRadius:'20px 20px 0 0',
         padding:'24px 20px max(40px,env(safe-area-inset-bottom,28px))',
@@ -1688,15 +1706,30 @@ function AdminDeleteSheet({dialog,actionLoading,onConfirm,onCancel,T}) {
     if(!reason.trim()){setErr(true);return;}
     await onConfirm(reason.trim());
   };
+  const sheetRef=React.useRef(null);
+  // Scroll the sheet into view when keyboard opens
+  React.useEffect(()=>{
+    const vv=window.visualViewport;
+    if(!vv) return;
+    const onResize=()=>{
+      if(sheetRef.current){
+        sheetRef.current.style.bottom=Math.max(0,window.innerHeight-vv.height-vv.offsetTop)+'px';
+      }
+    };
+    vv.addEventListener('resize',onResize);
+    vv.addEventListener('scroll',onResize);
+    return()=>{vv.removeEventListener('resize',onResize);vv.removeEventListener('scroll',onResize);};
+  },[]);
   return (
     <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.55)',
       zIndex:3000,display:'flex',alignItems:'flex-end',justifyContent:'center',
       touchAction:'none'}}
       onClick={onCancel}>
-      <div onClick={e=>e.stopPropagation()} style={{
+      <div ref={sheetRef} onClick={e=>e.stopPropagation()} style={{
         background:T.sheetBg,borderRadius:'20px 20px 0 0',
         padding:'24px 20px max(36px,env(safe-area-inset-bottom,24px))',
         width:'100%',maxWidth:500,boxSizing:'border-box',
+        position:'relative',
         animation:'bsSlideUp .28s cubic-bezier(0.32,0.72,0,1)'}}>
         <div style={{fontSize:18,fontWeight:700,color:T.text,marginBottom:6,fontFamily:'system-ui'}}>
           {titleMap[dialog.type]||'Ta bort?'}
@@ -2649,6 +2682,7 @@ export default function BookingScreen({
       @keyframes bsHighlight{0%,100%{box-shadow:0 0 0 3px var(--hl,rgba(45,139,120,.3))}50%{box-shadow:0 0 0 8px transparent}}
       @keyframes bsYearIn{from{opacity:0;transform:scale(0.93)}to{opacity:1;transform:scale(1)}}
       @keyframes bsMonthZoomIn{from{opacity:0;transform:scale(0.88)}to{opacity:1;transform:scale(1)}}
+      @keyframes bsStatusPulse{0%,100%{box-shadow:0 0 0 0 var(--pulse-color,#34C759)66,0 0 0 0 var(--pulse-color,#34C759)33}50%{box-shadow:0 0 0 5px var(--pulse-color,#34C759)00,0 0 0 9px var(--pulse-color,#34C759)00}}
     `}</style>
     <Toast message={toast}/>
 
@@ -2755,7 +2789,11 @@ export default function BookingScreen({
           animation:'bsSlideUp .25s cubic-bezier(0.32,0.72,0,1)'}}>
           <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:16}}>
             <div style={{display:'flex',alignItems:'center',gap:8}}>
-              <div style={{width:10,height:10,borderRadius:'50%',background:sc}}/>
+              <div style={{
+                width:10,height:10,borderRadius:'50%',background:sc,
+                animation:'bsStatusPulse 2s ease-in-out infinite',
+                '--pulse-color':sc,
+              }}/>
               <Badge status={b.status}/>
             </div>
             <button onClick={()=>setCalendarAdminDetail(null)}
@@ -2788,16 +2826,21 @@ export default function BookingScreen({
         display:'flex',alignItems:'flex-end',justifyContent:'center',
         touchAction:'none'}}
         onClick={e=>{if(e.target===e.currentTarget)setBookingDetail(null);}}>
+        <HideTabBar/>
         <div onClick={e=>e.stopPropagation()} style={{background:T.sheetBg,borderRadius:'20px 20px 0 0',
           width:'100%',maxWidth:500,boxSizing:'border-box',
-          maxHeight:'85vh',display:'flex',flexDirection:'column',
+          maxHeight:'92vh',display:'flex',flexDirection:'column',
           touchAction:'pan-y',
           animation:'bsSlideUp .28s cubic-bezier(0.32,0.72,0,1)'}}>
           {/* Header */}
           <div style={{padding:'20px 20px 0',flexShrink:0}}>
             <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:12}}>
               <div style={{display:'flex',alignItems:'center',gap:8}}>
-                <div style={{width:10,height:10,borderRadius:'50%',background:sc}}/>
+                <div style={{
+                  width:10,height:10,borderRadius:'50%',background:sc,flexShrink:0,
+                  animation:'bsStatusPulse 2s ease-in-out infinite',
+                  '--pulse-color':sc,
+                }}/>
                 <Badge status={b.status}/>
                 {isRecur&&<RecurBadge recurrence={b.recurrence}/>}
               </div>

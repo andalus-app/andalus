@@ -278,11 +278,8 @@ const LARDOMAR_DATA = [
       'Första nivån: att memorera namnen. Detta innebär att lära sig Allahs namn och bära dem i sitt minne.',
       'Andra nivån: att förstå namnen. Det innebär att förstå deras betydelse och vad de säger om Allah och hans fullkomliga egenskaper.',
       'Tredje nivån: att leva i enlighet med namnen. Den som vet att Allah är den ende sanne guden vänder sig inte till någon annan i dyrkan. Och den som vet att Allah är al-Basir, den seende, aktar sig för synder även när ingen människa ser honom.',
-      'Fjärde nivån: att åkalla Allah med hans namn. Allah säger, i betydelse: "Till Allah hör de allra vackraste namnen, åkalla honom därför med dem." [al-A'raf 7:180]',
-      'Detta kan till exempel vara att säga:
-Ya Rahman (O, den Nåderike), visa mig barmhärtighet.
-Ya Ghafur (O, den Förlåtande), förlåt mig.
-Ya Tawwab (O, Ångermottagren), ta emot min ånger.',
+      'Fjärde nivån: att åkalla Allah med hans namn. Allah säger, i betydelse: "Till Allah hör de allra vackraste namnen, åkalla honom därför med dem." [al-A\'raf 7:180]',
+      'Detta kan till exempel vara att säga:\nYa Rahman (O, den Nåderike), visa mig barmhärtighet.\nYa Ghafur (O, den Förlåtande), förlåt mig.\nYa Tawwab (O, Ångermottagren), ta emot min ånger.',
     ],
   },
   {

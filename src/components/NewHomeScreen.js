@@ -334,7 +334,7 @@ export default function NewHomeScreen({ stream, onGoToAdminLogin, onGoToMyBookin
     }
   }, [mode]);
   const { allBanners, activeBanners, banners, unreadCount, read, dismiss, markRead, markAllRead } = useBanner();
-  const { bellNotifs, visitorUnread, adminPendingNotif, adminUnread, adminPendingCount, cancelledUnread, isAdminState, markVisitorSeen, markVisitorBadgeSeen, markAdminSeen, dismissAdminDevice } = useBookingNotifications();
+  const { bellNotifs, visitorUnread, adminPendingNotif, adminUnread, adminPendingCount, cancelledUnread, isAdminState, markVisitorSeen, markVisitorBadgeSeen, markAdminSeen, dismissAdminDevice, dismissNotif } = useBookingNotifications();
   const [showBellPanel, setShowBellPanel] = React.useState(false);
   const [adminNotifDismissedThisSession, setAdminNotifDismissedThisSession] = React.useState(false);
 
@@ -356,7 +356,8 @@ export default function NewHomeScreen({ stream, onGoToAdminLogin, onGoToMyBookin
       if (prev) return false; // already open — close it
       // Opening: mark banners read and clear badge
       activeBanners.forEach(b => markRead(b.id));
-      if (visitorUnread > 0) markVisitorSeen();
+      // Note: do NOT call markVisitorSeen() here — that clears all notifs.
+      // Individual notifs are dismissed via dismissNotif(id) when user taps x.
       // Vibration om admin har avbokningar
       if (isAdmin && cancelledUnread > 0) {
         if (navigator.vibrate) navigator.vibrate([60, 40, 60, 40, 120]);
@@ -571,9 +572,9 @@ export default function NewHomeScreen({ stream, onGoToAdminLogin, onGoToMyBookin
                   if (item.type === 'booking') {
                     const color = bookingNotifColor(item.status);
                     return (
-                      <SwipeableItem key={`booking-${item.id}`} onDismiss={() => markVisitorSeen()}>
+                      <SwipeableItem key={`booking-${item.id}`} onDismiss={() => dismissNotif(item.id)}>
                       <div
-                        onClick={() => { setShowBellPanel(false); markVisitorSeen(); onGoToMyBookings?.(item.id, item.status); }}
+                        onClick={() => { setShowBellPanel(false); dismissNotif(item.id); onGoToMyBookings?.(item.id, item.status); }}
                         style={{ padding: '11px 14px', borderBottom: `1px solid ${T.border}`, borderLeft: `3px solid ${color}`, background: T.isDark ? `${color}09` : `${color}07`, display: 'flex', alignItems: 'flex-start', gap: 10, cursor: 'pointer' }}>
                         <div style={{ width: 28, height: 28, borderRadius: 8, flexShrink: 0, background: `${color}20`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                           <CalendarClockIcon size={13} color={color} />
@@ -677,9 +678,9 @@ export default function NewHomeScreen({ stream, onGoToAdminLogin, onGoToMyBookin
           // For exceptions show the specific cancelled date, otherwise show start_date
           const displayDate = n.date ? n.date.split('-').reverse().join('/') : '';
           return (
-            <SwipeableItem key={`feed-booking-${n.id}`} onDismiss={() => markVisitorSeen()}>
+            <SwipeableItem key={`feed-booking-${n.id}`} onDismiss={() => dismissNotif(n.id)}>
               <div
-                onClick={() => { markVisitorSeen(); onGoToMyBookings?.(n.booking_id || n.id, n.status); }}
+                onClick={() => { dismissNotif(n.id); onGoToMyBookings?.(n.booking_id || n.id, n.status); }}
                 style={{
                   background: T.isDark ? `rgba(30,30,30,0.6)` : `rgba(255,255,255,0.55)`,
                   backdropFilter: 'blur(20px)',
@@ -714,7 +715,7 @@ export default function NewHomeScreen({ stream, onGoToAdminLogin, onGoToMyBookin
                   <div style={{ fontSize: 11, color, fontWeight: 600, marginTop: 4, fontFamily: "'Inter',system-ui,sans-serif" }}>Visa bokning →</div>
                 </div>
                 <button
-                  onClick={e => { e.stopPropagation(); markVisitorSeen(); }}
+                  onClick={e => { e.stopPropagation(); dismissNotif(n.id); }}
                   style={{ background: 'none', border: 'none', cursor: 'pointer', color: T.textMuted, fontSize: 20, lineHeight: 1, padding: '0 2px', flexShrink: 0, marginTop: -2, WebkitTapHighlightColor: 'transparent' }}>×</button>
               </div>
             </SwipeableItem>
