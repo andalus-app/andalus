@@ -2474,6 +2474,8 @@ export default function BookingScreen({
   const viewRef=useRef(view);
   useEffect(()=>{viewRef.current=view;},[view]);
   const showYearViewRef=useRef(false);
+  const bookingDetailRef=useRef(null);
+  useEffect(()=>{bookingDetailRef.current=bookingDetail;},[bookingDetail]);
   useEffect(()=>{
     showYearViewRef.current=showYearView;
     if(showYearView) onTabBarHide?.();
@@ -2481,6 +2483,8 @@ export default function BookingScreen({
   },[showYearView]);// eslint-disable-line
   useEffect(()=>{
     const h=()=>{
+      // Close booking detail sheet first if open
+      if(bookingDetailRef.current){setBookingDetail(null);return;}
       // Year view is open — close it first (restores tab bar via effect above)
       if(showYearViewRef.current){setShowYearView(false);return;}
       if(viewRef.current==='login') return;
@@ -2856,6 +2860,15 @@ export default function BookingScreen({
           {/* Header */}
           <div style={{padding:'20px 20px 0',flexShrink:0}}>
             <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:12}}>
+              <button onClick={()=>setBookingDetail(null)}
+                style={{background:'none',border:'none',cursor:'pointer',color:T.accent,
+                  fontSize:16,padding:0,WebkitTapHighlightColor:'transparent',
+                  display:'flex',alignItems:'center',gap:4}}>
+                <svg width="8" height="14" viewBox="0 0 8 14" fill="none">
+                  <path d="M7 1L1 7l6 6" stroke={T.accent} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                </svg>
+                Stäng
+              </button>
               <div style={{display:'flex',alignItems:'center',gap:8}}>
                 <div style={{
                   width:10,height:10,borderRadius:'50%',background:sc,flexShrink:0,
@@ -2865,9 +2878,6 @@ export default function BookingScreen({
                 <Badge status={b.status}/>
                 {isRecur&&<RecurBadge recurrence={b.recurrence}/>}
               </div>
-              <button onClick={()=>setBookingDetail(null)}
-                style={{background:'none',border:'none',fontSize:22,color:T.textMuted,
-                  cursor:'pointer',padding:'0 4px',lineHeight:1,WebkitTapHighlightColor:'transparent'}}>×</button>
             </div>
             <div style={{fontSize:19,fontWeight:700,color:T.text,marginBottom:4}}>{b.activity}</div>
             <div style={{fontSize:13,color:T.textMuted,marginBottom:2}}>{b.time_slot} · {fmtDuration(b.duration_hours)}</div>
@@ -2886,9 +2896,6 @@ export default function BookingScreen({
             WebkitOverflowScrolling:'touch',
             minHeight:0,
             padding:'0 20px',paddingBottom:'max(24px,env(safe-area-inset-bottom,16px))'}}>
-            {/* Inställda tillfällen — admin-borttagna enstaka dagar */}
-            {isRecur&&<CancelledOccurrencesList
-              bookingId={b.id} exceptions={exceptions} timeSlot={b.time_slot} T={T}/>}
             {upcoming.map((occ,i)=>{
               const isSkipped=exceptions.some(e=>e.booking_id===b.id&&e.exception_date===occ.date&&e.type==='skip');
               return <div key={occ.date+i} style={{
@@ -2902,17 +2909,20 @@ export default function BookingScreen({
                 </div>
                 <div style={{display:'flex',alignItems:'center',gap:8}}>
                   {isSkipped&&<span style={{fontSize:11,color:T.textMuted}}>Inställd</span>}
-                  {/* Show remove button if: owns the booking OR is admin */}
-                  {(isOwn||adminMode)&&!isSkipped&&(b.status==='approved'||b.status==='edited'||b.status==='pending')&&(
+                  {/* User: Ta bort this occurrence */}
+                  {isOwn&&!adminMode&&!isSkipped&&(b.status==='approved'||b.status==='edited'||b.status==='pending')&&(
                     <button
-                      onClick={()=>{
-                        if(adminMode){
-                          setOccDeleteDialog({booking:b,occurrence_date:occ.date});
-                        } else {
-                          // Show confirm before cancelling
-                          setUserCancelConfirm({booking:b, occurrence_date:occ.date});
-                        }
-                      }}
+                      onClick={()=>setUserCancelConfirm({booking:b,occurrence_date:occ.date})}
+                      style={{background:'none',border:`1px solid ${T.error}44`,borderRadius:8,
+                        padding:'4px 10px',cursor:'pointer',color:T.error,
+                        fontSize:12,fontWeight:600,WebkitTapHighlightColor:'transparent'}}>
+                      Ta bort
+                    </button>
+                  )}
+                  {/* Admin: Ta bort this occurrence */}
+                  {adminMode&&!isSkipped&&(b.status==='approved'||b.status==='edited'||b.status==='pending')&&(
+                    <button
+                      onClick={()=>setOccDeleteDialog({booking:b,occurrence_date:occ.date})}
                       style={{background:'none',border:`1px solid ${T.error}44`,borderRadius:8,
                         padding:'4px 10px',cursor:'pointer',color:T.error,
                         fontSize:12,fontWeight:600,WebkitTapHighlightColor:'transparent'}}>
@@ -2922,6 +2932,9 @@ export default function BookingScreen({
                 </div>
               </div>;
             })}
+            {/* Inställda tillfällen — visas sist under kommande tillfällen */}
+            {isRecur&&<CancelledOccurrencesList
+              bookingId={b.id} exceptions={exceptions} timeSlot={b.time_slot} T={T}/>}
             {/* Admin: open in admin panel */}
             {adminMode&&<button onClick={()=>{
                 setInternalAdminHighlight(b.id);

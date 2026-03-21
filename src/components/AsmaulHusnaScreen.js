@@ -456,6 +456,9 @@ function LardomarList({ onBack, T }) {
 
   // Handle edge-swipe: if detail is open → go back to list at saved scroll;
   // otherwise → go back to 99 names.
+  const onBackRef = useRef(onBack);
+  onBackRef.current = onBack;
+
   useEffect(() => {
     const handler = () => {
       if (activeLardomRef.current) {
@@ -465,12 +468,12 @@ function LardomarList({ onBack, T }) {
           if (scrollRef.current) scrollRef.current.scrollTop = savedScrollRef.current;
         }));
       } else {
-        onBack();
+        onBackRef.current();
       }
     };
     window.addEventListener('edgeSwipeBack', handler);
     return () => window.removeEventListener('edgeSwipeBack', handler);
-  }, [onBack]);
+  }, []); // eslint-disable-line — refs handle freshness
 
   const handleOpenLardom = (l) => {
     savedScrollRef.current = scrollRef.current?.scrollTop || 0;
@@ -584,13 +587,23 @@ export default function AsmaulHusnaScreen({ onBack, onMount }) {
     return () => clearTimeout(t);
   }, [search]);
 
+  // Refs so edge-swipe handler never has stale closures
+  const activeQARef = useRef(null);
+  const showLardomarRef = useRef(false);
+  const activeSectionRef = useRef(null);
+  const selectedRef = useRef(null);
+  activeQARef.current = activeQA;
+  showLardomarRef.current = showLardomar;
+  activeSectionRef.current = activeSection;
+  selectedRef.current = selected;
+
   useEffect(() => {
     const handler = () => {
-      if (activeQA) { setActiveQA(null); return; }
-      // showLardomar edge-swipe is handled inside LardomarList itself
-      if (showLardomar) return;
-      if (activeSection) { setActiveSection(null); return; }
-      if (selected) {
+      if (activeQARef.current) { setActiveQA(null); return; }
+      // When LardomarList is mounted it owns its own handler — do nothing here
+      if (showLardomarRef.current) return;
+      if (activeSectionRef.current) { setActiveSection(null); return; }
+      if (selectedRef.current) {
         setSelected(null);
         requestAnimationFrame(() => requestAnimationFrame(() => {
           if (listScrollRef.current) listScrollRef.current.scrollTop = savedListScrollRef.current;
@@ -601,7 +614,7 @@ export default function AsmaulHusnaScreen({ onBack, onMount }) {
     };
     window.addEventListener('edgeSwipeBack', handler);
     return () => window.removeEventListener('edgeSwipeBack', handler);
-  }, [selected, activeSection, activeQA, onBack]);
+  }, [onBack]); // eslint-disable-line
 
   const toggleFav = useCallback((nr) => {
     setFavs(prev => {
