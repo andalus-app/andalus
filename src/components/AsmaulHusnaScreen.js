@@ -263,7 +263,7 @@ const LARDOMAR_DATA = [
     nr: 1,
     titel: 'När Allah vill en människa väl',
     stycken: [
-      'Profeten ښ sa: "Den som Allah vill väl, skänker han förståelse i religionen." (al-Bukhari nr. 71)',
+      'Profeten ﷺ sa: "Den som Allah vill väl, skänker han förståelse i religionen." (al-Bukhari nr. 71)',
       'En av de mest betydelsefulla formerna av förståelse är att en människa fördjupar sin kunskap om Allah. Kunskap om Allah är grunden för all rättfärdighet, verklig framgång och räddning – både i detta liv och i det kommande.',
       'Ju djupare en människas kunskap om Allah är, desto starkare blir hennes gudsfruktan. Hennes dyrkan blir mer uppriktig och hängiven, och hennes vilja att undvika synd stärks.',
       'När människor brister i sin dyrkan beror det ofta på att deras kunskap om Allah är ofullständig – om hans rättigheter, hans storhet och hans fullkomlighet.',
@@ -273,7 +273,7 @@ const LARDOMAR_DATA = [
     nr: 2,
     titel: 'Att lära känna Allah genom hans namn',
     stycken: [
-      'Profeten ښ sa: "Allah har nittionio namn – hundra minus ett. Den som gör ihsa av dessa namn kommer att träda in i paradiset." (al-Bukhari nr. 2736, Muslim nr. 2677)',
+      'Profeten ﷺ sa: "Allah har nittionio namn – hundra minus ett. Den som gör ihsa av dessa namn kommer att träda in i paradiset." (al-Bukhari nr. 2736, Muslim nr. 2677)',
       'Att göra ihsa av Allahs namn innebär inte bara att känna till dem, utan sker på flera nivåer:',
       'Första nivån: att memorera namnen. Detta innebär att lära sig Allahs namn och bära dem i sitt minne.',
       'Andra nivån: att förstå namnen. Det innebär att förstå deras betydelse och vad de säger om Allah och hans fullkomliga egenskaper.',
@@ -286,7 +286,7 @@ const LARDOMAR_DATA = [
     nr: 3,
     titel: 'Det är förbjudet att beskriva Allah på ett sätt han inte själv har beskrivit sig',
     stycken: [
-      'Allah är fullkomlig och upphöjd över alla brister. Därför är det inte tillåtet att beskriva Allah med namn eller egenskaper som han själv inte har nämnt i Koranen eller som profeten ښ inte har förmedlat. Människans förstånd är begränsat, och utan vägledning från uppenbarelsen riskerar man att tillskriva Allah sådant som inte passar honom.',
+      'Allah är fullkomlig och upphöjd över alla brister. Därför är det inte tillåtet att beskriva Allah med namn eller egenskaper som han själv inte har nämnt i Koranen eller som profeten ﷺ inte har förmedlat. Människans förstånd är begränsat, och utan vägledning från uppenbarelsen riskerar man att tillskriva Allah sådant som inte passar honom.',
       'Islam lär oss att tala om Allah med vördnad och försiktighet. När vi håller oss till de namn och egenskaper som finns i uppenbarelsen bevarar vi en korrekt och ren förståelse av tron. Att gå utöver detta, genom spekulation eller egna formuleringar, kan leda till förvirring och felaktiga föreställningar om Allah.',
       'Därför är en grundläggande princip i islamisk tro att Allah endast beskrivs så som han själv har valt att beskriva sig. Detta är ett uttryck för ödmjukhet inför hans storhet och ett skydd för den sanna tron.',
     ],
@@ -367,7 +367,7 @@ const LARDOMAR_DATA = [
     nr: 12,
     titel: 'Trosfrågor tas från uppenbarelsen – inte från åsikter och spekulation',
     stycken: [
-      'En grundläggande princip i Ahl us-Sunnas troslära är att tron bygger på uppenbarelsen. Det är Koranen och profetens ښ autentiska sunnah som utgör grunden för vad vi tror om Allah, om det osedda och om religionens kärna.',
+      'En grundläggande princip i Ahl us-Sunnas troslära är att tron bygger på uppenbarelsen. Det är Koranen och profetens ﷺ autentiska sunnah som utgör grunden för vad vi tror om Allah, om det osedda och om religionens kärna.',
       'Trosfrågor formas inte av personliga åsikter, filosofiska resonemang eller kulturella trender. Människans förnuft har sin plats, men i frågor som rör Allah och det osedda är uppenbarelsen den yttersta vägledningen. Därför accepteras inte trosuppfattningar som saknar stöd i Koranen och sunnah, även om de kan framstå som logiska eller tilltalande.',
       'Denna princip skyddar tron från att förändras över tid och bevarar dess renhet. Genom att hålla sig till uppenbarelsen förblir tron stabil, tydlig och gemensam för muslimer oavsett tid och plats.',
     ],
