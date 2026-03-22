@@ -127,6 +127,13 @@ export default function HomeScreen({ onMonthlyPress }) {
   const [detectedLocation, setDetectedLocation] = useState(null);
   const [detecting,        setDetecting]        = useState(false);
   const [gpsDenied,        setGpsDenied]        = useState(false);
+
+  // Listen for GPS denied signal from App.js Shell
+  useEffect(() => {
+    const handler = () => setGpsDenied(true);
+    window.addEventListener('gps-denied', handler);
+    return () => window.removeEventListener('gps-denied', handler);
+  }, []);
   const [slideIndex,       setSlideIndex]       = useState(0);
   const touchStartX = useRef(null);
 
@@ -321,6 +328,15 @@ export default function HomeScreen({ onMonthlyPress }) {
               Välj plats
             </span>
           )}
+          {gpsDenied && location && (
+            <div style={{ fontSize:11, color:T.textMuted, marginTop:4, display:'flex', alignItems:'center', gap:4 }}>
+              <span>Platstjänster avstängda —</span>
+              <button onClick={() => setShowModal(true)} style={{ background:'none', border:'none', color:T.accent,
+                fontSize:11, fontWeight:600, cursor:'pointer', padding:0, WebkitTapHighlightColor:'transparent' }}>
+                ändra manuellt
+              </button>
+            </div>
+          )}
           {location?.country && (
             <div style={{ fontSize:11, color:T.textMuted, fontFamily:"'Inter',system-ui,sans-serif", fontWeight:400, marginTop:1 }}>
               {location.country}
@@ -357,6 +373,26 @@ export default function HomeScreen({ onMonthlyPress }) {
                 <div style={{ width:22, height:22, borderRadius:'50%', border:`3px solid ${T.border}`, borderTopColor:T.accent, animation:'spin .7s linear infinite' }} />
                 <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
               </div>
+            </>
+          ) : gpsDenied ? (
+            <>
+              <div style={{ fontSize:18, fontWeight:700, color:T.text, marginBottom:8 }}>Platstjänster är avstängda</div>
+              <div style={{ fontSize:13, color:T.textMuted, lineHeight:1.6, maxWidth:280, margin:'0 auto 6px' }}>
+                Appen har inte tillåtelse att hämta din plats. Aktivera platstjänster för den här webbplatsen i telefonens inställningar.
+              </div>
+              <div style={{ fontSize:12, color:T.textMuted, lineHeight:1.5, maxWidth:280, margin:'0 auto 20px',
+                background: T.card, borderRadius:10, padding:'10px 14px', border:`1px solid ${T.border}` }}>
+                <strong style={{ color:T.text }}>iPhone:</strong> Inställningar → Sekretess → Platstjänster → Safari → Tillåt
+              </div>
+              <button onClick={detectLocation} style={{ padding:'11px 22px', borderRadius:13, background:'none',
+                color:T.accent, fontSize:14, fontWeight:600, border:`1.5px solid ${T.accent}`, cursor:'pointer', marginBottom:10 }}>
+                Försök igen
+              </button>
+              <div style={{ fontSize:13, color:T.textMuted, marginBottom:8 }}>eller</div>
+              <button onClick={() => setShowModal(true)} style={{ padding:'12px 26px', borderRadius:13, background:T.accent,
+                color:'#fff', fontSize:14, fontWeight:700, border:'none', cursor:'pointer' }}>
+                Ange plats manuellt
+              </button>
             </>
           ) : (
             <>

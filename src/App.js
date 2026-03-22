@@ -187,7 +187,11 @@ function Shell() {
       if (navigator.permissions) {
         try {
           const perm = await navigator.permissions.query({ name: 'geolocation' });
-          if (perm.state === 'denied') return; // user blocked it — don't harass
+          if (perm.state === 'denied') {
+            // Signal to HomeScreen that GPS is blocked
+            window.dispatchEvent(new CustomEvent('gps-denied'));
+            return;
+          }
           // 'granted' = silent, 'prompt' = OS dialog will appear
           timer = setTimeout(doFetch, perm.state === 'granted' ? 1500 : 500);
           return;
