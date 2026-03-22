@@ -1793,7 +1793,7 @@ function AdminAddForm({bookings,exceptions,onSubmit,onClose,onOpenDetail,T}) {
     };
     el.addEventListener('touchmove',onMove,{passive:false});
     return()=>el.removeEventListener('touchmove',onMove);
-  },[step]);
+  },[]);
 
   const isToday_=d=>{if(!d)return false;const c=new Date(d);c.setHours(0,0,0,0);return c.getTime()===today.getTime();};
   const isSel_=d=>{if(!d)return false;const c=new Date(d);c.setHours(0,0,0,0);return c.getTime()===selectedDate.getTime();};
@@ -1816,19 +1816,17 @@ function AdminAddForm({bookings,exceptions,onSubmit,onClose,onOpenDetail,T}) {
           Stäng
         </button>
         <div style={{fontSize:17,fontWeight:700,color:T.text}}>Lägg till bokning</div>
-        {step==='date'
-          ?<button onClick={()=>{setYearPickerYear(anchor.getFullYear());setShowYearPicker(true);}}
-            style={{background:'none',border:'none',cursor:'pointer',color:T.textMuted,padding:0,
-              display:'flex',alignItems:'center',gap:4,WebkitTapHighlightColor:'transparent'}}>
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none"
-              stroke={T.textMuted} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <polyline points="15 18 9 12 15 6"/>
-            </svg>
-            <span style={{fontSize:15,fontWeight:500}}>{anchor.getFullYear()}</span>
-          </button>
-          :<div style={{width:60}}/>}
+        <button onClick={()=>{setYearPickerYear(anchor.getFullYear());setShowYearPicker(true);}}
+          style={{background:'none',border:'none',cursor:'pointer',color:T.textMuted,padding:0,
+            display:'flex',alignItems:'center',gap:4,WebkitTapHighlightColor:'transparent'}}>
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none"
+            stroke={T.textMuted} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <polyline points="15 18 9 12 15 6"/>
+          </svg>
+          <span style={{fontSize:15,fontWeight:500}}>{anchor.getFullYear()}</span>
+        </button>
       </div>
-      {step==='date'&&<>
+      <>
         <div style={{paddingLeft:20,paddingRight:20,
           display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:4}}>
           {['prev','next'].map((dir,i)=>i===0?<button key={dir} onClick={()=>navigate(dir)}
@@ -1867,11 +1865,11 @@ function AdminAddForm({bookings,exceptions,onSubmit,onClose,onOpenDetail,T}) {
           {DAYS_SV.map(d=><div key={d} style={{textAlign:'center',fontSize:12,fontWeight:600,
             color:T.textMuted,fontFamily:'system-ui',letterSpacing:'.5px'}}>{d}</div>)}
         </div>
-      </>}
+      </>
     </div>
     {/* Scrollable content */}
     <div style={{flex:1,overflowY:'auto',WebkitOverflowScrolling:'touch',position:'relative'}}>
-    {step==='date'&&<>
+    <>
       {/* Calendar grid with swipe */}
       <div ref={gridRef}
         onTouchStart={e=>{swipeRef.current={x:e.touches[0].clientX,y:e.touches[0].clientY,locked:null};}}
@@ -1946,7 +1944,7 @@ function AdminAddForm({bookings,exceptions,onSubmit,onClose,onOpenDetail,T}) {
           </div>
         </div>
         {/* + button to add booking for selected date */}
-        <button onClick={()=>{/* scroll to form */if(scrollRef_&&scrollRef_.current)scrollRef_.current.scrollTop=999;}}
+        <button onClick={()=>{}}
           style={{width:36,height:36,borderRadius:'50%',border:'none',
             background:T.accent,color:'#fff',
             display:'flex',alignItems:'center',justifyContent:'center',
@@ -1995,7 +1993,6 @@ function AdminAddForm({bookings,exceptions,onSubmit,onClose,onOpenDetail,T}) {
             setShowYearPicker(false);
           }}/>
       </div>}
-    </>}
     {/* Single-page form — all fields below the calendar */}
     <div style={{padding:'0 20px 16px'}}>
       {/* Date + time summary */}
