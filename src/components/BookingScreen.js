@@ -2250,7 +2250,7 @@ function AdminDeleteSheet({dialog,actionLoading,onConfirm,onCancel,T}) {
 }
 
 // ─── Admin Panel ──────────────────────────────────────────────────────────────
-function AdminPanel({bookings,exceptions,onBack,onApprove,onReject,onDelete,onDeleteSeries,onDeleteFromDate,onAdminAddRecurring,onRefreshNotifications,onMarkAdminSeen,onManageUsers,adminInitialFilter,adminHighlightId=null,adminHighlightFilter=null,T}) {
+function AdminPanel({bookings,exceptions,onBack,onApprove,onReject,onDelete,onDeleteSeries,onDeleteFromDate,onAdminAddRecurring,onRefreshNotifications,onMarkAdminSeen,onManageUsers,onOpenBookingDetail,adminInitialFilter,adminHighlightId=null,adminHighlightFilter=null,T}) {
   const[filter,setFilter]=useState(adminHighlightFilter||adminInitialFilter||'all');
   const[selected,setSelected]=useState(null);
   const[actionLoading,setActionLoading]=useState(false);
@@ -2465,9 +2465,7 @@ function AdminPanel({bookings,exceptions,onBack,onApprove,onReject,onDelete,onDe
       onClose={()=>setAddForm(null)}
       onOpenDetail={(b,date)=>{
         setAddForm(null);
-        setInternalAdminHighlight(b.id);
-        setBookingDetail(b);
-        if(date) setClickedOccurrenceDate(date);
+        onOpenBookingDetail?.(b,date);
       }}
       T={T}/>}
   </div>;
@@ -3557,6 +3555,11 @@ export default function BookingScreen({
       onAdminAddRecurring={handleAdminAddRecurring}
       onRefreshNotifications={onRefreshNotifications}
       onMarkAdminSeen={onMarkAdminSeen}
-      onManageUsers={()=>setView('users')} T={T}/>}
+      onManageUsers={()=>setView('users')}
+      onOpenBookingDetail={(b,date)=>{
+        setInternalAdminHighlight(b.id);
+        setClickedOccurrenceDate(date||null);
+        setBookingDetail(b);
+      }} T={T}/>}
   </div>;
 }
