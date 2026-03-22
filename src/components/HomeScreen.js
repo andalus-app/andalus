@@ -14,7 +14,7 @@ import { reverseGeocode } from '../services/prayerApi';
 import SvgIcon from './SvgIcon';
 
 /* ── Andalus logotyp — inline SVG, färg följer tema ── */
-function AndalusLogo({ size = 48, color = '#25655e' }) {
+function AndalusLogo({ size = 48, color = '#24645d' }) {
   return (
     <svg width={size} height={size} viewBox="0 0 297.8647687 300" xmlns="http://www.w3.org/2000/svg">
       <defs><style>{`.al-fill { fill: ${color}; }`}</style></defs>
@@ -189,23 +189,9 @@ export default function HomeScreen({ onMonthlyPress }) {
   }, [location, settings.calculationMethod, settings.school, loadPrayers]);
 
   // ── Manual location tap ───────────────────────────────────────────────────
-  // Auto-detect location on first visit (no location in cache yet)
-  useEffect(() => {
-    if (location || !navigator.geolocation) return;
-    setDetecting(true);
-    navigator.geolocation.getCurrentPosition(
-      async (pos) => {
-        try {
-          const { latitude, longitude } = pos.coords;
-          const geo = await reverseGeocode(latitude, longitude);
-          dispatch({ type: 'SET_LOCATION', payload: { latitude, longitude, ...geo } });
-        } catch { /* silent */ }
-        setDetecting(false);
-      },
-      () => { setDetecting(false); setGpsDenied(true); },
-      { enableHighAccuracy: false, maximumAge: 0, timeout: 10000 }
-    );
-  }, []); // eslint-disable-line
+  // HomeScreen intentionally does NOT run its own GPS fetch on mount.
+  // App.js Shell handles the always-on GPS update on every app open.
+  // This keeps a single source of truth and avoids duplicate OS permission prompts.
 
   const detectLocation = () => {
     if (!navigator.geolocation) { setDetectedLocation(null); setShowModal(true); return; }

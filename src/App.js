@@ -149,56 +149,64 @@ function Shell() {
   }, []);
 
   // Silent background location update on every app open AND when app comes to foreground.
-  // Runs after 10 s if user has already granted GPS permission.
-  // Only updates if new position is >30 km from cached location.
+  // Always fetch GPS every time the app opens or comes to foreground.
+  // No distance threshold. No localStorage gate blocking the call.
+  // Uses Permissions API: if already granted -> runs silently (no OS prompt).
+  // If 'prompt' -> OS shows dialog. If 'denied' -> silently skipped.
   const locationRef = useRef(location);
   useEffect(() => { locationRef.current = location; }, [location]);
 
   useEffect(() => {
-    const alreadyGranted = localStorage.getItem(GPS_PROMPT_KEY) === 'done';
-    if (!alreadyGranted || !navigator.geolocation) return;
-
+    if (!navigator.geolocation) return;
     let timer = null;
 
-    const checkLocation = () => {
-      // If user has disabled auto GPS in settings, skip automatic fetch
+    const doFetch = () => {
+      // Respect manual-mode setting
       try {
         const stored = JSON.parse(localStorage.getItem('bonetiderState') || '{}');
         if (stored.settings?.autoLocation === false) return;
-
       } catch {}
 
-      if (timer) clearTimeout(timer);
-      timer = setTimeout(() => {
-        navigator.geolocation.getCurrentPosition(
-          async (pos) => {
-            try {
-              const { latitude, longitude } = pos.coords;
-              // Always update — no distance threshold
-              const geo = await reverseGeocode(latitude, longitude);
-              dispatch({ type: 'SET_LOCATION', payload: { latitude, longitude, ...geo } });
-            } catch {
-              // Fail silently
-            }
-          },
-          () => { /* Denied or timed out — fail silently */ },
-          { enableHighAccuracy: false, maximumAge: 0, timeout: 10000 }
-        );
-      }, 2000);
+      navigator.geolocation.getCurrentPosition(
+        async (pos) => {
+          try {
+            const { latitude, longitude } = pos.coords;
+            const geo = await reverseGeocode(latitude, longitude);
+            dispatch({ type: 'SET_LOCATION', payload: { latitude, longitude, ...geo } });
+            localStorage.setItem(GPS_PROMPT_KEY, 'done');
+          } catch { /* reverse geocode failed silently */ }
+        },
+        () => { /* Permission denied or timeout — silent */ },
+        { enableHighAccuracy: false, maximumAge: 0, timeout: 12000 }
+      );
     };
 
-    // Kör vid appstart
+    const checkLocation = async () => {
+      if (timer) clearTimeout(timer);
+      // Use Permissions API when available to decide timing
+      if (navigator.permissions) {
+        try {
+          const perm = await navigator.permissions.query({ name: 'geolocation' });
+          if (perm.state === 'denied') return; // user blocked it — don't harass
+          // 'granted' = silent, 'prompt' = OS dialog will appear
+          timer = setTimeout(doFetch, perm.state === 'granted' ? 1500 : 500);
+          return;
+        } catch { /* Permissions API not supported */ }
+      }
+      // Fallback: just call directly
+      timer = setTimeout(doFetch, 1500);
+    };
+
+    // Run on every app open
     checkLocation();
 
-    // Kör varje gång appen kommer till förgrunden (iOS PWA-fix)
-    const onVisibilityChange = () => {
-      if (!document.hidden) checkLocation();
-    };
-    document.addEventListener('visibilitychange', onVisibilityChange);
+    // Run every time app comes to foreground (PWA background/foreground cycle)
+    const onVisibility = () => { if (!document.hidden) checkLocation(); };
+    document.addEventListener('visibilitychange', onVisibility);
 
     return () => {
       if (timer) clearTimeout(timer);
-      document.removeEventListener('visibilitychange', onVisibilityChange);
+      document.removeEventListener('visibilitychange', onVisibility);
     };
   }, []); // eslint-disable-line
 
@@ -423,26 +431,23 @@ function Shell() {
             scrollbarWidth: 'none',
             msOverflowStyle: 'none',
             WebkitOverflowScrolling: 'touch',
-            padding: '0 4px',
+            padding: '0',
             gap: 0,
             position: 'relative',
           }}
         >
-          {/* Sliding highlight pill */}
-          {activeTabIndex >= 0 && (() => {
-            const tabW = 72 + 4; // minWidth + gap
-            return <div aria-hidden style={{
-              position: 'absolute',
-              top: 6, bottom: 6,
-              width: 72,
-              left: 4 + activeTabIndex * tabW,
-              borderRadius: 22,
-              background: T.isDark ? 'rgba(255,255,255,0.07)' : 'rgba(36,100,93,0.08)',
-              transition: 'left 0.38s cubic-bezier(0.4, 0, 0.2, 1)',
-              pointerEvents: 'none',
-              zIndex: 0,
-            }}/>;
-          })()}
+          {/* Sliding highlight — single pill that moves via CSS transform */}
+          <div aria-hidden style={{
+            position: 'absolute',
+            top: 6, bottom: 6,
+            width: `calc(100% / ${TABS.length} - 8px)`,
+            left: `calc(${activeTabIndex} * (100% / ${TABS.length}) + 4px)`,
+            borderRadius: 22,
+            background: T.isDark ? 'rgba(255,255,255,0.08)' : 'rgba(36,100,93,0.09)',
+            transition: 'left 0.42s cubic-bezier(0.4, 0, 0.2, 1)',
+            pointerEvents: 'none',
+            zIndex: 0,
+          }}/>
           {TABS.map(t => {
             const active = tab === t.id;
             return (
@@ -450,8 +455,8 @@ function Shell() {
                 key={t.id}
                 onClick={() => handleTabPress(t.id)}
                 style={{
-                  flexShrink: 0,
-                  minWidth: 72,
+                  flex: 1,
+                  minWidth: 64,
                   display: 'flex', flexDirection: 'column',
                   alignItems: 'center', gap: 3, padding: '7px 4px',
                   background: 'none',
