@@ -215,8 +215,8 @@ function Shell() {
     };
   }, []); // eslint-disable-line
 
-  // Nudge-animation — en gång per session, max var 7:e dag
-  // Aktiveras bara om det finns fler än 5 ikoner
+  // Nudge — first visit + every 7 days, only if user hasn't manually scrolled
+  const userHasScrolledRef = useRef(false);
   useEffect(() => {
     if (TABS.length <= SCROLL_NUDGE_THRESHOLD) return;
     const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000;
@@ -225,16 +225,17 @@ function Shell() {
       if (Date.now() - last < SEVEN_DAYS_MS) return;
     } catch {}
     const t = setTimeout(() => {
-      setNudging(true);
+      if (userHasScrolledRef.current) return; // user already found it
       const el = tabScrollRef.current;
-      if (el) {
-        // Temporarily widen the 6th button to peek, then hide it again
-        el.scrollTo({ left: 62, behavior: 'smooth' });
-        setTimeout(() => el.scrollTo({ left: 0, behavior: 'smooth' }), 700);
-      }
-      setTimeout(() => setNudging(false), 1200);
+      if (!el) return;
+      setNudging(true);
+      el.scrollTo({ left: 64, behavior: 'smooth' });
+      setTimeout(() => {
+        el.scrollTo({ left: 0, behavior: 'smooth' });
+        setTimeout(() => setNudging(false), 400);
+      }, 750);
       try { localStorage.setItem(nudgeDoneKey, Date.now().toString()); } catch {}
-    }, 1800);
+    }, 2000);
     return () => clearTimeout(t);
   }, []); // eslint-disable-line
 
@@ -282,20 +283,29 @@ function Shell() {
   const tabRefs = useRef([]);
 
   // Measure actual tab button positions for pill
+  // Use rAF so layout is complete, and account for scrollLeft of the scroll container
   useEffect(() => {
+    let raf;
     const updatePill = () => {
-      const btn = tabRefs.current[visibleTabIndex];
-      if (!btn) return;
-      const rect = btn.getBoundingClientRect();
-      const parentRect = btn.parentElement?.getBoundingClientRect();
-      if (!parentRect) return;
-      const relLeft = rect.left - parentRect.left;
-      setTabPillLeft(relLeft + 4);
-      setTabPillWidth(rect.width - 8);
+      raf = requestAnimationFrame(() => {
+        const btn = tabRefs.current[visibleTabIndex];
+        if (!btn) return;
+        const scrollEl = tabScrollRef.current;
+        const rect = btn.getBoundingClientRect();
+        const parentRect = scrollEl?.getBoundingClientRect();
+        if (!parentRect) return;
+        // relLeft = position relative to scroll container viewport (not scroll offset)
+        const relLeft = rect.left - parentRect.left;
+        setTabPillLeft(relLeft + 4);
+        setTabPillWidth(rect.width - 8);
+      });
     };
     updatePill();
     window.addEventListener('resize', updatePill);
-    return () => window.removeEventListener('resize', updatePill);
+    return () => {
+      cancelAnimationFrame(raf);
+      window.removeEventListener('resize', updatePill);
+    };
   }, [visibleTabIndex, tab]);
   const [adminInitialFilter, setAdminInitialFilter] = useState(null);
 
@@ -447,10 +457,11 @@ function Shell() {
           .tab-scroll::-webkit-scrollbar { display: none; }
         `}</style>
 
-        {/* Tab scroll container — first 5 tabs fill width equally, 6th peeks when scrolled */}
+        {/* Tab scroll container — first 5 tabs fill width equally, 6th clips at rest, scrollable */}
         <div
           ref={tabScrollRef}
           className="tab-scroll"
+          onScroll={() => { userHasScrolledRef.current = true; }}
           style={{
             display: 'flex',
             overflowX: 'auto',
@@ -458,6 +469,7 @@ function Shell() {
             scrollbarWidth: 'none',
             msOverflowStyle: 'none',
             WebkitOverflowScrolling: 'touch',
+            scrollSnapType: 'x proximity',
             padding: '0',
             gap: 0,
             position: 'relative',

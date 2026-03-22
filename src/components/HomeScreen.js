@@ -203,7 +203,7 @@ export default function HomeScreen({ onMonthlyPress }) {
       // Still try to refresh in background silently
     }
 
-    dispatch({ type: 'SET_LOADING', payload: !cached && !prayerTimes }); // spinner only if truly no data
+    dispatch({ type: 'SET_LOADING', payload: false }); // never block UI — always show existing data
     dispatch({ type: 'SET_ERROR',   payload: null });
     try {
       const [todayRes, tomorrowTimings] = await Promise.all([
@@ -308,7 +308,7 @@ export default function HomeScreen({ onMonthlyPress }) {
       <div style={{ marginBottom:16, textAlign:'center', position:'relative' }}>
 
         <div style={{ position:'absolute', top:0, left:8, pointerEvents:'none', userSelect:'none' }}>
-          <AndalusLogo size={80} color={T.isDark ? T.accent : T.accent} />
+          <AndalusLogo size={80} color={T.isDark ? T.accent : '#24645d'} />
         </div>
 
         {/* Monthly calendar icon — top right */}
@@ -331,7 +331,7 @@ export default function HomeScreen({ onMonthlyPress }) {
           {dateStr}
         </div>
         {hijriStr && (
-          <div style={{ fontSize:13, color:T.accent, fontWeight:400, marginBottom:10, fontFamily:"'Inter',system-ui,sans-serif", fontVariantNumeric:'tabular-nums', fontFeatureSettings:'"tnum" 1' }}>{hijriStr}</div>
+          <div style={{ fontSize:13, color:T.isDark ? T.accent : '#24645d', fontWeight:400, marginBottom:10, fontFamily:"'Inter',system-ui,sans-serif", fontVariantNumeric:'tabular-nums', fontFeatureSettings:'"tnum" 1' }}>{hijriStr}</div>
         )}
         <div style={{ height:6 }}/>
         <button onClick={detectLocation} style={{
@@ -471,13 +471,13 @@ export default function HomeScreen({ onMonthlyPress }) {
         </div>
       )}
 
-      {/* Loading skeleton */}
+      {/* Loading: spinner only on true first load (no prayerTimes yet, no cache) */}
       {isLoading && !prayerTimes && (
-        <div>{[1,2,3,4,5,6,7].map(i => (
-          <div key={i} style={{ height:46, borderRadius:11, marginBottom:3, background:T.card, border:`1px solid ${T.border}`, overflow:'hidden' }}>
-            <div style={{ height:'100%', width:'100%', background:`linear-gradient(90deg, transparent 25%, ${T.border} 50%, transparent 75%)`, backgroundSize:'200% 100%', animation:'shimmer 1.5s infinite' }}/>
-          </div>
-        ))}</div>
+        <div style={{ display:'flex', justifyContent:'center', padding:'40px 0' }}>
+          <div style={{ width:24, height:24, borderRadius:'50%',
+            border:`2.5px solid ${T.border}`, borderTopColor:T.accent,
+            animation:'spin .7s linear infinite' }}/>
+        </div>
       )}
 
       {/* Countdown */}

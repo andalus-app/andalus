@@ -17,7 +17,7 @@ function CalendarClockIcon({ size = 16, color = 'currentColor' }) {
 }
 
 /* ── Andalus logotyp — inline SVG, färg följer tema ── */
-function AndalusLogo({ size = 48, color = '#25655e' }) {
+function AndalusLogo({ size = 48, color = '#24645d' }) {
   return (
     <svg width={size} height={size} viewBox="0 0 297.8647687 300" xmlns="http://www.w3.org/2000/svg">
       <defs><style>{`.al-fill { fill: ${color}; }`}</style></defs>
@@ -175,7 +175,7 @@ function YoutubeCard({ stream, T }) {
 
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-              <AndalusLogo size={20} color={T.isDark ? T.accent : T.accent} />
+              <AndalusLogo size={20} color={T.isDark ? T.accent : '#24645d'} />
               <span style={{ fontSize: 12, color: T.textMuted, fontFamily: "'Inter',system-ui,sans-serif" }}>Andalus</span>
             </div>
             {isLive ? (
@@ -404,7 +404,7 @@ export default function NewHomeScreen({ stream, onGoToAdminLogin, onGoToMyBookin
       }}>
         {/* Logo — top:0, left:8 — identiskt med HomeScreen */}
         <div style={{ position: 'absolute', top: 0, left: 8, pointerEvents: 'none', userSelect: 'none' }}>
-          <AndalusLogo size={80} color={T.isDark ? T.accent : T.accent} />
+          <AndalusLogo size={80} color={T.isDark ? T.accent : '#24645d'} />
         </div>
 
         <div style={{ fontSize: 18, fontWeight: 600, color: T.text, letterSpacing: '-.3px', paddingTop: 20 }}>Hem</div>
@@ -737,7 +737,7 @@ export default function NewHomeScreen({ stream, onGoToAdminLogin, onGoToMyBookin
                 : `0 4px 20px rgba(36,100,93,0.12), 0 1px 0 rgba(255,255,255,0.9) inset`,
               animation: `bannerIn .3s ease both`, animationDelay: `${i * 60}ms`,
             }}>
-              <AndalusLogo size={26} color={T.isDark ? T.accent : T.accent} />
+              <AndalusLogo size={26} color={T.isDark ? T.accent : '#24645d'} />
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ fontSize: 13, lineHeight: 1.55, fontWeight: 400, color: T.textSecondary, fontFamily: "'Inter',system-ui,sans-serif" }}>{b.message}</div>
                 {b.linkText && b.linkUrl && (

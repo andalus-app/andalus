@@ -84,6 +84,7 @@ function Cover({ book, w, h, T }) {
       bookId={book.id}
       width={w}
       height={h}
+      isDark={T.isDark}
       style={{ borderRadius: radius, boxShadow: shadow, border: '1px solid rgba(255,255,255,0.07)', flexShrink: 0 }}
       fallback={<CssCover book={book} w={w} h={h} T={T} />}
     />
@@ -487,7 +488,7 @@ function PdfReader({ book, onClose, onSetPage, onAddBookmark, onRemoveBookmark, 
 
       {/* CANVAS AREA */}
       <div style={{
-        flex:1, position:'relative', background: status === 'loading' ? T.bg : '#111',
+        flex:1, position:'relative', background: T.isDark ? '#111' : T.bg,
         display:'flex', alignItems:'center', justifyContent:'center',
         overflow: scale > 1.05 ? 'auto' : 'hidden',
         WebkitOverflowScrolling: 'touch',

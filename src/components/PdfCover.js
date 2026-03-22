@@ -78,24 +78,29 @@ async function idbSet(key, value) {
 }
 
 // ── Skeleton shimmer — matches Tailwind animate-pulse style ──────────────────
-function CoverSkeleton({ width, height, borderRadius }) {
+function CoverSkeleton({ width, height, borderRadius, isDark }) {
+  const base  = isDark ? '#2C2C2E' : '#E8E8EA';
+  const shine = isDark ? '#3A3A3C' : '#F0F0F2';
   return (
-    <div
-      style={{
-        width,
-        height,
-        borderRadius: borderRadius ?? 8,
-        flexShrink: 0,
-        background: 'linear-gradient(90deg, #222 25%, #333 50%, #222 75%)',
-        backgroundSize: '200% 100%',
-        animation: 'shimmer 1.6s ease-in-out infinite',
-      }}
-    />
+    <>
+      <style>{`@keyframes shimmer{0%{background-position:-400px 0}100%{background-position:400px 0}}`}</style>
+      <div
+        style={{
+          width,
+          height,
+          borderRadius: borderRadius ?? 8,
+          flexShrink: 0,
+          background: `linear-gradient(90deg, ${base} 25%, ${shine} 50%, ${base} 75%)`,
+          backgroundSize: '800px 100%',
+          animation: 'shimmer 1.6s ease-in-out infinite',
+        }}
+      />
+    </>
   );
 }
 
 // ── Main component ────────────────────────────────────────────────────────────
-export default function PdfCover({ pdfPath, bookId, width, height, fallback, style }) {
+export default function PdfCover({ pdfPath, bookId, width, height, fallback, style, isDark }) {
   const cacheKey = getCacheKey(bookId, pdfPath);
 
   // Synchronous memory-cache check — no loading flash on revisit
@@ -184,7 +189,7 @@ export default function PdfCover({ pdfPath, bookId, width, height, fallback, sty
   }
 
   if (status === 'loading') {
-    return <CoverSkeleton width={width} height={height} borderRadius={style?.borderRadius ?? 8} />;
+    return <CoverSkeleton width={width} height={height} borderRadius={style?.borderRadius ?? 8} isDark={isDark} />;
   }
 
   // error — show CSS fallback
