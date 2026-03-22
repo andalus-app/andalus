@@ -629,7 +629,18 @@ function RecurrencePicker({recurrence,onChange,endDate,onEndDateChange,T}) {
     <div style={{display:'flex',flexDirection:'column',gap:6}}>
       <label style={{fontSize:12,fontWeight:600,color:T.textMuted,fontFamily:'system-ui',letterSpacing:'.3px'}}>UPPREPNING</label>
       <div style={{position:'relative'}}>
-        <select value={recurrence} onChange={e=>{onChange(e.target.value);onEndDateChange(null);}}
+        <select
+          value={recurrence.startsWith('custom') ? 'custom' : recurrence}
+          onChange={e=>{
+            const val = e.target.value;
+            if(val === 'custom') {
+              // Keep existing custom days if any, otherwise start empty
+              onChange(recurrence.startsWith('custom') ? recurrence : 'custom:');
+            } else {
+              onChange(val);
+              onEndDateChange(null);
+            }
+          }}
           style={{width:'100%',padding:'11px 40px 11px 14px',background:T.card,
             border:`0.5px solid ${T.border}`,borderRadius:10,fontSize:16,color:T.text,
             fontFamily:'system-ui',appearance:'none',WebkitAppearance:'none',
@@ -651,7 +662,8 @@ function RecurrencePicker({recurrence,onChange,endDate,onEndDateChange,T}) {
         {['Måndag','Tisdag','Onsdag','Torsdag','Fredag','Lördag','Söndag'].map((dayName,i)=>{
           const days=parseCustomDays(recurrence);
           const sel=days.includes(i);
-          return <button key={i} onClick={()=>{
+          return <button key={i} type="button" onClick={e=>{
+            e.preventDefault();e.stopPropagation();
             const cur=parseCustomDays(recurrence);
             const next=sel?cur.filter(d=>d!==i):[...cur,i];
             onChange(buildCustomRecurrence(next));
