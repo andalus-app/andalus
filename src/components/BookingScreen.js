@@ -12,6 +12,8 @@ import React, {
   useState, useEffect, useCallback, useMemo, useRef
 } from 'react';
 import { useTheme } from '../context/ThemeContext';
+import { useOfflineBooking } from '../hooks/useOfflineBooking';
+import OfflineStatusBar from './OfflineStatusBar';
 import { supabase } from '../services/supabaseClient';
 
 // ─── Module-level tab bar callbacks (set by BookingScreen, used by sub-components) ──
@@ -2860,6 +2862,21 @@ export default function BookingScreen({
 
   const showToast=useCallback(msg=>{setToast(msg);setTimeout(()=>setToast(''),3000);},[]);
 
+  // Offline booking queue
+  const{submitBooking:submitOffline,offlineStatus}=useOfflineBooking({
+    supabase,
+    onSuccess:(booking,skipDates)=>{
+      // Merge synced booking into state
+      setBookings(prev=>prev.some(b=>b.id===booking.id)?prev:[booking,...prev]);
+      if(skipDates&&skipDates.length>0){
+        setExceptions(prev=>[...prev,...skipDates.map(date=>({
+          id:uid(),booking_id:booking.id,exception_date:date,type:'skip',created_at:Date.now()
+        }))]);
+      }
+    },
+    onError:err=>showToast(`Fel: ${err.message}`),
+  });
+
   // Make tab bar callbacks available to all sub-components (sheets, forms)
   useEffect(()=>{
     _tabBarCallbacks.hide = onTabBarHide;
@@ -3013,21 +3030,31 @@ export default function BookingScreen({
       recurrence:formData.recurrence||'none',status:'pending',
       admin_comment:'',created_at:Date.now(),resolved_at:null,
       device_id:deviceId,user_id:userId};
-    const{error}=await supabase.from('bookings').insert([booking]);
+    const skipDates=formData.skip_dates||[];
+    const{queued,error}=await submitOffline(booking,skipDates);
     setSubmitLoading(false);
     if(error){showToast(`Fel: ${error.message}`);return;}
-    const skipDates=formData.skip_dates||[];
-    if(skipDates.length>0) {
-      const excs=skipDates.map(date=>({id:uid(),booking_id:booking.id,exception_date:date,type:'skip',created_at:Date.now()}));
-      await supabase.from('booking_exceptions').insert(excs);
-      setExceptions(prev=>[...prev,...excs]);
-    }
     activateForDevice?.();
     localStorage.setItem(STORAGE_PHONE,normalizePhone(formData.phone));
-    setBookings(prev=>[booking,...prev]);
-    showToast(skipDates.length>0?`Förfrågan skickad — ${skipDates.length} krockar hoppades över!`:'Bokningsförfrågan skickad!');
+    if(!queued){
+      // Online: add to state immediately + handle skip exceptions in hook's onSuccess
+      setBookings(prev=>[booking,...prev]);
+      if(skipDates.length>0){
+        const excs=skipDates.map(date=>({id:uid(),booking_id:booking.id,exception_date:date,type:'skip',created_at:Date.now()}));
+        setExceptions(prev=>[...prev,...excs]);
+      }
+      showToast(skipDates.length>0?`Förfrågan skickad — ${skipDates.length} krockar hoppades över!`:'Bokningsförfrågan skickad!');
+    } else {
+      // Offline: add optimistically to local state so calendar shows it
+      setBookings(prev=>[booking,...prev]);
+      if(skipDates.length>0){
+        const excs=skipDates.map(date=>({id:uid(),booking_id:booking.id,exception_date:date,type:'skip',created_at:Date.now()}));
+        setExceptions(prev=>[...prev,...excs]);
+      }
+      // No toast — OfflineStatusBar communicates the state
+    }
     setView('calendar');
-  },[deviceId,loggedInUser,showToast,activateForDevice]);
+  },[deviceId,loggedInUser,showToast,activateForDevice,submitOffline]);
 
   const handleCancelOccurrence=useCallback(async(booking,occurrenceDate,reason)=>{
     const uName=localStorage.getItem(STORAGE_USER_NAME)||'Besökaren';
@@ -3534,6 +3561,7 @@ export default function BookingScreen({
     {view==='login'&&<UserLogin onSuccess={handleLoginSuccess} onBack={undefined} T={T}/>}
 
     {view==='users'&&<UserManagement onBack={()=>setView('admin')} T={T}/>}
+    <OfflineStatusBar status={offlineStatus} T={T} position="bottom"/>
 
     {view==='admin'&&<AdminPanel bookings={bookings} exceptions={exceptions}
       onBack={handleAdminLogout}
