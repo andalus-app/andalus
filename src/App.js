@@ -215,8 +215,8 @@ function Shell() {
     };
   }, []); // eslint-disable-line
 
-  // Nudge — first visit + every 7 days, only if user hasn't manually scrolled
-  const userHasScrolledRef = useRef(false);
+  // Nudge — first visit + every 7 days
+  // Uses CSS animation class on the 6th button wrapper — no scroll, no DOM hacks
   useEffect(() => {
     if (TABS.length <= SCROLL_NUDGE_THRESHOLD) return;
     const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000;
@@ -225,15 +225,8 @@ function Shell() {
       if (Date.now() - last < SEVEN_DAYS_MS) return;
     } catch {}
     const t = setTimeout(() => {
-      if (userHasScrolledRef.current) return; // user already found it
-      const el = tabScrollRef.current;
-      if (!el) return;
       setNudging(true);
-      el.scrollTo({ left: 64, behavior: 'smooth' });
-      setTimeout(() => {
-        el.scrollTo({ left: 0, behavior: 'smooth' });
-        setTimeout(() => setNudging(false), 400);
-      }, 750);
+      setTimeout(() => setNudging(false), 1400);
       try { localStorage.setItem(nudgeDoneKey, Date.now().toString()); } catch {}
     }, 2000);
     return () => clearTimeout(t);
@@ -278,35 +271,8 @@ function Shell() {
   // Track active tab index for sliding highlight
   const activeTabIndex = TABS.findIndex(t => t.id === tab);
   const visibleTabIndex = Math.min(activeTabIndex, VISIBLE_TABS - 1);
-  const [tabPillWidth, setTabPillWidth] = useState(0);
-  const [tabPillLeft, setTabPillLeft] = useState(0);
-  const tabRefs = useRef([]);
-
-  // Measure actual tab button positions for pill
-  // Use rAF so layout is complete, and account for scrollLeft of the scroll container
-  useEffect(() => {
-    let raf;
-    const updatePill = () => {
-      raf = requestAnimationFrame(() => {
-        const btn = tabRefs.current[visibleTabIndex];
-        if (!btn) return;
-        const scrollEl = tabScrollRef.current;
-        const rect = btn.getBoundingClientRect();
-        const parentRect = scrollEl?.getBoundingClientRect();
-        if (!parentRect) return;
-        // relLeft = position relative to scroll container viewport (not scroll offset)
-        const relLeft = rect.left - parentRect.left;
-        setTabPillLeft(relLeft + 4);
-        setTabPillWidth(rect.width - 8);
-      });
-    };
-    updatePill();
-    window.addEventListener('resize', updatePill);
-    return () => {
-      cancelAnimationFrame(raf);
-      window.removeEventListener('resize', updatePill);
-    };
-  }, [visibleTabIndex, tab]);
+  // Pill is pure CSS: positioned as 1/5 of the 5-tab container width
+  // No JS measurement needed — 5 flex:1 buttons = exactly 20% each
   const [adminInitialFilter, setAdminInitialFilter] = useState(null);
 
   const [highlightBookingId, setHighlightBookingId] = useState(null);
@@ -429,11 +395,11 @@ function Shell() {
         {renderScreen()}
       </div>
 
-      {/* ── FLOATING TAB BAR — scrollbar med peek-effekt ── */}
+      {/* ── FLOATING TAB BAR ── */}
       <div style={{
         position: isPWA ? 'fixed' : 'absolute',
         bottom: isPWA ? `calc(env(safe-area-inset-bottom, 0px) + 8px)` : '12px',
-        left: isPWA ? '50%' : '50%',
+        left: '50%',
         transform: effectiveTabBarVisible
           ? 'translateX(-50%) translateY(0)'
           : 'translateX(-50%) translateY(calc(100% + 24px))',
@@ -449,164 +415,51 @@ function Shell() {
         zIndex: 200,
         transition: 'transform 0.35s cubic-bezier(0.4, 0, 0.2, 1)',
         overflow: 'hidden',
+        position: isPWA ? 'fixed' : 'absolute',
       }}>
         <style>{`
           @keyframes liveDot{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.4;transform:scale(.65)}}
           @keyframes liveRing{0%{box-shadow:0 0 0 0 rgba(255,0,0,0.7)}70%{box-shadow:0 0 0 5px rgba(255,0,0,0)}100%{box-shadow:0 0 0 0 rgba(255,0,0,0)}}
           @keyframes cityFadeIn{from{opacity:0;transform:translateY(5px)}to{opacity:1;transform:translateY(0)}}
-          .tab-scroll::-webkit-scrollbar { display: none; }
+          @keyframes tabNudgeIn{0%{transform:translateX(100%);opacity:0}20%{transform:translateX(0);opacity:1}75%{transform:translateX(0);opacity:1}100%{transform:translateX(100%);opacity:0}}
         `}</style>
 
-        {/* Tab scroll container — first 5 tabs fill width equally, 6th clips at rest, scrollable */}
-        <div
-          ref={tabScrollRef}
-          className="tab-scroll"
-          onScroll={() => { userHasScrolledRef.current = true; }}
-          style={{
-            display: 'flex',
-            overflowX: 'auto',
-            overflowY: 'hidden',
-            scrollbarWidth: 'none',
-            msOverflowStyle: 'none',
-            WebkitOverflowScrolling: 'touch',
-            scrollSnapType: 'x proximity',
-            padding: '0',
-            gap: 0,
-            position: 'relative',
-          }}
-        >
-          {tabPillWidth > 0 && <div aria-hidden style={{
+        {/* ── 5 visible tabs — flex row, equal width ── */}
+        <div style={{ display: 'flex', position: 'relative' }}>
+
+          {/* Sliding pill highlight — pure CSS, 1/5 of container */}
+          <div aria-hidden style={{
             position: 'absolute',
             top: 6, bottom: 6,
-            width: tabPillWidth,
-            left: tabPillLeft,
+            width: 'calc(20% - 8px)',
+            left: `calc(${visibleTabIndex} * 20% + 4px)`,
             borderRadius: 22,
             background: T.isDark ? 'rgba(255,255,255,0.08)' : 'rgba(36,100,93,0.09)',
-            transition: 'left 0.42s cubic-bezier(0.4, 0, 0.2, 1)',
+            transition: 'left 0.38s cubic-bezier(0.4, 0, 0.2, 1)',
             pointerEvents: 'none',
             zIndex: 0,
-          }}/>}
-          {TABS.map(t => {
+          }}/>
+
+          {/* The 5 visible tabs */}
+          {TABS.slice(0, VISIBLE_TABS).map((t, idx) => {
             const active = tab === t.id;
-            const idx = TABS.indexOf(t);
             return (
               <button
                 key={t.id}
-                ref={el => { tabRefs.current[idx] = el; }}
                 onClick={() => handleTabPress(t.id)}
                 style={{
-                  flex: idx < VISIBLE_TABS ? '1 1 0' : '0 0 64px',
-                  minWidth: idx < VISIBLE_TABS ? 0 : 64,
-                  maxWidth: idx < VISIBLE_TABS ? undefined : 64,
+                  flex: 1,
                   display: 'flex', flexDirection: 'column',
-                  alignItems: 'center', gap: 3, padding: '7px 4px',
+                  alignItems: 'center', gap: 3,
+                  padding: '7px 4px',
                   background: 'none',
-                  borderRadius: 22,
                   border: 'none', cursor: 'pointer',
                   fontFamily: "'Inter',system-ui,sans-serif",
                   WebkitTapHighlightColor: 'transparent',
                   position: 'relative', zIndex: 1,
                 }}
               >
-                {t.type === 'custom' ? (
-                  <div style={{ position: 'relative', display: 'inline-flex' }}>
-                    {t.icon === 'booking' ? (
-                      <CalendarClockIcon
-                        size={22}
-                        color={active ? T.accent : T.isDark ? T.accent : T.text}
-                        style={{ opacity: active ? 1 : T.isDark ? 0.75 : 1, transition: 'all .2s' }}
-                      />
-                    ) : t.icon === 'ebooks' ? (
-                      <svg width="22" height="22" viewBox="0 0 24 24" fill="none"
-                        stroke={active ? T.accent : T.isDark ? T.accent : T.text}
-                        strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"
-                        style={{ opacity: active ? 1 : T.isDark ? 0.75 : 1, transition: 'all .2s' }}>
-                        <path d="M2 6s2-2 5-2 5 2 5 2v14s-2-1-5-1-5 1-5 1V6z"/>
-                        <path d="M12 6s2-2 5-2 5 2 5 2v14s-2-1-5-1-5 1-5 1V6z"/>
-                      </svg>
-                    ) : (
-                      <img
-                        src={t.icon === 'kaba' ? KabaIcon : t.icon === 'more' ? MoreAppIcon : PrayerTimesIcon}
-                        alt={t.label}
-                        style={{
-                          width: 24, height: 24, objectFit: 'contain',
-                          filter: active
-                            ? svgColorFilter(T.isDark)
-                            : T.isDark
-                              ? 'invert(48%) sepia(60%) saturate(400%) hue-rotate(120deg) brightness(90%)'
-                              : 'none',
-                          transition: 'filter .2s',
-                        }}
-                      />
-                    )}
-                    {/* Booking badge */}
-                    {t.id === 'booking' && (visitorUnread > 0 || adminPendingCount > 0 || cancelledUnread > 0) && (
-                      <div style={{ position: 'absolute', top: -3, right: -4, display: 'flex', gap: 2 }}>
-                        {adminPendingCount > 0 ? (
-                          <div style={{
-                            minWidth: 14, height: 14, borderRadius: 7,
-                            background: '#f59e0b', color: '#fff',
-                            fontSize: 8, fontWeight: 800, fontFamily: 'system-ui',
-                            display: 'flex', alignItems: 'center', justifyContent: 'center',
-                            padding: '0 3px', boxSizing: 'border-box',
-                            border: `1.5px solid ${T.isDark ? 'rgba(18,18,18,0.9)' : 'rgba(245,248,247,0.9)'}`,
-                          }}>{adminPendingCount > 9 ? '9+' : adminPendingCount}</div>
-                        ) : null}
-                        {visitorUnread > 0 ? (
-                          <div style={{
-                            minWidth: 14, height: 14, borderRadius: 7,
-                            background: '#ef4444', color: '#fff',
-                            fontSize: 8, fontWeight: 800, fontFamily: 'system-ui',
-                            display: 'flex', alignItems: 'center', justifyContent: 'center',
-                            padding: '0 3px', boxSizing: 'border-box',
-                            border: `1.5px solid ${T.isDark ? 'rgba(18,18,18,0.9)' : 'rgba(245,248,247,0.9)'}`,
-                          }}>{visitorUnread > 9 ? '9+' : visitorUnread}</div>
-                        ) : null}
-                        {cancelledUnread > 0 ? (
-                          <div
-                            onClick={e => { e.stopPropagation(); if (navigator.vibrate) navigator.vibrate([60,40,60,40,120]); handleGoToCancelledBookings(); }}
-                            style={{
-                            minWidth: 14, height: 14, borderRadius: 7,
-                            background: '#3b82f6', color: '#fff',
-                            fontSize: 8, fontWeight: 800, fontFamily: 'system-ui',
-                            display: 'flex', alignItems: 'center', justifyContent: 'center',
-                            padding: '0 3px', boxSizing: 'border-box',
-                            border: `1.5px solid ${T.isDark ? 'rgba(18,18,18,0.9)' : 'rgba(245,248,247,0.9)'}`,
-                            cursor: 'pointer',
-                          }}>{cancelledUnread > 9 ? '9+' : cancelledUnread}</div>
-                        ) : null}
-                      </div>
-                    )}
-                    {/* More badge borttagen — bokning finns nu i tab-bar */}
-                  </div>
-                ) : (
-                  <div style={{ position: 'relative', display: 'inline-flex' }}>
-                    <SvgIcon
-                      name={t.iconName}
-                      size={22}
-                      color={active ? T.accent : T.isDark ? T.accent : T.text}
-                      style={{ opacity: active ? 1 : T.isDark ? 0.75 : 1, transition: 'all .2s' }}
-                    />
-                    {t.id === 'home' && isLive && (
-                      <div style={{
-                        position: 'absolute', top: -3, right: -4,
-                        width: 11, height: 11, borderRadius: '50%',
-                        background: '#FF0000',
-                        border: `2px solid ${T.isDark ? 'rgba(18,18,18,0.95)' : 'rgba(245,248,247,0.95)'}`,
-                        animation: 'liveDot 1s ease-in-out infinite, liveRing 1.5s ease-out infinite',
-                      }} />
-                    )}
-                    {t.id === 'home' && isUpcoming && !isLive && (
-                      <div style={{
-                        position: 'absolute', top: -3, right: -4,
-                        width: 9, height: 9, borderRadius: '50%',
-                        background: '#f59e0b',
-                        border: `2px solid ${T.isDark ? 'rgba(18,18,18,0.95)' : 'rgba(245,248,247,0.95)'}`,
-                      }} />
-                    )}
-                  </div>
-                )}
-                <span style={{
+''' + icon_block + '''                <span style={{
                   fontSize: 9, fontWeight: active ? 600 : 500,
                   letterSpacing: '.3px',
                   color: t.id === 'home' && isLive
@@ -617,24 +470,49 @@ function Shell() {
                   opacity: active ? 1 : T.isDark ? 0.7 : 1,
                   whiteSpace: 'nowrap',
                   fontFamily: "'Inter',system-ui,sans-serif",
-                  transition: 'all .2s',
+                  transition: 'color .2s',
                 }}>{t.id === 'home' && isLive ? 'LIVE' : t.id === 'home' && isUpcoming ? 'Snart' : t.label}</span>
               </button>
             );
           })}
         </div>
 
-        {/* Peek-fade — only during nudge animation to hint at more content */}
-        {nudging && TABS.length > SCROLL_NUDGE_THRESHOLD && (
-          <div style={{
-            position: 'absolute', top: 0, right: 0, bottom: 0, width: 24,
-            background: T.isDark
-              ? 'linear-gradient(to right, transparent, rgba(18,18,18,0.6))'
-              : 'linear-gradient(to right, transparent, rgba(245,248,247,0.6))',
-            borderRadius: '0 28px 28px 0',
-            pointerEvents: 'none',
-          }} />
-        )}
+        {/* ── 6th tab (Visa mer) — nudge only, absolutely positioned over right edge ── */}
+        {TABS.length > VISIBLE_TABS && nudging && (() => {
+          const t6 = TABS[VISIBLE_TABS];
+          return (
+            <div style={{
+              position: 'absolute',
+              right: 0, top: 0, bottom: 0,
+              width: 72,
+              display: 'flex', flexDirection: 'column',
+              alignItems: 'center', justifyContent: 'center',
+              gap: 3,
+              background: T.isDark ? 'rgba(18,18,18,0.95)' : 'rgba(245,248,247,0.95)',
+              borderRadius: '0 28px 28px 0',
+              cursor: 'pointer',
+              animation: 'tabNudgeIn 1.4s cubic-bezier(0.4,0,0.2,1) forwards',
+              zIndex: 10,
+              pointerEvents: 'auto',
+            }} onClick={() => { setNudging(false); handleTabPress(t6.id); }}>
+              <img
+                src={MoreAppIcon}
+                alt={t6.label}
+                style={{
+                  width: 22, height: 22, objectFit: 'contain',
+                  filter: T.isDark
+                    ? 'invert(48%) sepia(60%) saturate(400%) hue-rotate(120deg) brightness(90%)'
+                    : 'none',
+                }}
+              />
+              <span style={{
+                fontSize: 9, fontWeight: 500, color: T.isDark ? T.accent : T.text,
+                opacity: T.isDark ? 0.7 : 1, whiteSpace: 'nowrap',
+                fontFamily: "'Inter',system-ui,sans-serif",
+              }}>{t6.label}</span>
+            </div>
+          );
+        })()}
       </div>
 
     </div>
