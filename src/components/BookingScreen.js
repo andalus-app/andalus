@@ -2042,6 +2042,7 @@ function AdminAddForm({bookings,exceptions,onSubmit,onClose,onOpenDetail,T}) {
         </button>
       </div>
     </div>
+    </>
     </div>{/* end scroll */}
   </div>;
 }
