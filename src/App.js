@@ -228,10 +228,11 @@ function Shell() {
       setNudging(true);
       const el = tabScrollRef.current;
       if (el) {
-        el.scrollTo({ left: 55, behavior: 'smooth' });
-        setTimeout(() => el.scrollTo({ left: 0, behavior: 'smooth' }), 650);
+        // Temporarily widen the 6th button to peek, then hide it again
+        el.classList.add('tab-nudging');
+        setTimeout(() => el.classList.remove('tab-nudging'), 1200);
       }
-      setTimeout(() => setNudging(false), 1300);
+      setTimeout(() => setNudging(false), 1200);
       try { localStorage.setItem(nudgeDoneKey, Date.now().toString()); } catch {}
     }, 1800);
     return () => clearTimeout(t);
@@ -424,33 +425,32 @@ function Shell() {
           @keyframes liveDot{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.4;transform:scale(.65)}}
           @keyframes liveRing{0%{box-shadow:0 0 0 0 rgba(255,0,0,0.7)}70%{box-shadow:0 0 0 5px rgba(255,0,0,0)}100%{box-shadow:0 0 0 0 rgba(255,0,0,0)}}
           @keyframes cityFadeIn{from{opacity:0;transform:translateY(5px)}to{opacity:1;transform:translateY(0)}}
+          @keyframes tabNudge{0%{transform:translateX(0)}30%{transform:translateX(-32px)}70%{transform:translateX(-32px)}100%{transform:translateX(0)}}
           .tab-scroll::-webkit-scrollbar { display: none; }
+          .tab-nudging { animation: tabNudge 1.1s cubic-bezier(0.4,0,0.2,1) forwards; overflow: visible !important; }
+          .tab-nudging .tab-peek { max-width: 36px !important; opacity: 1 !important; flex: 0 0 36px !important; }
         `}</style>
 
-        {/* Scrollbar-container */}
+        {/* Tab scroll container — shows 5 tabs, 6th hidden (revealed by nudge) */}
         <div
           ref={tabScrollRef}
           className="tab-scroll"
           style={{
             display: 'flex',
-            overflowX: 'auto',
+            overflowX: 'hidden',
             overflowY: 'hidden',
-            scrollbarWidth: 'none',
-            msOverflowStyle: 'none',
-            WebkitOverflowScrolling: 'touch',
             padding: '0',
             gap: 0,
             position: 'relative',
+            width: '100%',
           }}
         >
-          {/* Sliding highlight pill — sized to visible tab width */}
+          {/* Sliding highlight pill — 1/5 of container width */}
           <div aria-hidden style={{
             position: 'absolute',
             top: 6, bottom: 6,
-            width: `calc(100% / ${VISIBLE_TABS} - 8px)`,
-            left: activeTabIndex >= VISIBLE_TABS
-              ? `calc((${VISIBLE_TABS - 1}) * (100% / ${VISIBLE_TABS}) + 4px)`
-              : `calc(${activeTabIndex} * (100% / ${VISIBLE_TABS}) + 4px)`,
+            width: 'calc(20% - 8px)',
+            left: `calc(${Math.min(activeTabIndex, VISIBLE_TABS - 1)} * 20% + 4px)`,
             borderRadius: 22,
             background: T.isDark ? 'rgba(255,255,255,0.08)' : 'rgba(36,100,93,0.09)',
             transition: 'left 0.42s cubic-bezier(0.4, 0, 0.2, 1)',
@@ -459,16 +459,19 @@ function Shell() {
           }}/>
           {TABS.map(t => {
             const active = tab === t.id;
+            const idx = TABS.indexOf(t);
             return (
               <button
                 key={t.id}
+                className={idx >= VISIBLE_TABS ? 'tab-peek' : undefined}
                 onClick={() => handleTabPress(t.id)}
                 style={{
-                  flex: TABS.indexOf(t) < VISIBLE_TABS ? '1 1 0' : '0 0 28px',
-                  width: TABS.indexOf(t) >= VISIBLE_TABS ? 28 : undefined,
+                  flex: idx < VISIBLE_TABS ? '1 1 0' : '0 0 0px',
                   minWidth: 0,
-                  maxWidth: TABS.indexOf(t) < VISIBLE_TABS ? undefined : 28,
+                  maxWidth: idx < VISIBLE_TABS ? undefined : 0,
                   overflow: 'hidden',
+                  opacity: idx < VISIBLE_TABS ? 1 : 0,
+                  pointerEvents: idx < VISIBLE_TABS ? 'auto' : 'none',
                   display: 'flex', flexDirection: 'column',
                   alignItems: 'center', gap: 3, padding: '7px 4px',
                   background: 'none',
@@ -595,13 +598,13 @@ function Shell() {
           })}
         </div>
 
-        {/* Peek-fade i höger kant — visas bara när fler än 5 ikoner finns */}
-        {TABS.length > SCROLL_NUDGE_THRESHOLD && (
+        {/* Peek-fade — only during nudge animation to hint at more content */}
+        {nudging && TABS.length > SCROLL_NUDGE_THRESHOLD && (
           <div style={{
-            position: 'absolute', top: 0, right: 0, bottom: 0, width: 32,
+            position: 'absolute', top: 0, right: 0, bottom: 0, width: 24,
             background: T.isDark
-              ? 'linear-gradient(to right, transparent, rgba(18,18,18,0.75))'
-              : 'linear-gradient(to right, transparent, rgba(245,248,247,0.75))',
+              ? 'linear-gradient(to right, transparent, rgba(18,18,18,0.6))'
+              : 'linear-gradient(to right, transparent, rgba(245,248,247,0.6))',
             borderRadius: '0 28px 28px 0',
             pointerEvents: 'none',
           }} />
