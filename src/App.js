@@ -414,18 +414,21 @@ function Shell() {
         padding: '6px 0',
         zIndex: 200,
         transition: 'transform 0.35s cubic-bezier(0.4, 0, 0.2, 1)',
-        overflow: 'hidden',
+        overflow: 'visible',
       }}>
         <style>{`
           @keyframes liveDot{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.4;transform:scale(.65)}}
           @keyframes liveRing{0%{box-shadow:0 0 0 0 rgba(255,0,0,0.7)}70%{box-shadow:0 0 0 5px rgba(255,0,0,0)}100%{box-shadow:0 0 0 0 rgba(255,0,0,0)}}
           @keyframes cityFadeIn{from{opacity:0;transform:translateY(5px)}to{opacity:1;transform:translateY(0)}}
-          @keyframes tabNudgeIn{0%{transform:translateX(110%)}30%{transform:translateX(0)}70%{transform:translateX(0)}100%{transform:translateX(110%)}}
+          @keyframes tabNudgeIn{0%{transform:translateX(90px);opacity:0}15%{transform:translateX(0);opacity:1}75%{transform:translateX(0);opacity:1}100%{transform:translateX(90px);opacity:0}}
           .tab-scroll::-webkit-scrollbar{display:none}
         `}</style>
 
         {/* 5 visible tabs in a plain flex row — equal width, no scroll */}
-        <div style={{ display: 'flex', position: 'relative' }}>
+        <div style={{
+          display: 'flex', position: 'relative',
+          overflow: 'hidden', borderRadius: 28,
+        }}>
 
           {/* Sliding pill — pure CSS, each tab is exactly 20% */}
           <div aria-hidden style={{
@@ -573,18 +576,23 @@ function Shell() {
           })}
         </div>
 
-        {/* Visa mer — nudge animation slides in from right, then back out */}
+        {/* Visa mer nudge — pill outer has overflow:visible, inner row clips the pill shape */}
         {TABS.length > VISIBLE_TABS && nudging && (
           <div
             onClick={() => { setNudging(false); handleTabPress(TABS[VISIBLE_TABS].id); }}
             style={{
-              position: 'absolute', right: 0, top: 0, bottom: 0, width: 72,
+              position: 'absolute',
+              right: -64, top: 0, bottom: 0, width: 72,
               display: 'flex', flexDirection: 'column',
               alignItems: 'center', justifyContent: 'center', gap: 3,
-              background: T.isDark ? 'rgba(18,18,18,0.97)' : 'rgba(245,248,247,0.97)',
-              borderRadius: '0 28px 28px 0',
+              background: T.isDark ? 'rgba(18,18,18,0.92)' : 'rgba(245,248,247,0.92)',
+              backdropFilter: 'blur(24px)',
+              WebkitBackdropFilter: 'blur(24px)',
+              borderRadius: 28,
+              border: `1px solid ${T.border}`,
+              boxShadow: T.isDark ? '0 4px 24px rgba(0,0,0,0.4)' : '0 4px 24px rgba(0,0,0,0.08)',
               cursor: 'pointer', zIndex: 10,
-              animation: 'tabNudgeIn 1.4s cubic-bezier(0.4,0,0.2,1) forwards',
+              animation: 'tabNudgeIn 1.6s cubic-bezier(0.4,0,0.2,1) forwards',
             }}
           >
             <img src={MoreAppIcon} alt="Visa mer" style={{
@@ -597,6 +605,31 @@ function Shell() {
               opacity: T.isDark ? 0.7 : 1,
               fontFamily: "'Inter',system-ui,sans-serif",
             }}>Visa mer</span>
+          </div>
+        )}
+
+        {/* Persistent small Visa mer button — always accessible to right of pill */}
+        {TABS.length > VISIBLE_TABS && (
+          <div
+            onClick={() => handleTabPress(TABS[VISIBLE_TABS].id)}
+            style={{
+              position: 'absolute',
+              right: -44, top: '50%', transform: 'translateY(-50%)',
+              width: 34, height: 34,
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              background: T.isDark ? 'rgba(18,18,18,0.85)' : 'rgba(245,248,247,0.85)',
+              backdropFilter: 'blur(20px)',
+              WebkitBackdropFilter: 'blur(20px)',
+              borderRadius: '50%',
+              border: `1px solid ${T.border}`,
+              boxShadow: T.isDark ? '0 2px 8px rgba(0,0,0,0.3)' : '0 2px 8px rgba(0,0,0,0.07)',
+              cursor: 'pointer', zIndex: 9,
+            }}
+          >
+            <img src={MoreAppIcon} alt="Visa mer" style={{
+              width: 16, height: 16, objectFit: 'contain',
+              filter: T.isDark ? 'invert(48%) sepia(60%) saturate(400%) hue-rotate(120deg) brightness(90%)' : 'none',
+            }}/>
           </div>
         )}
       </div>
