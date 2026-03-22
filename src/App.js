@@ -600,6 +600,8 @@ function Shell() {
           </div>
         )}
       </div>
+
+    </div>
   );
 }
 
