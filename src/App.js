@@ -50,6 +50,7 @@ const TABS = [
 ];
 
 const SCROLL_NUDGE_THRESHOLD = 5; // nudge-animation visas bara om fler än 5 ikoner
+const VISIBLE_TABS = 5; // number of tabs that fit without scrolling
 
 const GPS_PROMPT_KEY = 'gps-prompt-shown'; // set to 'done' once user responded
 
@@ -274,6 +275,8 @@ function Shell() {
   const [bookingRefreshKey, setBookingRefreshKey] = useState(0);
   // Track active tab index for sliding highlight
   const activeTabIndex = TABS.findIndex(t => t.id === tab);
+  // For pill, clamp to visible tabs (pill lives in the visible portion)
+  const visibleTabIndex = Math.min(activeTabIndex, VISIBLE_TABS - 1);
   const [adminInitialFilter, setAdminInitialFilter] = useState(null);
 
   const [highlightBookingId, setHighlightBookingId] = useState(null);
@@ -440,12 +443,14 @@ function Shell() {
             position: 'relative',
           }}
         >
-          {/* Sliding highlight — single pill that moves via CSS transform */}
+          {/* Sliding highlight pill — sized to visible tab width */}
           <div aria-hidden style={{
             position: 'absolute',
             top: 6, bottom: 6,
-            width: `calc(100% / ${TABS.length} - 8px)`,
-            left: `calc(${activeTabIndex} * (100% / ${TABS.length}) + 4px)`,
+            width: `calc(100% / ${VISIBLE_TABS} - 8px)`,
+            left: activeTabIndex >= VISIBLE_TABS
+              ? `calc((${VISIBLE_TABS - 1}) * (100% / ${VISIBLE_TABS}) + 4px)`
+              : `calc(${activeTabIndex} * (100% / ${VISIBLE_TABS}) + 4px)`,
             borderRadius: 22,
             background: T.isDark ? 'rgba(255,255,255,0.08)' : 'rgba(36,100,93,0.09)',
             transition: 'left 0.42s cubic-bezier(0.4, 0, 0.2, 1)',
@@ -459,8 +464,9 @@ function Shell() {
                 key={t.id}
                 onClick={() => handleTabPress(t.id)}
                 style={{
-                  flex: 1,
-                  minWidth: 64,
+                  flex: TABS.indexOf(t) < VISIBLE_TABS ? 1 : '0 0 auto',
+                  width: TABS.indexOf(t) >= VISIBLE_TABS ? 36 : undefined,
+                  minWidth: TABS.indexOf(t) < VISIBLE_TABS ? 0 : 36,
                   display: 'flex', flexDirection: 'column',
                   alignItems: 'center', gap: 3, padding: '7px 4px',
                   background: 'none',

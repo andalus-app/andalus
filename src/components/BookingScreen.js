@@ -498,6 +498,14 @@ function HideTabBar() {
   },[]);
   return null;
 }
+// Forces tab bar visible — used in login view so user can navigate away
+function ShowTabBar() {
+  useEffect(()=>{
+    _tabBarCallbacks.show?.();
+    return()=>{};
+  },[]);
+  return null;
+}
 
 function Toast({message}) {
   if(!message) return null;
@@ -2554,8 +2562,6 @@ function UserLogin({onSuccess,onBack,T}) {
         </div>
         <input type="tel" value={phone} onChange={e=>handlePhoneChange(e.target.value)}
           onKeyDown={e=>e.key==='Enter'&&handlePhoneNext()} placeholder="07X-XXX XX XX" autoFocus
-          onFocus={()=>_tabBarCallbacks.hide?.()}
-          onBlur={()=>_tabBarCallbacks.show?.()}
           style={inputS}/>
         {error&&<div style={{fontSize:13,color:T.error,background:`${T.error}18`,padding:'10px 14px',borderRadius:8,marginTop:8}}>{error}</div>}
         <button onClick={handlePhoneNext} disabled={loading} style={btnS}>{loading?'Kontrollerar...':'Fortsätt →'}</button>
@@ -3558,7 +3564,7 @@ export default function BookingScreen({
       highlightFilter={internalHighlightId?'all':highlightFilter}
       onLogout={handleUserLogout} T={T}/>}
 
-    {view==='login'&&<UserLogin onSuccess={handleLoginSuccess} onBack={undefined} T={T}/>}
+    {view==='login'&&<><ShowTabBar/><UserLogin onSuccess={handleLoginSuccess} onBack={undefined} T={T}/></> }
 
     {view==='users'&&<UserManagement onBack={()=>setView('admin')} T={T}/>}
     <OfflineStatusBar status={offlineStatus} T={T} position="bottom"/>
