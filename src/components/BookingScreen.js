@@ -1730,7 +1730,7 @@ function MyBookings({bookings,exceptions,loading,onBack,onCancel,onCancelFromDat
 // ─── Admin Add Form ──────────────────────────────────────────────────────────
 function AdminAddForm({bookings,exceptions,onSubmit,onClose,onOpenDetail,T}) {
   const today=new Date();today.setHours(0,0,0,0);
-  const[step,setStep]=useState('date');
+  // Single-page form — no steps
   const[showYearPicker,setShowYearPicker]=useState(false);
   const[yearPickerYear,setYearPickerYear]=useState(today.getFullYear());
   const[anchor,setAnchor]=useState(()=>new Date(today.getFullYear(),today.getMonth(),1));
@@ -1742,7 +1742,7 @@ function AdminAddForm({bookings,exceptions,onSubmit,onClose,onOpenDetail,T}) {
   const[startM,setStartM]=useState(0);
   const[endH,setEndH]=useState(OPEN_HOUR+1);
   const[endM,setEndM]=useState(0);
-  const[recurrence,setRecurrence]=useState('weekly');
+  const[recurrence,setRecurrence]=useState('none');
   const[endDate,setEndDate]=useState(null);
   const[form,setForm]=useState({name:'',phone:'',activity:'',notes:''});
   const[loading,setLoading]=useState(false);
@@ -1946,7 +1946,7 @@ function AdminAddForm({bookings,exceptions,onSubmit,onClose,onOpenDetail,T}) {
           </div>
         </div>
         {/* + button to add booking for selected date */}
-        <button onClick={()=>setStep('time')}
+        <button onClick={()=>{/* scroll to form */if(scrollRef_&&scrollRef_.current)scrollRef_.current.scrollTop=999;}}
           style={{width:36,height:36,borderRadius:'50%',border:'none',
             background:T.accent,color:'#fff',
             display:'flex',alignItems:'center',justifyContent:'center',
@@ -1996,11 +1996,14 @@ function AdminAddForm({bookings,exceptions,onSubmit,onClose,onOpenDetail,T}) {
           }}/>
       </div>}
     </>}
-    {step==='time'&&<div style={{padding:'16px 20px'}}>
-      <div style={{fontSize:12,fontWeight:700,color:T.textMuted,marginBottom:12,letterSpacing:'.3px'}}>
-        {isoToDisplay(iso)} — VÄLJ TID
+    {/* Single-page form — all fields below the calendar */}
+    <div style={{padding:'0 20px 16px'}}>
+      {/* Date + time summary */}
+      <div style={{fontSize:13,fontWeight:600,color:T.accent,marginBottom:12,letterSpacing:'.2px'}}>
+        {isoToDisplay(iso)}
       </div>
-      <div style={{background:T.card,border:`0.5px solid ${T.border}`,borderRadius:12,overflow:'hidden',marginBottom:12}}>
+      {/* Time pickers */}
+      <div style={{background:T.card,border:`0.5px solid ${T.border}`,borderRadius:12,overflow:'hidden',marginBottom:14}}>
         <TimeAccordion label="Startar" hour={startH} minute={startM}
           onConfirm={(h,m)=>{setStartH(h);setStartM(m);if(endH+endM/60<=h+m/60){setEndH(Math.min(h+1,CLOSE_HOUR));setEndM(0);}}}
           bookedBlocks={bookedBlocks} isStart={true} pairedHour={startH} pairedMinute={startM} T={T}/>
@@ -2009,48 +2012,39 @@ function AdminAddForm({bookings,exceptions,onSubmit,onClose,onOpenDetail,T}) {
           onConfirm={(h,m)=>{setEndH(h);setEndM(m);}}
           bookedBlocks={bookedBlocks} isStart={false} pairedHour={startH} pairedMinute={startM} T={T}/>
       </div>
+      {/* Recurrence */}
       <RecurrencePicker value={recurrence} onChange={setRecurrence}
         endDate={endDate} onEndDateChange={setEndDate} T={T}/>
-      <div style={{marginTop:16,display:'flex',flexDirection:'column',gap:10}}>
-        <button onClick={()=>setStep('details')}
-          style={{padding:'14px',borderRadius:12,border:'none',
-            background:T.accent,color:'#fff',fontSize:15,fontWeight:700,
-            cursor:'pointer',WebkitTapHighlightColor:'transparent'}}>
-          Nästa: Detaljer →
-        </button>
-        <button onClick={()=>setStep('date')}
-          style={{padding:'13px',borderRadius:12,border:`0.5px solid ${T.border}`,
-            background:'none',color:T.text,fontSize:14,fontWeight:600,
-            cursor:'pointer',WebkitTapHighlightColor:'transparent'}}>← Byt datum</button>
+      {/* Contact + activity fields */}
+      <div style={{marginTop:14,display:'flex',flexDirection:'column',gap:0}}>
+        <Textarea label="NAMN PÅ ANSVARIG PERSON" value={form.name}
+          onChange={v=>setForm(p=>({...p,name:v}))} placeholder="För- och efternamn" T={T}/>
+        <Textarea label="TELEFON *" value={form.phone}
+          onChange={v=>setForm(p=>({...p,phone:v}))} placeholder="07X-XXX XX XX" T={T}/>
+        <Textarea label="AKTIVITET *" value={form.activity}
+          onChange={v=>setForm(p=>({...p,activity:v}))} placeholder="Vad ska lokalen användas till?" T={T}/>
+        <Textarea label="ANTECKNINGAR (valfritt)" value={form.notes}
+          onChange={v=>setForm(p=>({...p,notes:v}))} placeholder="Anteckningar..." T={T}/>
       </div>
-    </div>}
-    {step==='details'&&<div style={{padding:'16px 20px'}}>
-      <div style={{fontSize:12,fontWeight:700,color:T.textMuted,marginBottom:12,letterSpacing:'.3px'}}>
-        {isoToDisplay(iso)} · {slot} — FYLL I UPPGIFTER
-      </div>
-      <Textarea label="NAMN" value={form.name} onChange={v=>setForm(p=>({...p,name:v}))} placeholder="Bokningens namn" T={T}/>
-      <Textarea label="TELEFON" value={form.phone} onChange={v=>setForm(p=>({...p,phone:v}))} placeholder="07X-XXX XX XX" T={T}/>
-      <Textarea label="AKTIVITET" value={form.activity} onChange={v=>setForm(p=>({...p,activity:v}))} placeholder="Vad ska lokalen användas till?" T={T}/>
-      <Textarea label="ANTECKNINGAR (valfritt)" value={form.notes} onChange={v=>setForm(p=>({...p,notes:v}))} placeholder="Extra info..." T={T}/>
-      <div style={{marginTop:16,display:'flex',flexDirection:'column',gap:10}}>
+      {/* Submit */}
+      <div style={{marginTop:16}}>
         <button onClick={async()=>{
-            if(!form.name.trim()||!form.activity.trim()){alert('Namn och aktivitet krävs.');return;}
+            if(!form.name.trim()||!form.phone.trim()||!form.activity.trim()){
+              alert('Namn, telefon och aktivitet krävs.');return;
+            }
             setLoading(true);
             await onSubmit({...form,date:iso,time_slot:slot,duration_hours:Math.round(dH*100)/100,recurrence,end_date:endDate});
             setLoading(false);
           }}
           disabled={loading}
-          style={{padding:'14px',borderRadius:12,border:'none',
-            background:loading?T.textTertiary:T.success,color:'#fff',fontSize:15,fontWeight:700,
-            cursor:loading?'default':'pointer',WebkitTapHighlightColor:'transparent'}}>
+          style={{width:'100%',padding:'14px',borderRadius:12,border:'none',
+            background:loading?T.textTertiary:T.accent,color:'#fff',fontSize:15,fontWeight:700,
+            cursor:loading?'default':'pointer',WebkitTapHighlightColor:'transparent',
+            marginBottom:8}}>
           {loading?'Sparar…':'Boka aktivitet'}
         </button>
-        <button onClick={()=>setStep('time')}
-          style={{padding:'13px',borderRadius:12,border:`0.5px solid ${T.border}`,
-            background:'none',color:T.text,fontSize:14,fontWeight:600,
-            cursor:'pointer',WebkitTapHighlightColor:'transparent'}}>← Byt tid</button>
       </div>
-    </div>}
+    </div>
     </div>{/* end scroll */}
   </div>;
 }
