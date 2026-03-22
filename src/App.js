@@ -274,25 +274,18 @@ function Shell() {
           scrollbarWidth: 'none', msOverflowStyle: 'none',
           WebkitOverflowScrolling: 'touch', padding: '0 4px', gap: 0, position: 'relative',
         }}>
-          {/* Sliding pill highlight — width/position based on visible tabs only */}
-          <div aria-hidden style={{
-            position: 'absolute', top: 6, bottom: 6,
-            width: `calc(${100 / TABS.length}% - 8px)`,
-            left: `calc(${visibleTabIndex} * ${100 / TABS.length}% + 4px)`,
-            borderRadius: 22,
-            background: T.isDark ? 'rgba(255,255,255,0.08)' : 'rgba(36,100,93,0.09)',
-            transition: 'left 0.38s cubic-bezier(0.4, 0, 0.2, 1)',
-            pointerEvents: 'none', zIndex: 0,
-          }}/>
-
           {TABS.map(t => {
             const active = tab === t.id;
             return (
               <button key={t.id} onClick={() => handleTabPress(t.id)} style={{
                 flexShrink: 0, minWidth: 72,
                 display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3, padding: '7px 4px',
-                background: 'none', borderRadius: 22, border: 'none', cursor: 'pointer',
+                background: active
+                  ? T.isDark ? 'rgba(255,255,255,0.07)' : 'rgba(36,100,93,0.08)'
+                  : 'none',
+                borderRadius: 22, border: 'none', cursor: 'pointer',
                 fontFamily: "'Inter',system-ui,sans-serif", WebkitTapHighlightColor: 'transparent',
+                transition: 'background .2s',
                 position: 'relative', zIndex: 1,
               }}>
                 {t.type === 'custom' ? (

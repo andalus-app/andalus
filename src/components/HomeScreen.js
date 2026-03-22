@@ -86,7 +86,7 @@ function PrayerTable({ times, isTomorrow, prayerStatus, T }) {
             display:'flex', alignItems:'center', justifyContent:'space-between',
             padding:'12px 16px',
             borderBottom: isLast ? 'none' : `1px solid ${T.border}`,
-            background: isActive ? T.accent : T.card,
+            background: isActive ? (T.isDark ? T.accent : '#24645d') : T.card,
             opacity: isPassed ? 0.28 : 1,
             transition:'opacity .4s, background .4s',
           }}>
