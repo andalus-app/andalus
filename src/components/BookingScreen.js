@@ -619,7 +619,7 @@ function TodayChip({onPress,T}) {
 }
 
 // ─── Recurrence Picker (dropdown) ────────────────────────────────────────────
-function RecurrencePicker({recurrence,onChange,endDate,onEndDateChange,T}) {
+function RecurrencePicker({recurrence,onChange,endDate,onEndDateChange,defaultDate,T}) {
   const[showDP,setShowDP]=useState(false);
   const[pAnchor,setPAnchor]=useState(()=>endDate?parseISO(endDate):new Date());
   const today=new Date();today.setHours(0,0,0,0);
@@ -634,8 +634,16 @@ function RecurrencePicker({recurrence,onChange,endDate,onEndDateChange,T}) {
           onChange={e=>{
             const val = e.target.value;
             if(val === 'custom') {
-              // Keep existing custom days if any, otherwise start empty
-              onChange(recurrence.startsWith('custom') ? recurrence : 'custom:');
+              if(recurrence.startsWith('custom')) {
+                // Keep existing custom days
+                onChange(recurrence);
+              } else {
+                // Pre-select the weekday of the selected date as default
+                const defaultDow = defaultDate
+                  ? (new Date(defaultDate + 'T12:00:00').getDay() + 6) % 7 // 0=Mon..6=Sun
+                  : -1;
+                onChange(defaultDow >= 0 ? buildCustomRecurrence([defaultDow]) : 'custom:');
+              }
             } else {
               onChange(val);
               onEndDateChange(null);
@@ -1395,7 +1403,7 @@ function BookingForm({date,onSubmit,onBack,loading,bookings,exceptions,T}) {
       </div>
       <div style={{background:T.card,border:`0.5px solid ${T.border}`,borderRadius:12,padding:14}}>
         <RecurrencePicker recurrence={recurrence} onChange={r=>{setRecurrence(r);setEndDate(null);}}
-          endDate={endDate} onEndDateChange={setEndDate} T={T}/>
+          endDate={endDate} onEndDateChange={setEndDate} defaultDate={iso} T={T}/>
       </div>
       <Textarea label="ANTECKNINGAR" value={notes} onChange={setNotes}
         placeholder="Lägg till anteckningar..." T={T}/>
@@ -2106,7 +2114,7 @@ function AdminAddForm({bookings,exceptions,onSubmit,onClose,onOpenDetail,T}) {
           </div>
           {/* Upprepning */}
           <RecurrencePicker value={recurrence} onChange={setRecurrence}
-            endDate={endDate} onEndDateChange={setEndDate} T={T}/>
+            endDate={endDate} onEndDateChange={setEndDate} defaultDate={iso} T={T}/>
           {/* Fält */}
           <div style={{marginTop:14,display:'flex',flexDirection:'column',gap:0}}>
             <Textarea label="NAMN PÅ ANSVARIG PERSON" value={form.name}
@@ -2231,7 +2239,7 @@ function AdminEditSheet({booking, bookings, exceptions, onSave, onCancel, T}) {
           </div>
           {/* Recurrence */}
           <RecurrencePicker value={recurrence} onChange={setRecurrence}
-            endDate={endDate} onEndDateChange={setEndDate} T={T}/>
+            endDate={endDate} onEndDateChange={setEndDate} defaultDate={iso} T={T}/>
           {/* Fields */}
           <div style={{marginTop:14,display:'flex',flexDirection:'column',gap:0}}>
             <Textarea label="NAMN PÅ ANSVARIG PERSON" value={form.name}
@@ -3325,16 +3333,16 @@ export default function BookingScreen({
     activateForDevice?.();
     localStorage.setItem(STORAGE_PHONE,normalizePhone(formData.phone));
     if(!queued){
-      // Online: add to state immediately + handle skip exceptions in hook's onSuccess
-      setBookings(prev=>[booking,...prev]);
+      // Online: onSuccess callback in useOfflineBooking already adds booking to state
+      // Exceptions are handled by onSuccess too — just show toast
       if(skipDates.length>0){
         const excs=skipDates.map(date=>({id:uid(),booking_id:booking.id,exception_date:date,type:'skip',created_at:Date.now()}));
         setExceptions(prev=>[...prev,...excs]);
       }
       showToast(skipDates.length>0?`Förfrågan skickad — ${skipDates.length} krockar hoppades över!`:'Bokningsförfrågan skickad!');
     } else {
-      // Offline: add optimistically to local state so calendar shows it
-      setBookings(prev=>[booking,...prev]);
+      // Offline: add optimistically so calendar shows it immediately
+      setBookings(prev=>prev.some(b=>b.id===booking.id)?prev:[booking,...prev]);
       if(skipDates.length>0){
         const excs=skipDates.map(date=>({id:uid(),booking_id:booking.id,exception_date:date,type:'skip',created_at:Date.now()}));
         setExceptions(prev=>[...prev,...excs]);
