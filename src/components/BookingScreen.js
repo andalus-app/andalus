@@ -1158,11 +1158,30 @@ function DayPanelCard({occ, isOwn, isAdmin, onPress, onSwipeDelete, T}) {
   );
 }
 
-function DayPanel({date,bookings,exceptions,isAdmin,myBookingIds,onSelectBooking,onNewBooking,onSwipeDelete,T}) {
+function DayPanel({date,bookings,exceptions,isAdmin,myBookingIds,onSelectBooking,onNewBooking,onSwipeDelete,dbLoading,T}) {
   const iso=toISO(date);
-  const occs=useMemo(()=>getOccurrencesForDate(bookings,exceptions,iso),[bookings,exceptions,iso]);
+  const occs=useMemo(()=>{
+    const raw=getOccurrencesForDate(bookings,exceptions,iso);
+    return [...raw].sort((a,b)=>{
+      const tA=a.time_slot?.split(/[-–]/)[0]?.trim()||'';
+      const tB=b.time_slot?.split(/[-–]/)[0]?.trim()||'';
+      return tA.localeCompare(tB);
+    });
+  },[bookings,exceptions,iso]);
   const today=new Date();today.setHours(0,0,0,0);
   const isToday=date.getTime()===today.getTime();
+  // Skeleton shimmer for initial load
+  const SkeletonRow=({isDark})=>(
+    <div style={{height:68,borderRadius:14,marginBottom:8,
+      background:isDark?'#1C1C1E':'#F2F2F7',overflow:'hidden',position:'relative'}}>
+      <div style={{position:'absolute',inset:0,
+        background:isDark
+          ?'linear-gradient(90deg,#1C1C1E 25%,#2C2C2E 50%,#1C1C1E 75%)'
+          :'linear-gradient(90deg,#F2F2F7 25%,#E5E5EA 50%,#F2F2F7 75%)',
+        backgroundSize:'400px 100%',
+        animation:'bsShimmer 1.4s ease-in-out infinite'}}/>
+    </div>
+  );
   return <div style={{paddingLeft:20,paddingRight:20,paddingTop:8}}>
     <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:12}}>
       <div style={{display:'flex',alignItems:'center',gap:8}}>
@@ -1204,7 +1223,20 @@ function DayPanel({date,bookings,exceptions,isAdmin,myBookingIds,onSelectBooking
         </button>;
       })()}
     </div>
-    {occs.length===0?(
+    {dbLoading&&occs.length===0?(
+      <div style={{marginTop:4}}>
+        <style>{`@keyframes bsShimmer{0%{background-position:-400px 0}100%{background-position:400px 0}}`}</style>
+        {[1,2].map(i=>(
+          <div key={i} style={{height:68,borderRadius:14,marginBottom:8,overflow:'hidden',position:'relative',
+            background:T.isDark?'#1C1C1E':'#F2F2F7'}}>
+            <div style={{position:'absolute',inset:0,backgroundSize:'400px 100%',animation:'bsShimmer 1.4s ease-in-out infinite',
+              background:T.isDark
+                ?'linear-gradient(90deg,#1C1C1E 25%,#2C2C2E 50%,#1C1C1E 75%)'
+                :'linear-gradient(90deg,#F2F2F7 25%,#E5E5EA 50%,#F2F2F7 75%)'}}/>
+          </div>
+        ))}
+      </div>
+    ):occs.length===0?(
       <div style={{textAlign:'center',paddingTop:32,paddingBottom:20,
         fontSize:22,fontWeight:700,color:T.textMuted,fontFamily:'system-ui',
         letterSpacing:'-.3px'}}>Inga aktiviteter</div>
@@ -1843,7 +1875,14 @@ function AdminAddForm({bookings,exceptions,onSubmit,onClose,onOpenDetail,T}) {
   const bookedBlocks=useMemo(()=>getBookedBlocks(bookings,exceptions,iso),[bookings,exceptions,iso]);
   const dH=endH+endM/60-startH-startM/60;
   const slot=slotFromHM(startH,startM,endH===CLOSE_HOUR?0:endH,endM);
-  const occs=useMemo(()=>getOccurrencesForDate(bookings,exceptions,iso),[bookings,exceptions,iso]);
+  const occs=useMemo(()=>{
+    const raw=getOccurrencesForDate(bookings,exceptions,iso);
+    return [...raw].sort((a,b)=>{
+      const tA=a.time_slot?.split(/[-–]/)[0]?.trim()||'';
+      const tB=b.time_slot?.split(/[-–]/)[0]?.trim()||'';
+      return tA.localeCompare(tB);
+    });
+  },[bookings,exceptions,iso]);
 
   const navigate=dir=>{
     if(navInProgressRef.current) return;
@@ -2122,7 +2161,7 @@ function AdminAddForm({bookings,exceptions,onSubmit,onClose,onOpenDetail,T}) {
               bookedBlocks={bookedBlocks} isStart={false} pairedHour={startH} pairedMinute={startM} T={T}/>
           </div>
           {/* Upprepning */}
-          <RecurrencePicker value={recurrence} onChange={setRecurrence}
+          <RecurrencePicker recurrence={recurrence} onChange={setRecurrence}
             endDate={endDate} onEndDateChange={setEndDate} defaultDate={iso} T={T}/>
           {/* Fält */}
           <div style={{marginTop:14,display:'flex',flexDirection:'column',gap:0}}>
@@ -2247,7 +2286,7 @@ function AdminEditSheet({booking, bookings, exceptions, onSave, onCancel, T}) {
               bookedBlocks={bookedBlocks} isStart={false} pairedHour={startH} pairedMinute={startM} T={T}/>
           </div>
           {/* Recurrence */}
-          <RecurrencePicker value={recurrence} onChange={setRecurrence}
+          <RecurrencePicker recurrence={recurrence} onChange={setRecurrence}
             endDate={endDate} onEndDateChange={setEndDate} defaultDate={iso} T={T}/>
           {/* Fields */}
           <div style={{marginTop:14,display:'flex',flexDirection:'column',gap:0}}>
@@ -3506,6 +3545,10 @@ export default function BookingScreen({
     localStorage.setItem(STORAGE_USER_ID,user.id);
     localStorage.setItem(STORAGE_USER_NAME,user.name);
     localStorage.setItem(STORAGE_USER_ROLE,user.role);
+    // Fetch bookings immediately after login — no page refresh needed
+    setDbLoading(true);
+    hasFetchedRef.current=false;
+    fetchAll().then(()=>{hasFetchedRef.current=true;});
     if(user.role==='admin'){
       localStorage.setItem(STORAGE_ADMIN,'true');
       setAdminMode(true);
@@ -3518,7 +3561,7 @@ export default function BookingScreen({
       setView('calendar');
       showToast(`Välkommen, ${user.name}`);
     }
-  },[showToast,registerAdminDevice]);
+  },[showToast,registerAdminDevice,fetchAll]);
 
   const handleAdminLogout=useCallback(()=>{
     localStorage.removeItem(STORAGE_ADMIN);
@@ -3640,6 +3683,7 @@ export default function BookingScreen({
       <DayPanel date={selectedDate} bookings={bookings} exceptions={exceptions}
         isAdmin={adminMode}
         myBookingIds={myBookingIds}
+        dbLoading={dbLoading}
         onSwipeDelete={o=>{
           const parent=bookings.find(b=>b.id===o.id)||o;
           const userId=localStorage.getItem(STORAGE_USER_ID);
