@@ -687,7 +687,7 @@ function RecurrencePicker({recurrence,onChange,endDate,onEndDateChange,defaultDa
           }} style={{
             padding:'8px 12px',borderRadius:20,border:'none',cursor:'pointer',
             background:sel?'#24645d':'none',
-            color:sel?'#fff':'inherit',
+            color:sel?'#fff':T.text,
             fontWeight:sel?700:500,fontSize:13,
             fontFamily:'system-ui',
             WebkitTapHighlightColor:'transparent',
