@@ -1728,7 +1728,7 @@ function MyBookings({bookings,exceptions,loading,onBack,onCancel,onCancelFromDat
 }
 
 // ─── Admin Add Form ──────────────────────────────────────────────────────────
-function AdminAddForm({bookings,exceptions,onSubmit,onClose,T}) {
+function AdminAddForm({bookings,exceptions,onSubmit,onClose,onOpenDetail,T}) {
   const today=new Date();today.setHours(0,0,0,0);
   const[step,setStep]=useState('date');
   const[showYearPicker,setShowYearPicker]=useState(false);
@@ -1968,9 +1968,11 @@ function AdminAddForm({bookings,exceptions,onSubmit,onClose,T}) {
             const sc={approved:'#34C759',edited:'#34C759',pending:'#FF9F0A',
               edit_pending:'#FF9F0A',cancelled:'#8E8E93',rejected:'#FF3B30'}[o.status]||T.accent;
             return <div key={o.id+(o.date||'')}
+              onClick={()=>onOpenDetail&&onOpenDetail(bookings.find(b=>b.id===o.id)||o,o.date)}
               style={{background:T.card,border:`0.5px solid ${T.border}`,
                 borderRadius:14,padding:'12px 14px',
-                display:'flex',alignItems:'flex-start',gap:12}}>
+                display:'flex',alignItems:'flex-start',gap:12,
+                cursor:'pointer',WebkitTapHighlightColor:'transparent'}}>
               <div style={{width:4,borderRadius:2,alignSelf:'stretch',flexShrink:0,background:sc}}/>
               <div style={{flex:1,minWidth:0}}>
                 <div style={{fontSize:15,fontWeight:600,color:T.text,fontFamily:'system-ui',marginBottom:2}}>{o.activity}</div>
@@ -2014,7 +2016,7 @@ function AdminAddForm({bookings,exceptions,onSubmit,onClose,T}) {
           style={{padding:'14px',borderRadius:12,border:'none',
             background:T.accent,color:'#fff',fontSize:15,fontWeight:700,
             cursor:'pointer',WebkitTapHighlightColor:'transparent'}}>
-          Välj tid →
+          Nästa: Detaljer →
         </button>
         <button onClick={()=>setStep('date')}
           style={{padding:'13px',borderRadius:12,border:`0.5px solid ${T.border}`,
@@ -2024,7 +2026,7 @@ function AdminAddForm({bookings,exceptions,onSubmit,onClose,T}) {
     </div>}
     {step==='details'&&<div style={{padding:'16px 20px'}}>
       <div style={{fontSize:12,fontWeight:700,color:T.textMuted,marginBottom:12,letterSpacing:'.3px'}}>
-        {isoToDisplay(iso)} {slot} — DETALJER
+        {isoToDisplay(iso)} · {slot} — FYLL I UPPGIFTER
       </div>
       <Textarea label="NAMN" value={form.name} onChange={v=>setForm(p=>({...p,name:v}))} placeholder="Bokningens namn" T={T}/>
       <Textarea label="TELEFON" value={form.phone} onChange={v=>setForm(p=>({...p,phone:v}))} placeholder="07X-XXX XX XX" T={T}/>
@@ -2041,7 +2043,7 @@ function AdminAddForm({bookings,exceptions,onSubmit,onClose,T}) {
           style={{padding:'14px',borderRadius:12,border:'none',
             background:loading?T.textTertiary:T.success,color:'#fff',fontSize:15,fontWeight:700,
             cursor:loading?'default':'pointer',WebkitTapHighlightColor:'transparent'}}>
-          {loading?'Sparar…':'Bekräfta bokning'}
+          {loading?'Sparar…':'Boka aktivitet'}
         </button>
         <button onClick={()=>setStep('time')}
           style={{padding:'13px',borderRadius:12,border:`0.5px solid ${T.border}`,
@@ -2460,7 +2462,14 @@ function AdminPanel({bookings,exceptions,onBack,onApprove,onReject,onDelete,onDe
     </div>
     {addForm!==null&&<AdminAddForm bookings={bookings} exceptions={exceptions}
       onSubmit={async data=>{await onAdminAddRecurring(data);setAddForm(null);}}
-      onClose={()=>setAddForm(null)} T={T}/>}
+      onClose={()=>setAddForm(null)}
+      onOpenDetail={(b,date)=>{
+        setAddForm(null);
+        setInternalAdminHighlight(b.id);
+        setBookingDetail(b);
+        if(date) setClickedOccurrenceDate(date);
+      }}
+      T={T}/>}
   </div>;
 }
 
