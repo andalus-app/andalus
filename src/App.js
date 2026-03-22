@@ -229,8 +229,8 @@ function Shell() {
       const el = tabScrollRef.current;
       if (el) {
         // Temporarily widen the 6th button to peek, then hide it again
-        el.classList.add('tab-nudging');
-        setTimeout(() => el.classList.remove('tab-nudging'), 1200);
+        el.scrollTo({ left: 48, behavior: 'smooth' });
+        setTimeout(() => el.scrollTo({ left: 0, behavior: 'smooth' }), 700);
       }
       setTimeout(() => setNudging(false), 1200);
       try { localStorage.setItem(nudgeDoneKey, Date.now().toString()); } catch {}
@@ -276,8 +276,27 @@ function Shell() {
   const [bookingRefreshKey, setBookingRefreshKey] = useState(0);
   // Track active tab index for sliding highlight
   const activeTabIndex = TABS.findIndex(t => t.id === tab);
-  // For pill, clamp to visible tabs (pill lives in the visible portion)
   const visibleTabIndex = Math.min(activeTabIndex, VISIBLE_TABS - 1);
+  const [tabPillWidth, setTabPillWidth] = useState(0);
+  const [tabPillLeft, setTabPillLeft] = useState(0);
+  const tabRefs = useRef([]);
+
+  // Measure actual tab button positions for pill
+  useEffect(() => {
+    const updatePill = () => {
+      const btn = tabRefs.current[visibleTabIndex];
+      if (!btn) return;
+      const rect = btn.getBoundingClientRect();
+      const parentRect = btn.parentElement?.getBoundingClientRect();
+      if (!parentRect) return;
+      const relLeft = rect.left - parentRect.left;
+      setTabPillLeft(relLeft + 4);
+      setTabPillWidth(rect.width - 8);
+    };
+    updatePill();
+    window.addEventListener('resize', updatePill);
+    return () => window.removeEventListener('resize', updatePill);
+  }, [visibleTabIndex, tab]);
   const [adminInitialFilter, setAdminInitialFilter] = useState(null);
 
   const [highlightBookingId, setHighlightBookingId] = useState(null);
@@ -419,59 +438,57 @@ function Shell() {
         padding: '6px 0',
         zIndex: 200,
         transition: 'transform 0.35s cubic-bezier(0.4, 0, 0.2, 1)',
-        overflow: 'hidden',
+        overflow: 'visible',
       }}>
         <style>{`
           @keyframes liveDot{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.4;transform:scale(.65)}}
           @keyframes liveRing{0%{box-shadow:0 0 0 0 rgba(255,0,0,0.7)}70%{box-shadow:0 0 0 5px rgba(255,0,0,0)}100%{box-shadow:0 0 0 0 rgba(255,0,0,0)}}
           @keyframes cityFadeIn{from{opacity:0;transform:translateY(5px)}to{opacity:1;transform:translateY(0)}}
-          @keyframes tabNudge{0%{transform:translateX(0)}30%{transform:translateX(-32px)}70%{transform:translateX(-32px)}100%{transform:translateX(0)}}
           .tab-scroll::-webkit-scrollbar { display: none; }
-          .tab-nudging { animation: tabNudge 1.1s cubic-bezier(0.4,0,0.2,1) forwards; overflow: visible !important; }
-          .tab-nudging .tab-peek { max-width: 36px !important; opacity: 1 !important; flex: 0 0 36px !important; }
         `}</style>
 
-        {/* Tab scroll container — shows 5 tabs, 6th hidden (revealed by nudge) */}
+        {/* Tab scroll container */}
         <div
           ref={tabScrollRef}
           className="tab-scroll"
           style={{
             display: 'flex',
-            overflowX: 'hidden',
+            overflowX: 'auto',
             overflowY: 'hidden',
+            scrollbarWidth: 'none',
+            msOverflowStyle: 'none',
+            WebkitOverflowScrolling: 'touch',
             padding: '0',
             gap: 0,
             position: 'relative',
-            width: '100%',
           }}
         >
-          {/* Sliding highlight pill — 1/5 of container width */}
-          <div aria-hidden style={{
+          {/* Sliding highlight pill — measured from actual button positions */}
+          {tabPillWidth > 0 && <div aria-hidden style={{
             position: 'absolute',
             top: 6, bottom: 6,
-            width: 'calc(20% - 8px)',
-            left: `calc(${Math.min(activeTabIndex, VISIBLE_TABS - 1)} * 20% + 4px)`,
+            width: tabPillWidth,
+            left: tabPillLeft,
             borderRadius: 22,
             background: T.isDark ? 'rgba(255,255,255,0.08)' : 'rgba(36,100,93,0.09)',
-            transition: 'left 0.42s cubic-bezier(0.4, 0, 0.2, 1)',
+            transition: 'left 0.42s cubic-bezier(0.4, 0, 0.2, 1), width 0.42s cubic-bezier(0.4,0,0.2,1)',
             pointerEvents: 'none',
             zIndex: 0,
-          }}/>
+          }}/>}
           {TABS.map(t => {
             const active = tab === t.id;
             const idx = TABS.indexOf(t);
             return (
               <button
                 key={t.id}
-                className={idx >= VISIBLE_TABS ? 'tab-peek' : undefined}
+                ref={el => { if (idx < VISIBLE_TABS) tabRefs.current[idx] = el; }}
                 onClick={() => handleTabPress(t.id)}
                 style={{
-                  flex: idx < VISIBLE_TABS ? '1 1 0' : '0 0 0px',
-                  minWidth: 0,
-                  maxWidth: idx < VISIBLE_TABS ? undefined : 0,
+                  flex: idx < VISIBLE_TABS ? '1 1 0' : '0 0 56px',
+                  minWidth: idx < VISIBLE_TABS ? 0 : 56,
+                  maxWidth: idx < VISIBLE_TABS ? undefined : 56,
                   overflow: 'hidden',
-                  opacity: idx < VISIBLE_TABS ? 1 : 0,
-                  pointerEvents: idx < VISIBLE_TABS ? 'auto' : 'none',
+                  opacity: 1,
                   display: 'flex', flexDirection: 'column',
                   alignItems: 'center', gap: 3, padding: '7px 4px',
                   background: 'none',

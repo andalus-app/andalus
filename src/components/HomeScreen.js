@@ -203,7 +203,7 @@ export default function HomeScreen({ onMonthlyPress }) {
       // Still try to refresh in background silently
     }
 
-    dispatch({ type: 'SET_LOADING', payload: !cached }); // spinner only if no cache
+    dispatch({ type: 'SET_LOADING', payload: !cached && !prayerTimes }); // spinner only if truly no data
     dispatch({ type: 'SET_ERROR',   payload: null });
     try {
       const [todayRes, tomorrowTimings] = await Promise.all([
@@ -344,9 +344,16 @@ export default function HomeScreen({ onMonthlyPress }) {
             </div>
           )}
           {detecting ? (
-            <span style={{ fontSize:17, fontWeight:700, color:T.text, lineHeight:1.3, fontFamily:"'Inter',system-ui,sans-serif" }}>
-              Hämtar plats…
-            </span>
+            <div style={{ display:'flex', alignItems:'center', justifyContent:'center', gap:8, padding:'4px 0' }}>
+              <div style={{
+                width:16, height:16, borderRadius:'50%',
+                border:`2px solid ${T.border}`,
+                borderTopColor:T.accent,
+                animation:'spin .7s linear infinite',
+                flexShrink:0,
+              }}/>
+              <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
+            </div>
           ) : location ? (() => {
             const parts = location.city.split(',').map(s => s.trim());
             const suburb = parts.length > 1 ? parts[0] : null;
