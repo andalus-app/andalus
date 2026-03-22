@@ -229,7 +229,7 @@ function Shell() {
       const el = tabScrollRef.current;
       if (el) {
         // Temporarily widen the 6th button to peek, then hide it again
-        el.scrollTo({ left: 48, behavior: 'smooth' });
+        el.scrollTo({ left: 62, behavior: 'smooth' });
         setTimeout(() => el.scrollTo({ left: 0, behavior: 'smooth' }), 700);
       }
       setTimeout(() => setNudging(false), 1200);
@@ -438,7 +438,7 @@ function Shell() {
         padding: '6px 0',
         zIndex: 200,
         transition: 'transform 0.35s cubic-bezier(0.4, 0, 0.2, 1)',
-        overflow: 'visible',
+        overflow: 'hidden',
       }}>
         <style>{`
           @keyframes liveDot{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.4;transform:scale(.65)}}
@@ -447,7 +447,7 @@ function Shell() {
           .tab-scroll::-webkit-scrollbar { display: none; }
         `}</style>
 
-        {/* Tab scroll container */}
+        {/* Tab scroll container — first 5 tabs fill width equally, 6th peeks when scrolled */}
         <div
           ref={tabScrollRef}
           className="tab-scroll"
@@ -463,7 +463,6 @@ function Shell() {
             position: 'relative',
           }}
         >
-          {/* Sliding highlight pill — measured from actual button positions */}
           {tabPillWidth > 0 && <div aria-hidden style={{
             position: 'absolute',
             top: 6, bottom: 6,
@@ -471,7 +470,7 @@ function Shell() {
             left: tabPillLeft,
             borderRadius: 22,
             background: T.isDark ? 'rgba(255,255,255,0.08)' : 'rgba(36,100,93,0.09)',
-            transition: 'left 0.42s cubic-bezier(0.4, 0, 0.2, 1), width 0.42s cubic-bezier(0.4,0,0.2,1)',
+            transition: 'left 0.42s cubic-bezier(0.4, 0, 0.2, 1)',
             pointerEvents: 'none',
             zIndex: 0,
           }}/>}
@@ -481,14 +480,12 @@ function Shell() {
             return (
               <button
                 key={t.id}
-                ref={el => { if (idx < VISIBLE_TABS) tabRefs.current[idx] = el; }}
+                ref={el => { tabRefs.current[idx] = el; }}
                 onClick={() => handleTabPress(t.id)}
                 style={{
-                  flex: idx < VISIBLE_TABS ? '1 1 0' : '0 0 56px',
-                  minWidth: idx < VISIBLE_TABS ? 0 : 56,
-                  maxWidth: idx < VISIBLE_TABS ? undefined : 56,
-                  overflow: 'hidden',
-                  opacity: 1,
+                  flex: idx < VISIBLE_TABS ? '1 1 0' : '0 0 64px',
+                  minWidth: idx < VISIBLE_TABS ? 0 : 64,
+                  maxWidth: idx < VISIBLE_TABS ? undefined : 64,
                   display: 'flex', flexDirection: 'column',
                   alignItems: 'center', gap: 3, padding: '7px 4px',
                   background: 'none',
@@ -597,7 +594,7 @@ function Shell() {
                     )}
                   </div>
                 )}
-                {TABS.indexOf(t) < VISIBLE_TABS && <span style={{
+                <span style={{
                   fontSize: 9, fontWeight: active ? 600 : 500,
                   letterSpacing: '.3px',
                   color: t.id === 'home' && isLive
@@ -609,7 +606,7 @@ function Shell() {
                   whiteSpace: 'nowrap',
                   fontFamily: "'Inter',system-ui,sans-serif",
                   transition: 'all .2s',
-                }}>{t.id === 'home' && isLive ? 'LIVE' : t.id === 'home' && isUpcoming ? 'Snart' : t.label}</span>}
+                }}>{t.id === 'home' && isLive ? 'LIVE' : t.id === 'home' && isUpcoming ? 'Snart' : t.label}</span>
               </button>
             );
           })}

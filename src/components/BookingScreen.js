@@ -1740,7 +1740,7 @@ function MyBookings({bookings,exceptions,loading,onBack,onCancel,onCancelFromDat
 // ─── Admin Add Form ──────────────────────────────────────────────────────────
 function AdminAddForm({bookings,exceptions,onSubmit,onClose,onOpenDetail,T}) {
   const today=new Date();today.setHours(0,0,0,0);
-  // Single-page form — no steps
+  // Calendar state
   const[showYearPicker,setShowYearPicker]=useState(false);
   const[yearPickerYear,setYearPickerYear]=useState(today.getFullYear());
   const[anchor,setAnchor]=useState(()=>new Date(today.getFullYear(),today.getMonth(),1));
@@ -1748,6 +1748,8 @@ function AdminAddForm({bookings,exceptions,onSubmit,onClose,onOpenDetail,T}) {
   const[slideDir,setSlideDir]=useState(null);
   const[incomingDir,setIncomingDir]=useState(null);
   const[selectedDate,setSelectedDate]=useState(today);
+  // Form sheet state
+  const[showForm,setShowForm]=useState(false);
   const[startH,setStartH]=useState(OPEN_HOUR);
   const[startM,setStartM]=useState(0);
   const[endH,setEndH]=useState(OPEN_HOUR+1);
@@ -1809,17 +1811,25 @@ function AdminAddForm({bookings,exceptions,onSubmit,onClose,onOpenDetail,T}) {
   const isSel_=d=>{if(!d)return false;const c=new Date(d);c.setHours(0,0,0,0);return c.getTime()===selectedDate.getTime();};
   const hasB_=d=>d&&hasBookingsOnDate(bookings,exceptions,toISO(d));
 
-  return <div style={{position:'fixed',inset:0,background:T.bg,zIndex:2500,
-    display:'flex',flexDirection:'column'}} onClick={e=>e.target===e.currentTarget&&onClose()}>
+  const openForm=()=>{
+    setForm({name:'',phone:'',activity:'',notes:''});
+    setStartH(OPEN_HOUR);setStartM(0);setEndH(OPEN_HOUR+1);setEndM(0);
+    setRecurrence('none');setEndDate(null);
+    setShowForm(true);
+    _tabBarCallbacks.hide?.();
+  };
+  const closeForm=()=>{setShowForm(false);_tabBarCallbacks.show?.();};
+
+  return <div style={{position:'fixed',inset:0,background:T.bg,zIndex:2500,display:'flex',flexDirection:'column'}}>
     <HideTabBar/>
-    {/* Fixed header — year + nav + month title + day labels */}
-    <div style={{background:T.bg,flexShrink:0,
-      paddingTop:'max(16px,env(safe-area-inset-top,16px))'}}>
+    {/* ── Fixed header ── */}
+    <div style={{background:T.bg,flexShrink:0,paddingTop:'max(16px,env(safe-area-inset-top,16px))'}}>
       <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',
         paddingLeft:20,paddingRight:20,paddingBottom:4}}>
-        <button onClick={onClose} style={{background:'none',border:'none',cursor:'pointer',
-          color:T.accent,fontSize:16,padding:0,WebkitTapHighlightColor:'transparent',
-          display:'flex',alignItems:'center',gap:4}}>
+        <button onClick={onClose}
+          style={{background:'none',border:'none',cursor:'pointer',color:T.accent,
+            fontSize:16,padding:0,WebkitTapHighlightColor:'transparent',
+            display:'flex',alignItems:'center',gap:4}}>
           <svg width="8" height="14" viewBox="0 0 8 14" fill="none">
             <path d="M7 1L1 7l6 6" stroke={T.accent} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
           </svg>
@@ -1836,51 +1846,48 @@ function AdminAddForm({bookings,exceptions,onSubmit,onClose,onOpenDetail,T}) {
           <span style={{fontSize:15,fontWeight:500}}>{anchor.getFullYear()}</span>
         </button>
       </div>
-      <>
-        <div style={{paddingLeft:20,paddingRight:20,
-          display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:4}}>
-          {['prev','next'].map((dir,i)=>i===0?<button key={dir} onClick={()=>navigate(dir)}
-            style={{width:34,height:34,borderRadius:'50%',border:'none',
-              background:T.cardElevated,display:'flex',alignItems:'center',
-              justifyContent:'center',cursor:'pointer',color:T.text,WebkitTapHighlightColor:'transparent'}}>
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none"
-              stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-              <polyline points="15 18 9 12 15 6"/>
-            </svg>
-          </button>:null)}
-          <div style={{overflow:'hidden',flex:1,height:36,marginLeft:8}}>
-            <div key={displayAnchor.getMonth()+'_'+displayAnchor.getFullYear()} style={{
-              fontSize:30,fontWeight:700,color:T.text,fontFamily:'system-ui',
-              letterSpacing:'-.8px',lineHeight:'36px',
-              animation:slideDir
-                ?(slideDir==='next'?'bsTitleSlideLeft 0.38s cubic-bezier(0.4,0,0.2,1) forwards':'bsTitleSlideRight 0.38s cubic-bezier(0.4,0,0.2,1) forwards')
-                :incomingDir
-                  ?(incomingDir==='next'?'bsTitleSlideInFromRight 0.38s cubic-bezier(0.4,0,0.2,1)':'bsTitleSlideInFromLeft 0.38s cubic-bezier(0.4,0,0.2,1)')
-                  :'none'}}>
-              {MONTHS_SV[displayAnchor.getMonth()]}
-            </div>
+      {/* Month + nav */}
+      <div style={{paddingLeft:20,paddingRight:20,
+        display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:4}}>
+        <button onClick={()=>navigate('prev')}
+          style={{width:34,height:34,borderRadius:'50%',border:'none',
+            background:T.cardElevated,display:'flex',alignItems:'center',
+            justifyContent:'center',cursor:'pointer',color:T.text,WebkitTapHighlightColor:'transparent'}}>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none"
+            stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+            <polyline points="15 18 9 12 15 6"/>
+          </svg>
+        </button>
+        <div style={{overflow:'hidden',flex:1,height:36,marginLeft:8}}>
+          <div key={displayAnchor.getMonth()+'_'+displayAnchor.getFullYear()} style={{
+            fontSize:30,fontWeight:700,color:T.text,fontFamily:'system-ui',
+            letterSpacing:'-.8px',lineHeight:'36px',
+            animation:slideDir
+              ?(slideDir==='next'?'bsTitleSlideLeft 0.38s cubic-bezier(0.4,0,0.2,1) forwards':'bsTitleSlideRight 0.38s cubic-bezier(0.4,0,0.2,1) forwards')
+              :incomingDir
+                ?(incomingDir==='next'?'bsTitleSlideInFromRight 0.38s cubic-bezier(0.4,0,0.2,1)':'bsTitleSlideInFromLeft 0.38s cubic-bezier(0.4,0,0.2,1)')
+                :'none'}}>
+            {MONTHS_SV[displayAnchor.getMonth()]}
           </div>
-          <button onClick={()=>navigate('next')}
-            style={{width:34,height:34,borderRadius:'50%',border:'none',
-              background:T.cardElevated,display:'flex',alignItems:'center',
-              justifyContent:'center',cursor:'pointer',color:T.text,WebkitTapHighlightColor:'transparent'}}>
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none"
-              stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-              <polyline points="9 18 15 12 9 6"/>
-            </svg>
-          </button>
         </div>
-        <div style={{display:'grid',gridTemplateColumns:'repeat(7,1fr)',
-          paddingLeft:8,paddingRight:8,marginBottom:4}}>
-          {DAYS_SV.map(d=><div key={d} style={{textAlign:'center',fontSize:12,fontWeight:600,
-            color:T.textMuted,fontFamily:'system-ui',letterSpacing:'.5px'}}>{d}</div>)}
-        </div>
-      </>
+        <button onClick={()=>navigate('next')}
+          style={{width:34,height:34,borderRadius:'50%',border:'none',
+            background:T.cardElevated,display:'flex',alignItems:'center',
+            justifyContent:'center',cursor:'pointer',color:T.text,WebkitTapHighlightColor:'transparent'}}>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none"
+            stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+            <polyline points="9 18 15 12 9 6"/>
+          </svg>
+        </button>
+      </div>
+      <div style={{display:'grid',gridTemplateColumns:'repeat(7,1fr)',paddingLeft:8,paddingRight:8,marginBottom:4}}>
+        {DAYS_SV.map(d=><div key={d} style={{textAlign:'center',fontSize:12,fontWeight:600,
+          color:T.textMuted,fontFamily:'system-ui',letterSpacing:'.5px'}}>{d}</div>)}
+      </div>
     </div>
-    {/* Scrollable content */}
+    {/* ── Scrollable content ── */}
     <div style={{flex:1,overflowY:'auto',WebkitOverflowScrolling:'touch',position:'relative'}}>
-    <>
-      {/* Calendar grid with swipe */}
+      {/* Calendar grid */}
       <div ref={gridRef}
         onTouchStart={e=>{swipeRef.current={x:e.touches[0].clientX,y:e.touches[0].clientY,locked:null};}}
         onTouchEnd={e=>{
@@ -1917,8 +1924,7 @@ function AdminAddForm({bookings,exceptions,onSubmit,onClose,onOpenDetail,T}) {
         ))}
       </div>
       {/* Legend + Today chip */}
-      <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',
-        padding:'8px 20px 12px'}}>
+      <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'8px 20px 12px'}}>
         <div style={{display:'flex',gap:12}}>
           {[[T.accent,'Bokad'],[T.calToday,'Idag']].map(([c,l])=>(
             <div key={l} style={{display:'flex',alignItems:'center',gap:4}}>
@@ -1929,11 +1935,9 @@ function AdminAddForm({bookings,exceptions,onSubmit,onClose,onOpenDetail,T}) {
         </div>
         <TodayChip onPress={goToToday} T={T}/>
       </div>
-      {/* Day panel — selected date activities */}
+      {/* ── Day panel ── */}
       <div style={{height:'0.5px',background:T.separator,margin:'0 0 8px'}}/>
-      {/* Day header row */}
-      <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',
-        padding:'8px 20px 12px'}}>
+      <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'8px 20px 12px'}}>
         <div style={{display:'flex',alignItems:'center',gap:8}}>
           <div style={{width:38,height:38,borderRadius:'50%',
             background:isToday_(selectedDate)?T.calToday:'none',
@@ -1953,8 +1957,8 @@ function AdminAddForm({bookings,exceptions,onSubmit,onClose,onOpenDetail,T}) {
             </div>
           </div>
         </div>
-        {/* + button to add booking for selected date */}
-        <button onClick={()=>{}}
+        {/* + knapp — öppnar bokningsformulär */}
+        <button onClick={openForm}
           style={{width:36,height:36,borderRadius:'50%',border:'none',
             background:T.accent,color:'#fff',
             display:'flex',alignItems:'center',justifyContent:'center',
@@ -1966,7 +1970,7 @@ function AdminAddForm({bookings,exceptions,onSubmit,onClose,onOpenDetail,T}) {
           </svg>
         </button>
       </div>
-      {/* Occurrences list */}
+      {/* Befintliga bokningar för vald dag */}
       {occs.length===0
         ?<div style={{textAlign:'center',paddingTop:24,paddingBottom:32,
           fontSize:22,fontWeight:700,color:T.textMuted,fontFamily:'system-ui',
@@ -1993,7 +1997,7 @@ function AdminAddForm({bookings,exceptions,onSubmit,onClose,onOpenDetail,T}) {
             </div>;
           })}
         </div>}
-      {/* YearView overlay */}
+      {/* Year picker overlay */}
       {showYearPicker&&<div style={{position:'fixed',inset:0,zIndex:3000,background:T.bg}}>
         <YearView year={yearPickerYear} bookings={bookings} exceptions={exceptions} T={T}
           onBack={()=>setShowYearPicker(false)}
@@ -2003,57 +2007,79 @@ function AdminAddForm({bookings,exceptions,onSubmit,onClose,onOpenDetail,T}) {
             setShowYearPicker(false);
           }}/>
       </div>}
-    {/* Single-page form — all fields below the calendar */}
-    <div style={{padding:'0 20px 16px'}}>
-      {/* Date + time summary */}
-      <div style={{fontSize:13,fontWeight:600,color:T.accent,marginBottom:12,letterSpacing:'.2px'}}>
-        {isoToDisplay(iso)}
-      </div>
-      {/* Time pickers */}
-      <div style={{background:T.card,border:`0.5px solid ${T.border}`,borderRadius:12,overflow:'hidden',marginBottom:14}}>
-        <TimeAccordion label="Startar" hour={startH} minute={startM}
-          onConfirm={(h,m)=>{setStartH(h);setStartM(m);if(endH+endM/60<=h+m/60){setEndH(Math.min(h+1,CLOSE_HOUR));setEndM(0);}}}
-          bookedBlocks={bookedBlocks} isStart={true} pairedHour={startH} pairedMinute={startM} T={T}/>
-        <div style={{height:'0.5px',background:T.separator}}/>
-        <TimeAccordion label="Slutar" hour={endH} minute={endM}
-          onConfirm={(h,m)=>{setEndH(h);setEndM(m);}}
-          bookedBlocks={bookedBlocks} isStart={false} pairedHour={startH} pairedMinute={startM} T={T}/>
-      </div>
-      {/* Recurrence */}
-      <RecurrencePicker value={recurrence} onChange={setRecurrence}
-        endDate={endDate} onEndDateChange={setEndDate} T={T}/>
-      {/* Contact + activity fields */}
-      <div style={{marginTop:14,display:'flex',flexDirection:'column',gap:0}}>
-        <Textarea label="NAMN PÅ ANSVARIG PERSON" value={form.name}
-          onChange={v=>setForm(p=>({...p,name:v}))} placeholder="För- och efternamn" T={T}/>
-        <Textarea label="TELEFON *" value={form.phone}
-          onChange={v=>setForm(p=>({...p,phone:v}))} placeholder="07X-XXX XX XX" T={T}/>
-        <Textarea label="AKTIVITET *" value={form.activity}
-          onChange={v=>setForm(p=>({...p,activity:v}))} placeholder="Vad ska lokalen användas till?" T={T}/>
-        <Textarea label="ANTECKNINGAR (valfritt)" value={form.notes}
-          onChange={v=>setForm(p=>({...p,notes:v}))} placeholder="Anteckningar..." T={T}/>
-      </div>
-      {/* Submit */}
-      <div style={{marginTop:16}}>
-        <button onClick={async()=>{
-            if(!form.name.trim()||!form.phone.trim()||!form.activity.trim()){
-              alert('Namn, telefon och aktivitet krävs.');return;
-            }
-            setLoading(true);
-            await onSubmit({...form,date:iso,time_slot:slot,duration_hours:Math.round(dH*100)/100,recurrence,end_date:endDate});
-            setLoading(false);
-          }}
-          disabled={loading}
-          style={{width:'100%',padding:'14px',borderRadius:12,border:'none',
-            background:loading?T.textTertiary:T.accent,color:'#fff',fontSize:15,fontWeight:700,
-            cursor:loading?'default':'pointer',WebkitTapHighlightColor:'transparent',
-            marginBottom:8}}>
-          {loading?'Sparar…':'Boka aktivitet'}
-        </button>
-      </div>
     </div>
-    </>
-    </div>{/* end scroll */}
+
+    {/* ── Bokningsformulär — bottom sheet ── */}
+    {showForm&&<div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.5)',zIndex:3000,
+      display:'flex',alignItems:'flex-end',justifyContent:'center',touchAction:'none'}}
+      onClick={e=>{if(e.target===e.currentTarget)closeForm();}}>
+      <div onClick={e=>e.stopPropagation()} style={{
+        background:T.sheetBg,borderRadius:'20px 20px 0 0',
+        width:'100%',maxWidth:500,boxSizing:'border-box',
+        maxHeight:'90vh',display:'flex',flexDirection:'column',
+        animation:'bsSlideUp .28s cubic-bezier(0.32,0.72,0,1)'}}>
+        {/* Sheet header */}
+        <div style={{padding:'20px 20px 0',flexShrink:0}}>
+          <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:16}}>
+            <div>
+              <div style={{fontSize:19,fontWeight:700,color:T.text}}>Ny aktivitet</div>
+              <div style={{fontSize:13,color:T.textMuted,marginTop:2}}>
+                {DAYS_FULL[(selectedDate.getDay()+6)%7]} {selectedDate.getDate()} {MONTHS_SV[selectedDate.getMonth()]} {selectedDate.getFullYear()}
+              </div>
+            </div>
+            <button onClick={closeForm}
+              style={{background:'none',border:'none',fontSize:22,color:T.textMuted,
+                cursor:'pointer',padding:'0 4px',lineHeight:1,WebkitTapHighlightColor:'transparent'}}>×</button>
+          </div>
+        </div>
+        {/* Scrollable form content */}
+        <div style={{flex:1,overflowY:'auto',padding:'0 20px',WebkitOverflowScrolling:'touch'}}>
+          {/* Tid */}
+          <div style={{background:T.card,border:`0.5px solid ${T.border}`,borderRadius:12,overflow:'hidden',marginBottom:14}}>
+            <TimeAccordion label="Startar" hour={startH} minute={startM}
+              onConfirm={(h,m)=>{setStartH(h);setStartM(m);if(endH+endM/60<=h+m/60){setEndH(Math.min(h+1,CLOSE_HOUR));setEndM(0);}}}
+              bookedBlocks={bookedBlocks} isStart={true} pairedHour={startH} pairedMinute={startM} T={T}/>
+            <div style={{height:'0.5px',background:T.separator}}/>
+            <TimeAccordion label="Slutar" hour={endH} minute={endM}
+              onConfirm={(h,m)=>{setEndH(h);setEndM(m);}}
+              bookedBlocks={bookedBlocks} isStart={false} pairedHour={startH} pairedMinute={startM} T={T}/>
+          </div>
+          {/* Upprepning */}
+          <RecurrencePicker value={recurrence} onChange={setRecurrence}
+            endDate={endDate} onEndDateChange={setEndDate} T={T}/>
+          {/* Fält */}
+          <div style={{marginTop:14,display:'flex',flexDirection:'column',gap:0}}>
+            <Textarea label="NAMN PÅ ANSVARIG PERSON" value={form.name}
+              onChange={v=>setForm(p=>({...p,name:v}))} placeholder="För- och efternamn" T={T}/>
+            <Textarea label="TELEFON *" value={form.phone}
+              onChange={v=>setForm(p=>({...p,phone:v}))} placeholder="07X-XXX XX XX" T={T}/>
+            <Textarea label="AKTIVITET *" value={form.activity}
+              onChange={v=>setForm(p=>({...p,activity:v}))} placeholder="Vad ska lokalen användas till?" T={T}/>
+            <Textarea label="ANTECKNINGAR (valfritt)" value={form.notes}
+              onChange={v=>setForm(p=>({...p,notes:v}))} placeholder="Anteckningar..." T={T}/>
+          </div>
+          {/* Submit */}
+          <div style={{marginTop:16,paddingBottom:'max(24px,env(safe-area-inset-bottom,16px))'}}>
+            <button onClick={async()=>{
+                if(!form.name.trim()||!form.phone.trim()||!form.activity.trim()){
+                  alert('Namn, telefon och aktivitet krävs.');return;
+                }
+                setLoading(true);
+                await onSubmit({...form,date:iso,time_slot:slot,duration_hours:Math.round(dH*100)/100,recurrence,end_date:endDate});
+                setLoading(false);
+                closeForm();
+              }}
+              disabled={loading}
+              style={{width:'100%',padding:'14px',borderRadius:12,border:'none',
+                background:loading?T.textTertiary:T.accent,color:'#fff',fontSize:15,fontWeight:700,
+                cursor:loading?'default':'pointer',WebkitTapHighlightColor:'transparent',
+                touchAction:'manipulation'}}>
+              {loading?'Sparar…':'Boka aktivitet'}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>}
   </div>;
 }
 
