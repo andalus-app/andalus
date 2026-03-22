@@ -162,13 +162,48 @@ export default function HomeScreen({ onMonthlyPress }) {
   // Use a ref to track what we last fetched — avoid re-fetching same coords
   const lastFetchRef = useRef(null);
 
+  // Cache key: location + method + school + date (expires daily)
+  const PRAYER_CACHE_KEY = 'prayer_times_cache';
+
+  const getCachedPrayers = (loc, method, school) => {
+    try {
+      const raw = JSON.parse(localStorage.getItem(PRAYER_CACHE_KEY) || 'null');
+      if (!raw) return null;
+      const key = `${loc.latitude.toFixed(4)},${loc.longitude.toFixed(4)},${method},${school}`;
+      if (raw.key !== key) return null;
+      // Accept cache if it's from today
+      if (raw.date !== getTodayDateStr()) return null;
+      return raw;
+    } catch { return null; }
+  };
+
+  const setCachedPrayers = (loc, method, school, todayTimings, tomTimings, hijri) => {
+    try {
+      const key = `${loc.latitude.toFixed(4)},${loc.longitude.toFixed(4)},${method},${school}`;
+      localStorage.setItem(PRAYER_CACHE_KEY, JSON.stringify({
+        key, date: getTodayDateStr(),
+        todayTimings, tomTimings, hijri,
+      }));
+    } catch {}
+  };
+
   const loadPrayers = useCallback(async (loc, method, school) => {
     if (!loc) return;
     const key = `${loc.latitude.toFixed(4)},${loc.longitude.toFixed(4)},${method},${school}`;
-    if (lastFetchRef.current === key) return; // already fetched this exact combo
+    if (lastFetchRef.current === key) return;
     lastFetchRef.current = key;
 
-    dispatch({ type: 'SET_LOADING', payload: true });
+    // Show cached data immediately if available — no loading flash
+    const cached = getCachedPrayers(loc, method, school);
+    if (cached) {
+      dispatch({ type: 'SET_PRAYER_TIMES',   payload: cached.todayTimings });
+      dispatch({ type: 'SET_TOMORROW_TIMES', payload: cached.tomTimings });
+      dispatch({ type: 'SET_HIJRI',          payload: cached.hijri });
+      dispatch({ type: 'SET_ERROR',          payload: null });
+      // Still try to refresh in background silently
+    }
+
+    dispatch({ type: 'SET_LOADING', payload: !cached }); // spinner only if no cache
     dispatch({ type: 'SET_ERROR',   payload: null });
     try {
       const [todayRes, tomorrowTimings] = await Promise.all([
@@ -180,13 +215,18 @@ export default function HomeScreen({ onMonthlyPress }) {
       dispatch({ type: 'SET_PRAYER_TIMES',   payload: todayTimings });
       dispatch({ type: 'SET_TOMORROW_TIMES', payload: tomTimings });
       dispatch({ type: 'SET_HIJRI',          payload: todayRes.hijri });
+      setCachedPrayers(loc, method, school, todayTimings, tomTimings, todayRes.hijri);
     } catch (e) {
-      lastFetchRef.current = null; // allow retry on error
-      dispatch({ type: 'SET_ERROR', payload: e.message });
+      lastFetchRef.current = null; // allow retry later
+      if (!cached) {
+        // No cache available — show a soft offline indicator (not an error)
+        dispatch({ type: 'SET_ERROR', payload: 'offline' });
+      }
+      // If we have cached data, just keep showing it silently — no error shown
     } finally {
       dispatch({ type: 'SET_LOADING', payload: false });
     }
-  }, [dispatch]);
+  }, [dispatch]); // eslint-disable-line
 
   useEffect(() => {
     if (location) {
@@ -346,12 +386,28 @@ export default function HomeScreen({ onMonthlyPress }) {
       </div>
 
       {/* Error */}
-      {error && (
-        <div style={{ padding:'9px 12px', borderRadius:10, border:'1px solid rgba(255,80,80,0.3)', background:'rgba(255,80,80,0.08)', marginBottom:8, fontSize:12, color:'#FF6B6B' }}>
-          ⚠️ {error}
+      {error === 'offline' && (
+        <div style={{
+          display:'flex', alignItems:'center', justifyContent:'space-between',
+          padding:'9px 14px', borderRadius:12,
+          background: T.isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.04)',
+          border: `1px solid ${T.border}`,
+          marginBottom:8,
+        }}>
+          <div style={{ display:'flex', alignItems:'center', gap:7 }}>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none"
+              stroke={T.textMuted} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M5 12.55a11 11 0 0 1 14.08 0"/><path d="M1.42 9a16 16 0 0 1 21.16 0"/>
+              <path d="M8.53 16.11a6 6 0 0 1 6.95 0"/><circle cx="12" cy="20" r="1" fill={T.textMuted}/>
+            </svg>
+            <span style={{ fontSize:12, color:T.textMuted, fontFamily:"'Inter',system-ui,sans-serif" }}>
+              Offline — visar senast hämtade tider
+            </span>
+          </div>
           <button onClick={() => { lastFetchRef.current = null; loadPrayers(location, settings.calculationMethod, settings.school); }}
-            style={{ marginLeft:6, color:T.accent, background:'none', border:'none', fontWeight:700, cursor:'pointer', fontSize:12 }}>
-            Försök igen
+            style={{ color:T.accent, background:'none', border:'none', fontWeight:600, cursor:'pointer', fontSize:12,
+              fontFamily:"'Inter',system-ui,sans-serif", padding:'2px 0', WebkitTapHighlightColor:'transparent' }}>
+            Uppdatera
           </button>
         </div>
       )}

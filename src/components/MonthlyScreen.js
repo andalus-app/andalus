@@ -263,7 +263,7 @@ export default function MonthlyScreen({ onBack }) {
                     {d.gregorianDay}
                   </div>
                   {ht && (
-                    <div style={{ fontSize:7, fontWeight:700, color:T.isDark?'rgba(0,0,0,.5)':'rgba(255,255,255,.5)', textTransform:'uppercase', letterSpacing:.4, marginTop:1 }}>
+                    <div style={{ fontSize:7, fontWeight:700, color:'rgba(255,255,255,0.85)', textTransform:'uppercase', letterSpacing:.4, marginTop:1 }}>
                       Idag
                     </div>
                   )}

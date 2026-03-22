@@ -464,9 +464,11 @@ function Shell() {
                 key={t.id}
                 onClick={() => handleTabPress(t.id)}
                 style={{
-                  flex: TABS.indexOf(t) < VISIBLE_TABS ? 1 : '0 0 auto',
-                  width: TABS.indexOf(t) >= VISIBLE_TABS ? 36 : undefined,
-                  minWidth: TABS.indexOf(t) < VISIBLE_TABS ? 0 : 36,
+                  flex: TABS.indexOf(t) < VISIBLE_TABS ? '1 1 0' : '0 0 28px',
+                  width: TABS.indexOf(t) >= VISIBLE_TABS ? 28 : undefined,
+                  minWidth: 0,
+                  maxWidth: TABS.indexOf(t) < VISIBLE_TABS ? undefined : 28,
+                  overflow: 'hidden',
                   display: 'flex', flexDirection: 'column',
                   alignItems: 'center', gap: 3, padding: '7px 4px',
                   background: 'none',
@@ -575,7 +577,7 @@ function Shell() {
                     )}
                   </div>
                 )}
-                <span style={{
+                {TABS.indexOf(t) < VISIBLE_TABS && <span style={{
                   fontSize: 9, fontWeight: active ? 600 : 500,
                   letterSpacing: '.3px',
                   color: t.id === 'home' && isLive
@@ -587,7 +589,7 @@ function Shell() {
                   whiteSpace: 'nowrap',
                   fontFamily: "'Inter',system-ui,sans-serif",
                   transition: 'all .2s',
-                }}>{t.id === 'home' && isLive ? 'LIVE' : t.id === 'home' && isUpcoming ? 'Snart' : t.label}</span>
+                }}>{t.id === 'home' && isLive ? 'LIVE' : t.id === 'home' && isUpcoming ? 'Snart' : t.label}</span>}
               </button>
             );
           })}
