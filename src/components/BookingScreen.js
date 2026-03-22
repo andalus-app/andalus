@@ -656,7 +656,7 @@ function RecurrencePicker({recurrence,onChange,endDate,onEndDateChange,T}) {
         </div>
       </div>
     </div>
-    {recurrence==='custom'&&<div style={{display:'flex',flexDirection:'column',gap:8}}>
+    {recurrence.startsWith('custom')&&<div style={{display:'flex',flexDirection:'column',gap:8}}>
       <label style={{fontSize:12,fontWeight:600,color:T.textMuted,fontFamily:'system-ui',letterSpacing:'.3px'}}>VÄLJ DAGAR</label>
       <div style={{display:'flex',gap:6,flexWrap:'wrap'}}>
         {['Måndag','Tisdag','Onsdag','Torsdag','Fredag','Lördag','Söndag'].map((dayName,i)=>{
