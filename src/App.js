@@ -161,29 +161,30 @@ function Shell() {
     let timer = null;
 
     const checkLocation = () => {
+      // If user has disabled auto GPS in settings, skip automatic fetch
+      try {
+        const stored = JSON.parse(localStorage.getItem('bonetiderState') || '{}');
+        if (stored.settings?.autoLocation === false) return;
+
+      } catch {}
+
       if (timer) clearTimeout(timer);
       timer = setTimeout(() => {
         navigator.geolocation.getCurrentPosition(
           async (pos) => {
             try {
               const { latitude, longitude } = pos.coords;
-              const current = locationRef.current;
-              const dist = current
-                ? haversineKm(current.latitude, current.longitude, latitude, longitude)
-                : Infinity;
-
-              if (dist >= SILENT_UPDATE_THRESHOLD_KM) {
-                const geo = await reverseGeocode(latitude, longitude);
-                dispatch({ type: 'SET_LOCATION', payload: { latitude, longitude, ...geo } });
-              }
+              // Always update — no distance threshold
+              const geo = await reverseGeocode(latitude, longitude);
+              dispatch({ type: 'SET_LOCATION', payload: { latitude, longitude, ...geo } });
             } catch {
-              // Fail silently — never show any error to user
+              // Fail silently
             }
           },
           () => { /* Denied or timed out — fail silently */ },
           { enableHighAccuracy: false, maximumAge: 0, timeout: 10000 }
         );
-      }, 10000);
+      }, 2000);
     };
 
     // Kör vid appstart
@@ -259,6 +260,8 @@ function Shell() {
 
   const [moreInitialView, setMoreInitialView] = useState(null);
   const [bookingRefreshKey, setBookingRefreshKey] = useState(0);
+  // Track active tab index for sliding highlight
+  const activeTabIndex = TABS.findIndex(t => t.id === tab);
   const [adminInitialFilter, setAdminInitialFilter] = useState(null);
 
   const [highlightBookingId, setHighlightBookingId] = useState(null);
@@ -364,6 +367,7 @@ function Shell() {
       display: 'flex', flexDirection: 'column',
       overflow: 'hidden', maxWidth: 500, margin: '0 auto',
       position: 'relative',
+      touchAction: 'pan-y',
     }}>
 
       <div ref={scrollContainerRef}
@@ -371,8 +375,7 @@ function Shell() {
         style={{
           flex: 1, overflowY: scrollLocked ? 'hidden' : 'auto', overflowX: 'hidden',
           WebkitOverflowScrolling: 'touch',
-          // Ingen paddingTop här — varje skärms header hanterar safe-area-inset-top själv
-          // Det förhindrar att bakgrunden syns ovanför sticky headers i PWA
+          overscrollBehavior: 'none', // prevents PWA scroll freeze on iOS
           paddingTop: 0,
           paddingBottom: effectiveTabBarVisible
             ? isPWA ? 'calc(env(safe-area-inset-bottom, 0px) + 82px)' : '90px'
@@ -405,6 +408,7 @@ function Shell() {
         <style>{`
           @keyframes liveDot{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.4;transform:scale(.65)}}
           @keyframes liveRing{0%{box-shadow:0 0 0 0 rgba(255,0,0,0.7)}70%{box-shadow:0 0 0 5px rgba(255,0,0,0)}100%{box-shadow:0 0 0 0 rgba(255,0,0,0)}}
+          @keyframes cityFadeIn{from{opacity:0;transform:translateY(5px)}to{opacity:1;transform:translateY(0)}}
           .tab-scroll::-webkit-scrollbar { display: none; }
         `}</style>
 
@@ -421,8 +425,24 @@ function Shell() {
             WebkitOverflowScrolling: 'touch',
             padding: '0 4px',
             gap: 0,
+            position: 'relative',
           }}
         >
+          {/* Sliding highlight pill */}
+          {activeTabIndex >= 0 && (() => {
+            const tabW = 72 + 4; // minWidth + gap
+            return <div aria-hidden style={{
+              position: 'absolute',
+              top: 6, bottom: 6,
+              width: 72,
+              left: 4 + activeTabIndex * tabW,
+              borderRadius: 22,
+              background: T.isDark ? 'rgba(255,255,255,0.07)' : 'rgba(36,100,93,0.08)',
+              transition: 'left 0.38s cubic-bezier(0.4, 0, 0.2, 1)',
+              pointerEvents: 'none',
+              zIndex: 0,
+            }}/>;
+          })()}
           {TABS.map(t => {
             const active = tab === t.id;
             return (
@@ -434,14 +454,12 @@ function Shell() {
                   minWidth: 72,
                   display: 'flex', flexDirection: 'column',
                   alignItems: 'center', gap: 3, padding: '7px 4px',
-                  background: active
-                    ? T.isDark ? 'rgba(255,255,255,0.07)' : 'rgba(36,100,93,0.08)'
-                    : 'none',
+                  background: 'none',
                   borderRadius: 22,
                   border: 'none', cursor: 'pointer',
                   fontFamily: "'Inter',system-ui,sans-serif",
                   WebkitTapHighlightColor: 'transparent',
-                  transition: 'background .2s',
+                  position: 'relative', zIndex: 1,
                 }}
               >
                 {t.type === 'custom' ? (

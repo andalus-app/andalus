@@ -325,7 +325,7 @@ export default function HomeScreen({ onMonthlyPress }) {
                     {suburb}
                   </div>
                 )}
-                <span style={{ fontSize:19, fontWeight:600, color:T.text, lineHeight:1.2, fontFamily:"'Inter',system-ui,sans-serif", letterSpacing:'-0.3px', maxWidth:'90%', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
+                <span key={city} style={{ fontSize:19, fontWeight:600, color:T.text, lineHeight:1.2, fontFamily:"'Inter',system-ui,sans-serif", letterSpacing:'-0.3px', maxWidth:'90%', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', animation:'cityFadeIn 0.6s ease' }}>
                   {city}
                 </span>
               </>

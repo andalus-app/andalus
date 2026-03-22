@@ -238,12 +238,14 @@ export default function MonthlyScreen({ onBack }) {
             position:'sticky', top:0, zIndex:10,
             display:'flex', alignItems:'center',
             padding:'6px 14px',
-            background:T.bgSecondary,
-            borderBottom:`1px solid ${T.border}`,
+            background: 'rgba(36,100,93,0.85)',
+            backdropFilter: 'blur(8px)',
+            WebkitBackdropFilter: 'blur(8px)',
+            borderBottom:'none',
           }}>
-            <div style={{ width:DAY_W, flexShrink:0, fontSize:8, fontWeight:700, color:T.textMuted, textTransform:'uppercase', letterSpacing:.5 }}>Dag</div>
+            <div style={{ width:DAY_W, flexShrink:0, fontSize:8, fontWeight:700, color:'rgba(255,255,255,0.8)', textTransform:'uppercase', letterSpacing:.5 }}>Dag</div>
             {COLS.map(c => (
-              <div key={c.key} style={cellStyle(true, false)}>{c.label}</div>
+              <div key={c.key} style={{...cellStyle(true, false), color:'#fff'}}>{c.label}</div>
             ))}
           </div>
           {days.map((d) => {
