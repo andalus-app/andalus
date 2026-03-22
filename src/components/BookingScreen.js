@@ -54,7 +54,16 @@ function buildCustomRecurrence(days) {
   if (!days || days.length === 0) return 'custom:';
   return 'custom:' + [...days].sort((a,b)=>a-b).join(',');
 }
-function fmtRecur(r) { return RECUR_OPTIONS.find(o=>o.value===r)?.label||r; }
+function fmtRecur(r) {
+  if(!r) return 'Ingen upprepning';
+  if(r.startsWith('custom:')) {
+    const days = parseCustomDays(r);
+    if(days.length === 0) return 'Anpassad (inga dagar valda)';
+    const names = ['Måndag','Tisdag','Onsdag','Torsdag','Fredag','Lördag','Söndag'];
+    return 'Anpassad: ' + days.map(d => names[d]).join(', ');
+  }
+  return RECUR_OPTIONS.find(o=>o.value===r)?.label || r;
+}
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 function toISO(d) {
