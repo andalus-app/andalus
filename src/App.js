@@ -415,19 +415,19 @@ function Shell() {
         zIndex: 200,
         transition: 'transform 0.35s cubic-bezier(0.4, 0, 0.2, 1)',
         overflow: 'hidden',
-        position: isPWA ? 'fixed' : 'absolute',
       }}>
         <style>{`
           @keyframes liveDot{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.4;transform:scale(.65)}}
           @keyframes liveRing{0%{box-shadow:0 0 0 0 rgba(255,0,0,0.7)}70%{box-shadow:0 0 0 5px rgba(255,0,0,0)}100%{box-shadow:0 0 0 0 rgba(255,0,0,0)}}
           @keyframes cityFadeIn{from{opacity:0;transform:translateY(5px)}to{opacity:1;transform:translateY(0)}}
-          @keyframes tabNudgeIn{0%{transform:translateX(100%);opacity:0}20%{transform:translateX(0);opacity:1}75%{transform:translateX(0);opacity:1}100%{transform:translateX(100%);opacity:0}}
+          @keyframes tabNudgeIn{0%{transform:translateX(110%)}30%{transform:translateX(0)}70%{transform:translateX(0)}100%{transform:translateX(110%)}}
+          .tab-scroll::-webkit-scrollbar{display:none}
         `}</style>
 
-        {/* ── 5 visible tabs — flex row, equal width ── */}
+        {/* 5 visible tabs in a plain flex row — equal width, no scroll */}
         <div style={{ display: 'flex', position: 'relative' }}>
 
-          {/* Sliding pill highlight — pure CSS, 1/5 of container */}
+          {/* Sliding pill — pure CSS, each tab is exactly 20% */}
           <div aria-hidden style={{
             position: 'absolute',
             top: 6, bottom: 6,
@@ -440,8 +440,7 @@ function Shell() {
             zIndex: 0,
           }}/>
 
-          {/* The 5 visible tabs */}
-          {TABS.slice(0, VISIBLE_TABS).map((t, idx) => {
+          {TABS.slice(0, VISIBLE_TABS).map((t) => {
             const active = tab === t.id;
             return (
               <button
@@ -459,7 +458,104 @@ function Shell() {
                   position: 'relative', zIndex: 1,
                 }}
               >
-''' + icon_block + '''                <span style={{
+                {t.type === 'custom' ? (
+                  <div style={{ position: 'relative', display: 'inline-flex' }}>
+                    {t.icon === 'booking' ? (
+                      <CalendarClockIcon
+                        size={22}
+                        color={active ? T.accent : T.isDark ? T.accent : T.text}
+                        style={{ opacity: active ? 1 : T.isDark ? 0.75 : 1, transition: 'all .2s' }}
+                      />
+                    ) : t.icon === 'ebooks' ? (
+                      <svg width="22" height="22" viewBox="0 0 24 24" fill="none"
+                        stroke={active ? T.accent : T.isDark ? T.accent : T.text}
+                        strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"
+                        style={{ opacity: active ? 1 : T.isDark ? 0.75 : 1, transition: 'all .2s' }}>
+                        <path d="M2 6s2-2 5-2 5 2 5 2v14s-2-1-5-1-5 1-5 1V6z"/>
+                        <path d="M12 6s2-2 5-2 5 2 5 2v14s-2-1-5-1-5 1-5 1V6z"/>
+                      </svg>
+                    ) : (
+                      <img
+                        src={t.icon === 'kaba' ? KabaIcon : t.icon === 'more' ? MoreAppIcon : PrayerTimesIcon}
+                        alt={t.label}
+                        style={{
+                          width: 24, height: 24, objectFit: 'contain',
+                          filter: active
+                            ? svgColorFilter(T.isDark)
+                            : T.isDark
+                              ? 'invert(48%) sepia(60%) saturate(400%) hue-rotate(120deg) brightness(90%)'
+                              : 'none',
+                          transition: 'filter .2s',
+                        }}
+                      />
+                    )}
+                    {/* Booking badge */}
+                    {t.id === 'booking' && (visitorUnread > 0 || adminPendingCount > 0 || cancelledUnread > 0) && (
+                      <div style={{ position: 'absolute', top: -3, right: -4, display: 'flex', gap: 2 }}>
+                        {adminPendingCount > 0 && (
+                          <div style={{
+                            minWidth: 14, height: 14, borderRadius: 7,
+                            background: '#f59e0b', color: '#fff',
+                            fontSize: 8, fontWeight: 800, fontFamily: 'system-ui',
+                            display: 'flex', alignItems: 'center', justifyContent: 'center',
+                            padding: '0 3px', boxSizing: 'border-box',
+                            border: `1.5px solid ${T.isDark ? 'rgba(18,18,18,0.9)' : 'rgba(245,248,247,0.9)'}`,
+                          }}>{adminPendingCount > 9 ? '9+' : adminPendingCount}</div>
+                        )}
+                        {visitorUnread > 0 && (
+                          <div style={{
+                            minWidth: 14, height: 14, borderRadius: 7,
+                            background: '#ef4444', color: '#fff',
+                            fontSize: 8, fontWeight: 800, fontFamily: 'system-ui',
+                            display: 'flex', alignItems: 'center', justifyContent: 'center',
+                            padding: '0 3px', boxSizing: 'border-box',
+                            border: `1.5px solid ${T.isDark ? 'rgba(18,18,18,0.9)' : 'rgba(245,248,247,0.9)'}`,
+                          }}>{visitorUnread > 9 ? '9+' : visitorUnread}</div>
+                        )}
+                        {cancelledUnread > 0 && (
+                          <div
+                            onClick={e => { e.stopPropagation(); if (navigator.vibrate) navigator.vibrate([60,40,60,40,120]); handleGoToCancelledBookings(); }}
+                            style={{
+                              minWidth: 14, height: 14, borderRadius: 7,
+                              background: '#3b82f6', color: '#fff',
+                              fontSize: 8, fontWeight: 800, fontFamily: 'system-ui',
+                              display: 'flex', alignItems: 'center', justifyContent: 'center',
+                              padding: '0 3px', boxSizing: 'border-box',
+                              border: `1.5px solid ${T.isDark ? 'rgba(18,18,18,0.9)' : 'rgba(245,248,247,0.9)'}`,
+                              cursor: 'pointer',
+                            }}>{cancelledUnread > 9 ? '9+' : cancelledUnread}</div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <div style={{ position: 'relative', display: 'inline-flex' }}>
+                    <SvgIcon
+                      name={t.iconName}
+                      size={22}
+                      color={active ? T.accent : T.isDark ? T.accent : T.text}
+                      style={{ opacity: active ? 1 : T.isDark ? 0.75 : 1, transition: 'all .2s' }}
+                    />
+                    {t.id === 'home' && isLive && (
+                      <div style={{
+                        position: 'absolute', top: -3, right: -4,
+                        width: 11, height: 11, borderRadius: '50%',
+                        background: '#FF0000',
+                        border: `2px solid ${T.isDark ? 'rgba(18,18,18,0.95)' : 'rgba(245,248,247,0.95)'}`,
+                        animation: 'liveDot 1s ease-in-out infinite, liveRing 1.5s ease-out infinite',
+                      }} />
+                    )}
+                    {t.id === 'home' && isUpcoming && !isLive && (
+                      <div style={{
+                        position: 'absolute', top: -3, right: -4,
+                        width: 9, height: 9, borderRadius: '50%',
+                        background: '#f59e0b',
+                        border: `2px solid ${T.isDark ? 'rgba(18,18,18,0.95)' : 'rgba(245,248,247,0.95)'}`,
+                      }} />
+                    )}
+                  </div>
+                )}
+                <span style={{
                   fontSize: 9, fontWeight: active ? 600 : 500,
                   letterSpacing: '.3px',
                   color: t.id === 'home' && isLive
@@ -470,52 +566,40 @@ function Shell() {
                   opacity: active ? 1 : T.isDark ? 0.7 : 1,
                   whiteSpace: 'nowrap',
                   fontFamily: "'Inter',system-ui,sans-serif",
-                  transition: 'color .2s',
+                  transition: 'all .2s',
                 }}>{t.id === 'home' && isLive ? 'LIVE' : t.id === 'home' && isUpcoming ? 'Snart' : t.label}</span>
               </button>
             );
           })}
         </div>
 
-        {/* ── 6th tab (Visa mer) — nudge only, absolutely positioned over right edge ── */}
-        {TABS.length > VISIBLE_TABS && nudging && (() => {
-          const t6 = TABS[VISIBLE_TABS];
-          return (
-            <div style={{
-              position: 'absolute',
-              right: 0, top: 0, bottom: 0,
-              width: 72,
+        {/* Visa mer — nudge animation slides in from right, then back out */}
+        {TABS.length > VISIBLE_TABS && nudging && (
+          <div
+            onClick={() => { setNudging(false); handleTabPress(TABS[VISIBLE_TABS].id); }}
+            style={{
+              position: 'absolute', right: 0, top: 0, bottom: 0, width: 72,
               display: 'flex', flexDirection: 'column',
-              alignItems: 'center', justifyContent: 'center',
-              gap: 3,
-              background: T.isDark ? 'rgba(18,18,18,0.95)' : 'rgba(245,248,247,0.95)',
+              alignItems: 'center', justifyContent: 'center', gap: 3,
+              background: T.isDark ? 'rgba(18,18,18,0.97)' : 'rgba(245,248,247,0.97)',
               borderRadius: '0 28px 28px 0',
-              cursor: 'pointer',
+              cursor: 'pointer', zIndex: 10,
               animation: 'tabNudgeIn 1.4s cubic-bezier(0.4,0,0.2,1) forwards',
-              zIndex: 10,
-              pointerEvents: 'auto',
-            }} onClick={() => { setNudging(false); handleTabPress(t6.id); }}>
-              <img
-                src={MoreAppIcon}
-                alt={t6.label}
-                style={{
-                  width: 22, height: 22, objectFit: 'contain',
-                  filter: T.isDark
-                    ? 'invert(48%) sepia(60%) saturate(400%) hue-rotate(120deg) brightness(90%)'
-                    : 'none',
-                }}
-              />
-              <span style={{
-                fontSize: 9, fontWeight: 500, color: T.isDark ? T.accent : T.text,
-                opacity: T.isDark ? 0.7 : 1, whiteSpace: 'nowrap',
-                fontFamily: "'Inter',system-ui,sans-serif",
-              }}>{t6.label}</span>
-            </div>
-          );
-        })()}
+            }}
+          >
+            <img src={MoreAppIcon} alt="Visa mer" style={{
+              width: 22, height: 22, objectFit: 'contain',
+              filter: T.isDark ? 'invert(48%) sepia(60%) saturate(400%) hue-rotate(120deg) brightness(90%)' : 'none',
+            }}/>
+            <span style={{
+              fontSize: 9, fontWeight: 500, whiteSpace: 'nowrap',
+              color: T.isDark ? T.accent : T.text,
+              opacity: T.isDark ? 0.7 : 1,
+              fontFamily: "'Inter',system-ui,sans-serif",
+            }}>Visa mer</span>
+          </div>
+        )}
       </div>
-
-    </div>
   );
 }
 
