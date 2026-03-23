@@ -325,22 +325,40 @@ function TimeAccordion({label,hour,minute,onConfirm,bookedBlocks,isStart,pairedH
     return VALID_HOURS_END.filter(h=>h>sd&&h<=24);
   },[isStart,pairedHour,pairedMinute]);
 
-  // Minutes: when hour is 23 (end) only :00 is valid (can't end at 24:30)
-  // When hour is 24 (midnight), only :00 is valid
+  // Minuter: bara :00 gäller när sluttid är 24 (midnatt kan inte vara 24:30)
+  // 23:30 är fullt giltig sluttid — regeln gäller BARA timme 24
   const validMinutes=useMemo(()=>{
-    if(!isStart&&(pendingH===23||pendingH===24)) return [0];
+    if(!isStart&&pendingH===24) return [0];
     return VALID_MINUTES;
   },[isStart,pendingH]);
 
-  // Fix 2+3: when validMinutes changes (e.g. switching from 24→23 or 23→22),
-  // immediately clamp pendingM to a valid value — no extra tap needed
+  // Fix 2+3: when validMinutes changes, immediately clamp pendingM to a valid value
   useEffect(()=>{
     if(!validMinutes.includes(pendingM)) {
       setPendingM(validMinutes[0]);
     }
   },[validMinutes]); // eslint-disable-line
 
-  const isOccupied=useCallback((h,m)=>bookedBlocks.has((h+m/60)*2),[bookedBlocks]);
+  // isOccupied: för starttid kollas om blocket är upptaget.
+  // För sluttid: sluttid som exakt matchar en befintlig boknings START ska INTE räknas
+  // som krock — 08:00-09:00 krockar inte med en befintlig 09:00-10:00.
+  // Vi löser detta genom att sluttid kollar block (h+m/60)*2 - 1 (sista blocket som faktiskt används)
+  // men bara när det inte är starttid.
+  const isOccupied=useCallback((h,m)=>{
+    if(isStart) {
+      return bookedBlocks.has((h+m/60)*2);
+    } else {
+      // Sluttid: kolla om den halvtimme som slutar PRECIS vid h:m är upptagen
+      // d.v.s. block precis INNAN sluttiden. Om h:m är exakt en existerande boknings
+      // starttid så är det OK — ingen krock.
+      const endBlock=(h+m/60)*2;
+      // Om sluttiden är exakt på en heltimmes- eller halvtimmegräns och det blocket
+      // tillhör en annan bokning som BÖRJAR där, är det ingen krock.
+      // Enklast: kolla blocket precis före (endBlock - 1)
+      if(endBlock===0) return false;
+      return bookedBlocks.has(endBlock-1);
+    }
+  },[bookedBlocks,isStart]);
 
   useEffect(()=>{if(open){setPendingH(hour);setPendingM(minute);}},[open,hour,minute]);
 
