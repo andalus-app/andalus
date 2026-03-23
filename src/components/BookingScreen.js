@@ -2232,7 +2232,7 @@ function AdminAddForm({bookings,exceptions,onSubmit,onClose,onOpenDetail,T}) {
                   }
                   // Check recurring conflicts
                   if(recurrence!=='none'){
-                    const wEnd=endDate||(()=>{const d=new Date(iso);d.setFullYear(d.getFullYear()+2);return toISO(d);}());
+                    const wEnd=endDate||(()=>{const d=new Date(iso);d.setFullYear(d.getFullYear()+2);return toISO(d);})();
                     const tempB={id:'__check__',start_date:iso,end_date:endDate||null,recurrence,time_slot:slot,duration_hours:Math.round(dH*100)/100,status:'pending'};
                     const occs=expandBooking(tempB,iso,wEnd,[]);
                     const found=[];
