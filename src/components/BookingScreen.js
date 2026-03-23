@@ -3966,24 +3966,24 @@ export default function BookingScreen({
           maxHeight:'min(92vh,calc(100vh - env(safe-area-inset-top,44px) - 8px))',display:'flex',flexDirection:'column',
           touchAction:'manipulation',
           animation:'bsSlideUp .28s cubic-bezier(0.32,0.72,0,1)'}}>
-          {/* Header */}
-          <div style={{padding:'16px 20px 0',flexShrink:0}}>
-            {/* Tydlig Tillbaka-knapp längst upp */}
-            <button onClick={()=>{setBookingDetail(null);setClickedOccurrenceDate(null);}}
-              style={{
-                display:'flex',alignItems:'center',gap:6,
-                background:'none',border:'none',cursor:'pointer',
-                color:T.accent,fontSize:16,fontWeight:600,
-                padding:'4px 0 12px 0',
-                WebkitTapHighlightColor:'transparent',
-                fontFamily:'system-ui',
-              }}>
-              <svg width="10" height="17" viewBox="0 0 10 17" fill="none">
-                <path d="M9 1L1 8.5L9 16" stroke={T.accent} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-              </svg>
-              Tillbaka
-            </button>
-            <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:12}}>
+          {/* Header — flexShrink:0 så den aldrig scrollas bort */}
+          <div style={{flexShrink:0, padding:'16px 20px 0', borderBottom:`0.5px solid ${T.border}`}}>
+            {/* Tillbaka-knapp — alltid synlig, aldrig scrollad bort */}
+            <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:10}}>
+              <button onClick={()=>{setBookingDetail(null);setClickedOccurrenceDate(null);}}
+                style={{
+                  display:'flex',alignItems:'center',gap:6,
+                  background:'none',border:'none',cursor:'pointer',
+                  color:T.accent,fontSize:16,fontWeight:600,
+                  padding:'4px 0',
+                  WebkitTapHighlightColor:'transparent',
+                  fontFamily:'system-ui',
+                }}>
+                <svg width="10" height="17" viewBox="0 0 10 17" fill="none">
+                  <path d="M9 1L1 8.5L9 16" stroke={T.accent} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                </svg>
+                Tillbaka
+              </button>
               <div style={{display:'flex',alignItems:'center',gap:8}}>
                 {(isOwn||adminMode)&&<div style={{
                   width:10,height:10,borderRadius:'50%',background:sc,flexShrink:0,
@@ -3994,21 +3994,17 @@ export default function BookingScreen({
                 {isRecur&&(isOwn||adminMode)&&<RecurBadge recurrence={b.recurrence}/>}
               </div>
             </div>
-            {/* Activity: own users and admin see it; others only see time */}
+            {/* Activity title etc */}
             {(isOwn||adminMode)&&<div style={{fontSize:19,fontWeight:700,color:T.text,marginBottom:4}}>{b.activity}</div>}
             {!isOwn&&!adminMode&&<div style={{fontSize:14,color:T.textMuted,marginBottom:4}}>{b.name||'Bokad'} · {b.time_slot}</div>}
             {adminMode&&b.name&&<div style={{fontSize:13,color:T.textMuted,marginBottom:2}}>{b.name}{b.phone?` · ${b.phone}`:''}</div>}
-            {(isOwn||adminMode)&&b.notes&&<div style={{fontSize:13,color:T.textMuted,fontStyle:'italic',marginBottom:2}}>{b.notes}</div>}
-            {(isOwn||adminMode)&&b.admin_comment&&b.status!=='cancelled'&&b.status!=='rejected'&&!b.admin_comment.startsWith('Avbokad av ')&&<div style={{fontSize:12,color:T.textMuted,fontStyle:'italic',marginTop:4,
+            {(isOwn||adminMode)&&b.notes&&<div style={{fontSize:13,color:T.textMuted,fontStyle:'italic',marginBottom:4}}>{b.notes}</div>}
+            {(isOwn||adminMode)&&b.admin_comment&&b.status!=='cancelled'&&b.status!=='rejected'&&!b.admin_comment.startsWith('Avbokad av ')&&<div style={{fontSize:12,color:T.textMuted,fontStyle:'italic',marginBottom:4,
               background:`${T.accent}0d`,padding:'6px 10px',borderRadius:8}}>"{b.admin_comment}"</div>}
-            {/* Section title — only show if no specific occurrence was clicked */}
-            {!clickedOccurrenceDate&&<div style={{fontSize:11,fontWeight:700,color:T.textMuted,letterSpacing:'.6px',
-              marginTop:16,marginBottom:8}}>
+            {/* Visa sektion-etikett bara när inget specifikt tillfälle är klickat */}
+            {!clickedOccurrenceDate&&<div style={{fontSize:11,fontWeight:700,color:T.textMuted,letterSpacing:'.6px',marginTop:10,marginBottom:10}}>
               {isRecur?`TILLFÄLLEN (${upcoming.length} visas)`:'DATUM'}
             </div>}
-            {/* For non-recurring show single date */}
-            {!isRecur&&!clickedOccurrenceDate&&<div style={{fontSize:11,fontWeight:700,color:T.textMuted,letterSpacing:'.6px',
-              marginTop:16,marginBottom:8}}>DATUM</div>}
           </div>
           {/* Scrollable occurrences list */}
           <div style={{flex:1,overflowY:'auto',overscrollBehavior:'contain',
