@@ -322,30 +322,39 @@ function TimeAccordion({label,hour,minute,onConfirm,bookedBlocks,isStart,pairedH
   const validHours=useMemo(()=>{
     if(isStart) return VALID_HOURS;
     const sd=pairedHour+pairedMinute/60;
-    // End hours: must be after start. Include 24 (midnight) as max.
     return VALID_HOURS_END.filter(h=>h>sd&&h<=24);
   },[isStart,pairedHour,pairedMinute]);
 
-  // Minutes: when hour is 23, only :00 is valid (23:30 + booking can't end at 24:30)
+  // Minutes: when hour is 23 (end) only :00 is valid (can't end at 24:30)
   // When hour is 24 (midnight), only :00 is valid
   const validMinutes=useMemo(()=>{
     if(!isStart&&(pendingH===23||pendingH===24)) return [0];
     return VALID_MINUTES;
   },[isStart,pendingH]);
 
+  // Fix 2+3: when validMinutes changes (e.g. switching from 24→23 or 23→22),
+  // immediately clamp pendingM to a valid value — no extra tap needed
+  useEffect(()=>{
+    if(!validMinutes.includes(pendingM)) {
+      setPendingM(validMinutes[0]);
+    }
+  },[validMinutes]); // eslint-disable-line
+
   const isOccupied=useCallback((h,m)=>bookedBlocks.has((h+m/60)*2),[bookedBlocks]);
 
   useEffect(()=>{if(open){setPendingH(hour);setPendingM(minute);}},[open,hour,minute]);
 
   const handleConfirm=()=>{onConfirm(pendingH,pendingM);setOpen(false);};
-  // Clicking the time chip in the header confirms immediately if open, otherwise toggles open
   const handleHeaderChipClick=(e)=>{
     e.stopPropagation();
     if(open&&!isOccupied(pendingH,pendingM)){handleConfirm();}
     else{setOpen(v=>!v);}
   };
-  const displayTime=String(hour===24?0:hour).padStart(2,'0')+':'+String(minute).padStart(2,'0');
-  const pendingTime=String(pendingH===24?0:pendingH).padStart(2,'0')+':'+String(pendingM).padStart(2,'0');
+
+  // Fix 1: 24 should display as 00:00
+  const fmtHour=h=>String(h===24?0:h).padStart(2,'0');
+  const displayTime=fmtHour(hour)+':'+String(minute).padStart(2,'0');
+  const pendingTime=fmtHour(pendingH)+':'+String(pendingM).padStart(2,'0');
   const occ=isOccupied(pendingH,pendingM);
 
   return (
@@ -355,7 +364,6 @@ function TimeAccordion({label,hour,minute,onConfirm,bookedBlocks,isStart,pairedH
         padding:'13px 16px',cursor:'pointer',WebkitTapHighlightColor:'transparent'}}>
         <span style={{fontSize:16,color:T.text,fontFamily:'system-ui'}}>{label}</span>
         <div style={{display:'flex',alignItems:'center',gap:8}}>
-          {/* Time chip — when open shows pending time and confirms on tap */}
           <div onClick={handleHeaderChipClick}
             title={open?'Klicka för att bekräfta':''}
             style={{
@@ -379,9 +387,11 @@ function TimeAccordion({label,hour,minute,onConfirm,bookedBlocks,isStart,pairedH
         transition:'max-height 0.35s cubic-bezier(0.4,0,0.2,1)'}}>
         <div style={{borderTop:`0.5px solid ${T.separator}`,padding:'12px 16px 16px'}}>
           <div style={{display:'flex',alignItems:'center',justifyContent:'center',gap:0}}>
+            {/* Fix 1: formatFn visar 24 som 00 i drum-pickern */}
             <DrumPicker options={validHours} value={pendingH}
-              onChange={h=>setPendingH(h)} formatFn={h=>String(h).padStart(2,'0')} T={T} width={80}/>
+              onChange={h=>setPendingH(h)} formatFn={fmtHour} T={T} width={80}/>
             <span style={{fontSize:22,fontWeight:700,color:T.text,margin:'0 4px',paddingBottom:2}}>:</span>
+            {/* Fix 2+3: pendingM är alltid synkat via useEffect ovan */}
             <DrumPicker options={validMinutes} value={validMinutes.includes(pendingM)?pendingM:validMinutes[0]}
               onChange={m=>setPendingM(m)} formatFn={m=>String(m).padStart(2,'0')} T={T} width={80}/>
           </div>
