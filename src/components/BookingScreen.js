@@ -1158,16 +1158,23 @@ function DayPanelCard({occ, isOwn, isAdmin, onPress, onSwipeDelete, T}) {
         <div style={{width:4, borderRadius:2, alignSelf:'stretch', flexShrink:0,
           background: accentColor}}/>
         <div style={{flex:1, minWidth:0}}>
-          <div style={{fontSize:15,fontWeight:600,color:T.text,fontFamily:'system-ui',marginBottom:2}}>{occ.activity}</div>
+          {/* Own booking or admin: show full details */}
+          {(isOwn||isAdmin)&&<div style={{fontSize:15,fontWeight:600,color:T.text,fontFamily:'system-ui',marginBottom:2}}>{occ.activity}</div>}
           <div style={{fontSize:13,color:T.textMuted,fontFamily:'system-ui'}}>{occ.time_slot} · {fmtDuration(occ.duration_hours)}</div>
+          {/* Admin sees name+phone for all bookings */}
           {isAdmin && <div style={{fontSize:12,color:T.textMuted,fontFamily:'system-ui',marginTop:2}}>
             {occ.name}{occ.phone ? ` · ${occ.phone}` : ''}
           </div>}
-          {occ.notes && <div style={{fontSize:12,color:T.textMuted,fontFamily:'system-ui',marginTop:4,fontStyle:'italic'}}>{occ.notes}</div>}
-          {!isOwn && !isAdmin && <div style={{fontSize:10,color:T.textMuted,fontFamily:'system-ui',marginTop:3}}>Annan bokning</div>}
+          {/* Non-admin own booking: show own notes */}
+          {isOwn&&!isAdmin&&occ.notes && <div style={{fontSize:12,color:T.textMuted,fontFamily:'system-ui',marginTop:4,fontStyle:'italic'}}>{occ.notes}</div>}
+          {/* Other user's booking: show only booker's name, no activity/notes */}
+          {!isOwn && !isAdmin && <div style={{fontSize:12,color:T.textMuted,fontFamily:'system-ui',marginTop:2}}>
+            {occ.name||'Annan bokning'}
+          </div>}
         </div>
         <div style={{display:'flex',flexDirection:'column',alignItems:'flex-end',gap:4}}>
-          <Badge status={occ.status}/>
+          {/* Only own user and admin see status badge */}
+          {(isOwn||isAdmin)&&<Badge status={occ.status}/>}
           {isOwn && !isAdmin && <div style={{fontSize:10,color:T.accent,fontWeight:600,fontFamily:'system-ui'}}>Din bokning</div>}
         </div>
       </div>
@@ -2738,18 +2745,21 @@ function AdminPanel({bookings,exceptions,onBack,onApprove,onReject,onDelete,onDe
           </button>
         </div>
       </div>}
-      <button onClick={()=>setEditDialog(b)}
-        style={{padding:'13px',borderRadius:12,border:`1px solid ${'#24645d'}44`,background:'#24645d11',
-          color:'#24645d',fontSize:14,fontWeight:700,cursor:'pointer',
-          textAlign:'left',WebkitTapHighlightColor:'transparent',width:'100%',marginBottom:8}}>
-        Redigera bokning
-      </button>
-      <button onClick={()=>setDeleteDialog({booking:b,type:isRecur?'series':'single'})}
-        style={{padding:'13px',borderRadius:12,border:`1px solid ${T.error}33`,background:`${T.error}11`,
-          color:T.error,fontSize:14,fontWeight:700,cursor:'pointer',
-          textAlign:'left',WebkitTapHighlightColor:'transparent',width:'100%'}}>
-        {isRecur?'Radera hela serien':'Radera bokning'}
-      </button>
+      {/* Only show edit/delete for active bookings — cancelled ones are already done */}
+      {(b.status!=='cancelled'&&b.status!=='rejected')&&<>
+        <button onClick={()=>setEditDialog(b)}
+          style={{padding:'13px',borderRadius:12,border:`1px solid ${'#24645d'}44`,background:'#24645d11',
+            color:'#24645d',fontSize:14,fontWeight:700,cursor:'pointer',
+            textAlign:'left',WebkitTapHighlightColor:'transparent',width:'100%',marginBottom:8}}>
+          Redigera bokning
+        </button>
+        <button onClick={()=>setDeleteDialog({booking:b,type:isRecur?'series':'single'})}
+          style={{padding:'13px',borderRadius:12,border:`1px solid ${T.error}33`,background:`${T.error}11`,
+            color:T.error,fontSize:14,fontWeight:700,cursor:'pointer',
+            textAlign:'left',WebkitTapHighlightColor:'transparent',width:'100%'}}>
+          {isRecur?'Radera hela serien':'Radera bokning'}
+        </button>
+      </>}
       {/* Admin edit sheet */}
       {editDialog&&<AdminEditSheet
         booking={editDialog}
@@ -3855,19 +3865,21 @@ export default function BookingScreen({
                 Stäng
               </button>
               <div style={{display:'flex',alignItems:'center',gap:8}}>
-                <div style={{
+                {(isOwn||adminMode)&&<div style={{
                   width:10,height:10,borderRadius:'50%',background:sc,flexShrink:0,
                   animation:'bsStatusPulse 2s ease-in-out infinite',
                   '--pulse-color':sc,
-                }}/>
-                <Badge status={b.status}/>
-                {isRecur&&<RecurBadge recurrence={b.recurrence}/>}
+                }}/>}
+                {(isOwn||adminMode)&&<Badge status={b.status}/>}
+                {isRecur&&(isOwn||adminMode)&&<RecurBadge recurrence={b.recurrence}/>}
               </div>
             </div>
-            <div style={{fontSize:19,fontWeight:700,color:T.text,marginBottom:4}}>{b.activity}</div>
+            {/* Activity: own users and admin see it; others only see time */}
+            {(isOwn||adminMode)&&<div style={{fontSize:19,fontWeight:700,color:T.text,marginBottom:4}}>{b.activity}</div>}
+            {!isOwn&&!adminMode&&<div style={{fontSize:14,color:T.textMuted,marginBottom:4}}>{b.name||'Bokad'} · {b.time_slot}</div>}
             {adminMode&&b.name&&<div style={{fontSize:13,color:T.textMuted,marginBottom:2}}>{b.name}{b.phone?` · ${b.phone}`:''}</div>}
-            {b.notes&&<div style={{fontSize:13,color:T.textMuted,fontStyle:'italic',marginBottom:2}}>{b.notes}</div>}
-            {b.admin_comment&&b.status!=='cancelled'&&b.status!=='rejected'&&!b.admin_comment.startsWith('Avbokad av ')&&<div style={{fontSize:12,color:T.textMuted,fontStyle:'italic',marginTop:4,
+            {(isOwn||adminMode)&&b.notes&&<div style={{fontSize:13,color:T.textMuted,fontStyle:'italic',marginBottom:2}}>{b.notes}</div>}
+            {(isOwn||adminMode)&&b.admin_comment&&b.status!=='cancelled'&&b.status!=='rejected'&&!b.admin_comment.startsWith('Avbokad av ')&&<div style={{fontSize:12,color:T.textMuted,fontStyle:'italic',marginTop:4,
               background:`${T.accent}0d`,padding:'6px 10px',borderRadius:8}}>"{b.admin_comment}"</div>}
             {/* Section title — only show if no specific occurrence was clicked */}
             {!clickedOccurrenceDate&&<div style={{fontSize:11,fontWeight:700,color:T.textMuted,letterSpacing:'.6px',
