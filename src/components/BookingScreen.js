@@ -15,6 +15,7 @@ import { useTheme } from '../context/ThemeContext';
 import { useOfflineBooking } from '../hooks/useOfflineBooking';
 import OfflineStatusBar from './OfflineStatusBar';
 import { supabase } from '../services/supabaseClient';
+import { useIsPWA } from '../hooks/useIsPWA';
 
 // ─── Module-level tab bar callbacks (set by BookingScreen, used by sub-components) ──
 const _tabBarCallbacks = { hide: null, show: null };
@@ -2669,16 +2670,53 @@ function AdminPanel({bookings,exceptions,onBack,onApprove,onReject,onDelete,onDe
   const pending=bookings.filter(b=>b.status==='pending'||b.status==='edit_pending');
   const approved=bookings.filter(b=>b.status==='approved'||b.status==='edited');
   const rejected=bookings.filter(b=>b.status==='rejected');
-  const cancelled=bookings.filter(b=>b.status==='cancelled');
-  const filtered=filter==='all'?bookings:filter==='pending'?pending:filter==='approved'?approved:filter==='rejected'?rejected:cancelled;
-  const sorted=filtered.slice().sort((a,b)=>b.created_at-a.created_at);
+  const cancelledBookings=bookings.filter(b=>b.status==='cancelled');
+
+  // Enstaka user-avbokade tillfällen: skip-exceptions utan admin_comment
+  // (admin-exceptions har alltid admin_comment, user-exceptions har det inte)
+  const userSkipExceptions=exceptions.filter(e=>
+    e.type==='skip' &&
+    (!e.admin_comment || e.admin_comment.trim()==='') &&
+    bookings.some(b=>b.id===e.booking_id&&(b.status==='approved'||b.status==='edited'))
+  );
+
+  // "Inställda"-räknaren: hela avbokade bokningar + enstaka user-avbokade tillfällen
+  const cancelledCount=cancelledBookings.length+userSkipExceptions.length;
+
+  // Sortering: senaste händelse överst
+  // För approved/edited: resolved_at (när admin godkände)
+  // För pending/edit_pending: created_at (när förfrågan kom in)
+  // För cancelled/rejected: resolved_at (när det inställdes)
+  // För exceptions: created_at (när tillfället avbokades)
+  const getEventTime=(b)=>b.resolved_at||b.created_at||0;
+
+  const sortedAll=bookings.slice().sort((a,b)=>getEventTime(b)-getEventTime(a));
+  const sortedPending=pending.slice().sort((a,b)=>(b.created_at||0)-(a.created_at||0));
+  const sortedApproved=approved.slice().sort((a,b)=>getEventTime(b)-getEventTime(a));
+  const sortedRejected=rejected.slice().sort((a,b)=>getEventTime(b)-getEventTime(a));
+
+  // Inställda: blanda avbokade bokningar + enstaka tillfällen, sortera på händelsetid
+  const cancelledItems=[
+    ...cancelledBookings.map(b=>({_type:'booking',_time:getEventTime(b),...b})),
+    ...userSkipExceptions.map(e=>{
+      const parentBooking=bookings.find(b=>b.id===e.booking_id);
+      return {_type:'exception',_time:e.created_at||0,...e,_booking:parentBooking};
+    }),
+  ].sort((a,b)=>b._time-a._time);
+
   const filters=[
     {id:'all',label:'Alla',count:bookings.length},
     {id:'pending',label:'Väntar',count:pending.length},
     {id:'approved',label:'Godkända',count:approved.length},
     {id:'rejected',label:'Avböjda',count:rejected.length},
-    {id:'cancelled',label:'Inställda',count:cancelled.length},
+    {id:'cancelled',label:'Inställda',count:cancelledCount},
   ];
+
+  // sorted används för alla filter utom 'cancelled' (som har cancelledItems)
+  const sorted=filter==='pending'?sortedPending
+    :filter==='approved'?sortedApproved
+    :filter==='rejected'?sortedRejected
+    :sortedAll;
 
   if(selected) {
     const b=selected;
@@ -2845,24 +2883,51 @@ function AdminPanel({bookings,exceptions,onBack,onApprove,onReject,onDelete,onDe
         </span>}
       </button>)}
     </div>
-    {sorted.length===0&&<div style={{textAlign:'center',padding:'40px 0',color:T.textMuted,fontSize:14}}>
+    {sorted.length===0&&filter!=='cancelled'&&<div style={{textAlign:'center',padding:'40px 0',color:T.textMuted,fontSize:14}}>
       Inga bokningar i denna kategori.
     </div>}
+    {filter==='cancelled'&&cancelledItems.length===0&&<div style={{textAlign:'center',padding:'40px 0',color:T.textMuted,fontSize:14}}>
+      Inga inställda bokningar.
+    </div>}
     <div style={{display:'flex',flexDirection:'column',gap:10}}>
-      {sorted.map(b=>{
+      {/* Inställda-filter: visa både hela avbokade bokningar och enstaka user-avbokade tillfällen */}
+      {filter==='cancelled'?cancelledItems.map((item,idx)=>{
+        if(item._type==='exception') {
+          const b=item._booking;
+          if(!b) return null;
+          return <div key={`exc-${item.id}`}
+            onClick={()=>onOpenBookingDetail?.(b,item.exception_date)}
+            style={{background:T.card,border:`0.5px solid #3b82f644`,
+              borderLeft:`3px solid #3b82f6`,
+              borderRadius:14,padding:'14px 16px',cursor:'pointer'}}>
+            <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:6}}>
+              <div style={{display:'flex',alignItems:'center',gap:6}}>
+                <span style={{background:'#3b82f622',color:'#3b82f6',borderRadius:8,
+                  fontSize:11,fontWeight:700,padding:'3px 8px',fontFamily:'system-ui'}}>Enstaka tillfälle</span>
+                {b.recurrence&&b.recurrence!=='none'&&<RecurBadge recurrence={b.recurrence}/>}
+              </div>
+              <span style={{fontSize:11,color:T.textMuted}}>{isoToDisplay(item.exception_date)}</span>
+            </div>
+            <div style={{fontSize:15,fontWeight:600,color:T.text,marginBottom:2}}>{b.name}</div>
+            <div style={{fontSize:13,color:T.textMuted,marginBottom:4}}>{b.activity}</div>
+            <div style={{fontSize:12,color:T.textMuted}}>{b.time_slot} · {fmtDuration(b.duration_hours)}</div>
+            <div style={{fontSize:11,color:'#3b82f6',marginTop:6,fontWeight:600}}>Avbokat av besökaren — öppna bokning →</div>
+          </div>;
+        }
+        // Hel avbokad bokning
+        const b=item;
         const isRecur=b.recurrence&&b.recurrence!=='none';
         const nextOcc=isRecur?expandBooking(b,today,wEnd,exceptions)[0]:null;
         const displayDate=nextOcc?.date||b.start_date;
         const isHL=b.id===adminHighlightId;
-        const hlColor=adminHighlightFilter==='cancelled'?T.accentBlue:T.warning;
-        const isPending=b.status==='pending'||b.status==='edit_pending';
+        const hlColor=T.accentBlue||'#3b82f6';
         return <div key={b.id} ref={b.id===adminHighlightId?highlightRef:null}
           onClick={()=>{setSelected(b);setComment('');}}
           style={{background:T.card,
-            border:`0.5px solid ${isHL?hlColor:isPending?`${T.warning}44`:T.border}`,
+            border:`0.5px solid ${isHL?hlColor:T.border}`,
             borderRadius:14,padding:'14px 16px',cursor:'pointer',
             boxShadow:isHL?`0 0 0 3px ${hlColor}33`:'none',
-            animation:isHL?`bsHighlight 1.2s ease-in-out 3`:isPending?'bsPulse 2s ease-in-out infinite':'none',
+            animation:isHL?`bsHighlight 1.2s ease-in-out 3`:'none',
             '--hl':`${hlColor}55`}}>
           <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:8}}>
             <div style={{display:'flex',alignItems:'center',gap:8}}>
@@ -2875,7 +2940,35 @@ function AdminPanel({bookings,exceptions,onBack,onApprove,onReject,onDelete,onDe
           <div style={{fontSize:13,color:T.textMuted,marginBottom:4}}>{b.activity}</div>
           <div style={{fontSize:12,color:T.textMuted}}>{b.time_slot} · {fmtDuration(b.duration_hours)}</div>
         </div>;
-      })}
+      }):(
+        sorted.map(b=>{
+          const isRecur=b.recurrence&&b.recurrence!=='none';
+          const nextOcc=isRecur?expandBooking(b,today,wEnd,exceptions)[0]:null;
+          const displayDate=nextOcc?.date||b.start_date;
+          const isHL=b.id===adminHighlightId;
+          const hlColor=adminHighlightFilter==='cancelled'?T.accentBlue:T.warning;
+          const isPending=b.status==='pending'||b.status==='edit_pending';
+          return <div key={b.id} ref={b.id===adminHighlightId?highlightRef:null}
+            onClick={()=>{setSelected(b);setComment('');}}
+            style={{background:T.card,
+              border:`0.5px solid ${isHL?hlColor:isPending?`${T.warning}44`:T.border}`,
+              borderRadius:14,padding:'14px 16px',cursor:'pointer',
+              boxShadow:isHL?`0 0 0 3px ${hlColor}33`:'none',
+              animation:isHL?`bsHighlight 1.2s ease-in-out 3`:isPending?'bsPulse 2s ease-in-out infinite':'none',
+              '--hl':`${hlColor}55`}}>
+            <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:8}}>
+              <div style={{display:'flex',alignItems:'center',gap:8}}>
+                <Badge status={b.status}/>
+                {isRecur&&<RecurBadge recurrence={b.recurrence}/>}
+              </div>
+              <span style={{fontSize:11,color:T.textMuted}}>{isoToDisplay(displayDate)}</span>
+            </div>
+            <div style={{fontSize:15,fontWeight:600,color:T.text,marginBottom:2}}>{b.name}</div>
+            <div style={{fontSize:13,color:T.textMuted,marginBottom:4}}>{b.activity}</div>
+            <div style={{fontSize:12,color:T.textMuted}}>{b.time_slot} · {fmtDuration(b.duration_hours)}</div>
+          </div>;
+        })
+      )}
     </div>
     {addForm!==null&&<AdminAddForm bookings={bookings} exceptions={exceptions}
       onSubmit={async data=>{await onAdminAddRecurring(data);setAddForm(null);}}
@@ -3239,7 +3332,7 @@ export default function BookingScreen({
   refreshKey=0,
 }) {
   const{theme:T}=useTheme();
-  const[bookings,setBookings]=useState([]);
+  const isPWA=useIsPWA();
   const[exceptions,setExceptions]=useState([]);
   const[dbLoading,setDbLoading]=useState(true);
   const[submitLoading,setSubmitLoading]=useState(false);
@@ -3663,10 +3756,10 @@ export default function BookingScreen({
   // Only show full-screen spinner on very first load when we have NO data yet.
   // If quick-fetch already populated bookings, show calendar immediately.
   if(dbLoading&&!adminMode&&bookings.length===0){
-    return <div style={{padding:'80px 16px',background:T.bg,minHeight:'100%'}}><Spinner T={T}/></div>;
+    return <div style={{position:'absolute',inset:0,padding:'80px 16px',background:T.bg,overflowY:'auto'}}><Spinner T={T}/></div>;
   }
 
-  return <div style={{background:T.bg,minHeight:'100%',fontFamily:'system-ui'}}>
+  return <div style={{position:'absolute',inset:0,background:T.bg,fontFamily:'system-ui'}}>
     <style>{`
       @keyframes bsFadeInUp{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
       @keyframes bsSlideUp{from{transform:translateY(100%)}to{transform:translateY(0)}}
@@ -3707,7 +3800,18 @@ export default function BookingScreen({
       onClose={()=>setShowSearch(false)} T={T}/>}
 
     {/* Calendar View */}
-    {view==='calendar'&&<div style={{background:T.bg,minHeight:'100%',animation:'bsMonthZoomIn 0.32s cubic-bezier(0.4,0,0.2,1)'}}>
+    {view==='calendar'&&<div style={{
+      background:T.bg,
+      // Egen scroll-container isolerad från Shell — förhindrar att iOS rubber-band
+      // fastnar i Shell-containern och låser scrollen
+      position:'absolute', inset:0,
+      overflowY:'auto', overflowX:'hidden',
+      WebkitOverflowScrolling:'touch',
+      overscrollBehavior:'contain',
+      // Ge plats för tab-baren längst ned
+      paddingBottom: isPWA ? 'calc(env(safe-area-inset-bottom, 0px) + 90px)' : '100px',
+      animation:'bsMonthZoomIn 0.32s cubic-bezier(0.4,0,0.2,1)',
+    }}>
       {/* Header */}
       <div style={{paddingTop:'max(20px,env(safe-area-inset-top,0px))',
         paddingLeft:20,paddingRight:20,paddingBottom:0,background:T.calHeaderBg}}>
@@ -3793,7 +3897,6 @@ export default function BookingScreen({
         }}
         onNewBooking={d=>{setPendingFormDate(d);setView('form');}} T={T}/>
 
-      <div style={{height:100}}/>
     </div>}
 
     {/* Admin calendar detail sheet */}
@@ -4006,25 +4109,25 @@ export default function BookingScreen({
         T={T}/>
     )}
 
-    {view==='form'&&pendingFormDate&&<BookingForm date={pendingFormDate}
+    {view==='form'&&pendingFormDate&&<div style={{position:'absolute',inset:0,overflowY:'auto',WebkitOverflowScrolling:'touch',overscrollBehavior:'contain'}}><BookingForm date={pendingFormDate}
       onSubmit={handleSubmitBooking} onBack={()=>setView('calendar')}
-      loading={submitLoading} bookings={bookings} exceptions={exceptions} T={T}/>}
+      loading={submitLoading} bookings={bookings} exceptions={exceptions} T={T}/></div>}
 
-    {view==='my-bookings'&&<MyBookings bookings={myBookings} exceptions={exceptions}
+    {view==='my-bookings'&&<div style={{position:'absolute',inset:0,overflowY:'auto',WebkitOverflowScrolling:'touch',overscrollBehavior:'contain'}}><MyBookings bookings={myBookings} exceptions={exceptions}
       loading={false} onBack={()=>{setView('calendar');setInternalHighlightId(null);setInternalHighlightBooking(null);}}
       onCancel={handleCancelOccurrence} onCancelFromDate={handleCancelFromDate}
       onCancelSeries={handleCancelSeries}
       highlightBookingId={internalHighlightId||highlightBookingId}
       highlightBooking={internalHighlightBooking}
       highlightFilter={internalHighlightId?'all':highlightFilter}
-      onLogout={handleUserLogout} T={T}/>}
+      onLogout={handleUserLogout} T={T}/></div>}
 
-    {view==='login'&&<><ShowTabBar/><UserLogin onSuccess={handleLoginSuccess} onBack={undefined} T={T}/></> }
+    {view==='login'&&<div style={{position:'absolute',inset:0,overflowY:'auto',WebkitOverflowScrolling:'touch',overscrollBehavior:'contain'}}><ShowTabBar/><UserLogin onSuccess={handleLoginSuccess} onBack={undefined} T={T}/></div>}
 
-    {view==='users'&&<UserManagement onBack={()=>setView('admin')} T={T}/>}
+    {view==='users'&&<div style={{position:'absolute',inset:0,overflowY:'auto',WebkitOverflowScrolling:'touch',overscrollBehavior:'contain'}}><UserManagement onBack={()=>setView('admin')} T={T}/></div>}
     <OfflineStatusBar status={offlineStatus} T={T} position="bottom"/>
 
-    {view==='admin'&&<AdminPanel bookings={bookings} exceptions={exceptions}
+    {view==='admin'&&<div style={{position:'absolute',inset:0,overflowY:'auto',WebkitOverflowScrolling:'touch',overscrollBehavior:'contain'}}><AdminPanel bookings={bookings} exceptions={exceptions}
       onBack={handleAdminLogout}
       onApprove={handleApprove} onReject={handleReject}
       onDelete={handleAdminDelete} onDeleteSeries={handleAdminDeleteSeries}
@@ -4042,6 +4145,6 @@ export default function BookingScreen({
         setInternalAdminHighlight(b.id);
         setClickedOccurrenceDate(date||null);
         setBookingDetail(b);
-      }} T={T}/>}
+      }} T={T}/></div>}
   </div>;
 }

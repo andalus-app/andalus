@@ -240,8 +240,8 @@ function Shell() {
       style={{ height: '100dvh', width: '100vw', background: T.bg, display: 'flex', flexDirection: 'column', overflow: 'hidden', maxWidth: 500, margin: '0 auto', position: 'relative', touchAction: 'pan-y' }}>
 
       <div ref={scrollContainerRef}
-        onScroll={(!tabBarHiddenByChild && tab !== 'prayer') ? onShellScroll : undefined}
-        style={{ flex: 1, overflowY: scrollLocked ? 'hidden' : 'auto', overflowX: 'hidden', WebkitOverflowScrolling: 'touch', overscrollBehavior: 'none', paddingTop: 0, paddingBottom: effectiveTabBarVisible ? isPWA ? 'calc(env(safe-area-inset-bottom, 0px) + 82px)' : '90px' : 0 }}>
+        onScroll={(!tabBarHiddenByChild && tab !== 'prayer' && tab !== 'booking') ? onShellScroll : undefined}
+        style={{ flex: 1, overflowY: (scrollLocked || tab === 'booking') ? 'hidden' : 'auto', overflowX: 'hidden', WebkitOverflowScrolling: 'touch', overscrollBehavior: 'none', paddingTop: 0, paddingBottom: effectiveTabBarVisible ? isPWA ? 'calc(env(safe-area-inset-bottom, 0px) + 82px)' : '90px' : 0, position: 'relative' }}>
         {renderScreen()}
       </div>
 
