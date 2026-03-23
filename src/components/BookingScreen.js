@@ -30,8 +30,9 @@ const STORAGE_USER_ROLE = 'islamnu_user_role';
 // ─── Constants ────────────────────────────────────────────────────────────────
 const OPEN_HOUR  = 8;
 const CLOSE_HOUR = 24;
-const VALID_HOURS   = Array.from({ length: CLOSE_HOUR - OPEN_HOUR }, (_, i) => OPEN_HOUR + i);
-const VALID_MINUTES = [0, 30];
+const VALID_HOURS      = Array.from({ length: CLOSE_HOUR - OPEN_HOUR }, (_, i) => OPEN_HOUR + i);
+const VALID_HOURS_END  = [...VALID_HOURS, 24]; // 24 = midnight end time (displayed as 00:00)
+const VALID_MINUTES    = [0, 30];
 const DAYS_SV   = ['M','T','O','T','F','L','S'];
 const DAYS_FULL = ['Måndag','Tisdag','Onsdag','Torsdag','Fredag','Lördag','Söndag'];
 const MONTHS_SV = ['Januari','Februari','Mars','April','Maj','Juni','Juli','Augusti','September','Oktober','November','December'];
@@ -75,7 +76,7 @@ function isoToDisplay(s) {
   return d.getDate()+' '+MONTHS_SV[d.getMonth()]+' '+d.getFullYear();
 }
 function uid() { return Date.now().toString(36)+Math.random().toString(36).slice(2,7); }
-function fmtTime(h,m) { return String(h).padStart(2,'0')+':'+String(m).padStart(2,'0'); }
+function fmtTime(h,m) { return String(h===24?0:h).padStart(2,'0')+':'+String(m).padStart(2,'0'); }
 function slotFromHM(sH,sM,eH,eM) { return fmtTime(sH,sM)+'–'+fmtTime(eH,eM); }
 function parseSlotParts(slot) {
   const [s,e]=slot.split('–');
@@ -317,11 +318,19 @@ function TimeAccordion({label,hour,minute,onConfirm,bookedBlocks,isStart,pairedH
   const [pendingH,setPendingH]=useState(hour);
   const [pendingM,setPendingM]=useState(minute);
 
-  const validHours=useMemo(()=>VALID_HOURS.filter(h=>{
-    if(isStart) return true;
+  const validHours=useMemo(()=>{
+    if(isStart) return VALID_HOURS;
     const sd=pairedHour+pairedMinute/60;
-    return h>sd&&h<=CLOSE_HOUR;
-  }),[isStart,pairedHour,pairedMinute]);
+    // End hours: must be after start. Include 24 (midnight) as max.
+    return VALID_HOURS_END.filter(h=>h>sd&&h<=24);
+  },[isStart,pairedHour,pairedMinute]);
+
+  // Minutes: when hour is 23, only :00 is valid (23:30 + booking can't end at 24:30)
+  // When hour is 24 (midnight), only :00 is valid
+  const validMinutes=useMemo(()=>{
+    if(!isStart&&(pendingH===23||pendingH===24)) return [0];
+    return VALID_MINUTES;
+  },[isStart,pendingH]);
 
   const isOccupied=useCallback((h,m)=>bookedBlocks.has((h+m/60)*2),[bookedBlocks]);
 
@@ -334,8 +343,8 @@ function TimeAccordion({label,hour,minute,onConfirm,bookedBlocks,isStart,pairedH
     if(open&&!isOccupied(pendingH,pendingM)){handleConfirm();}
     else{setOpen(v=>!v);}
   };
-  const displayTime=String(hour).padStart(2,'0')+':'+String(minute).padStart(2,'0');
-  const pendingTime=String(pendingH).padStart(2,'0')+':'+String(pendingM).padStart(2,'0');
+  const displayTime=String(hour===24?0:hour).padStart(2,'0')+':'+String(minute).padStart(2,'0');
+  const pendingTime=String(pendingH===24?0:pendingH).padStart(2,'0')+':'+String(pendingM).padStart(2,'0');
   const occ=isOccupied(pendingH,pendingM);
 
   return (
@@ -372,7 +381,7 @@ function TimeAccordion({label,hour,minute,onConfirm,bookedBlocks,isStart,pairedH
             <DrumPicker options={validHours} value={pendingH}
               onChange={h=>setPendingH(h)} formatFn={h=>String(h).padStart(2,'0')} T={T} width={80}/>
             <span style={{fontSize:22,fontWeight:700,color:T.text,margin:'0 4px',paddingBottom:2}}>:</span>
-            <DrumPicker options={VALID_MINUTES} value={pendingM}
+            <DrumPicker options={validMinutes} value={validMinutes.includes(pendingM)?pendingM:validMinutes[0]}
               onChange={m=>setPendingM(m)} formatFn={m=>String(m).padStart(2,'0')} T={T} width={80}/>
           </div>
           {occ && <div style={{textAlign:'center',fontSize:12,color:T.error,marginTop:8}}>Denna tid är upptagen</div>}
