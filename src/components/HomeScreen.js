@@ -47,7 +47,13 @@ function getPrayerStatus(times, nowSec) {
     : (nowSec >= midSec && nowSec < fajrSec);
 
   if (inMidnightWindow) {
-    order.forEach(n => { status[n] = n === 'Midnight' ? 'active' : 'future'; });
+    // Halva natten är "current" (visas med diskret stil, ej helbakgrund)
+    // Fajr är "next" (markeras med accentfärg som indikerar nästa bön)
+    order.forEach(n => {
+      if (n === 'Midnight') status[n] = 'midnight';  // ny status — diskret, ingen helbakgrund
+      else if (n === 'Fajr') status[n] = 'next';     // ny status — nästa bön, accent-markering
+      else status[n] = 'passed';
+    });
     return status;
   }
 
@@ -75,36 +81,70 @@ function PrayerTable({ times, isTomorrow, prayerStatus, T }) {
   return (
     <div style={{ borderRadius:13, overflow:'hidden', border:`1px solid ${T.border}` }}>
       {PRAYER_NAMES.map((name, idx) => {
-        const st       = isTomorrow ? 'future' : (prayerStatus[name] || 'future');
-        const isPassed = st === 'passed';
-        const isActive = st === 'active';
-        const isLast   = idx === PRAYER_NAMES.length - 1;
-        const iconName = PRAYER_ICONS[name];
-        const rowColor = isActive ? (T.isDark ? '#000' : '#fff') : T.text;
+        const st         = isTomorrow ? 'future' : (prayerStatus[name] || 'future');
+        const isPassed   = st === 'passed';
+        const isActive   = st === 'active';
+        // Halva natten är "current" men ska aldrig få helbakgrundsfärg
+        const isMidnight = st === 'midnight';
+        // Fajr är "nästa bön" — accentfärgad text/ram men ingen helbakgrund
+        const isNext     = st === 'next';
+        const isLast     = idx === PRAYER_NAMES.length - 1;
+        const iconName   = PRAYER_ICONS[name];
+
+        // Textfärg: active (helbakgrund) → vit/svart, next → accent, övrigt → normal
+        const rowColor = isActive
+          ? (T.isDark ? '#000' : '#fff')
+          : isNext
+            ? T.accent
+            : T.text;
+
+        // Bakgrundsfärg: active → helbakgrund grön, midnight/next → subtil accent-tint, övriga → card
+        const rowBg = isActive
+          ? (T.isDark ? T.accent : '#24645d')
+          : isMidnight
+            ? (T.isDark ? 'rgba(45,139,120,0.12)' : 'rgba(36,100,93,0.07)')
+            : isNext
+              ? (T.isDark ? 'rgba(45,139,120,0.14)' : 'rgba(36,100,93,0.09)')
+              : T.card;
+
         return (
           <div key={name} style={{
             display:'flex', alignItems:'center', justifyContent:'space-between',
             padding:'12px 16px',
             borderBottom: isLast ? 'none' : `1px solid ${T.border}`,
-            background: isActive ? (T.isDark ? T.accent : '#24645d') : T.card,
+            // Next: lys upp vänster kant med accent
+            borderLeft: isNext ? `3px solid ${T.accent}` : isMidnight ? `3px solid ${T.isDark ? 'rgba(45,139,120,0.4)' : 'rgba(36,100,93,0.3)'}` : '3px solid transparent',
+            background: rowBg,
             opacity: isPassed ? 0.28 : 1,
             transition:'opacity .4s, background .4s',
+            boxSizing: 'border-box',
           }}>
             <div style={{ display:'flex', alignItems:'center', gap:8 }}>
-              <div style={{ fontSize:15, fontWeight:600, color:rowColor, fontFamily:"'Inter',system-ui,sans-serif", letterSpacing:'-0.1px' }}>
+              <div style={{ fontSize:15, fontWeight: (isActive || isNext || isMidnight) ? 700 : 600, color:rowColor, fontFamily:"'Inter',system-ui,sans-serif", letterSpacing:'-0.1px' }}>
                 {PRAYER_SWEDISH[name]}
               </div>
               {iconName && (
                 <SvgIcon name={iconName} size={16} color={isActive ? rowColor : T.accent} style={{ opacity: isActive ? 0.85 : 0.7 }} />
               )}
+              {/* "Nästa" chip bredvid Fajr under midnight-fönstret */}
+              {isNext && (
+                <span style={{
+                  fontSize: 9, fontWeight: 700, letterSpacing: '0.6px',
+                  textTransform: 'uppercase',
+                  color: T.accent,
+                  background: T.isDark ? 'rgba(45,139,120,0.2)' : 'rgba(36,100,93,0.12)',
+                  borderRadius: 6, padding: '2px 6px',
+                  fontFamily: "'Inter',system-ui,sans-serif",
+                }}>Nästa</span>
+              )}
             </div>
             <div style={{
-              fontSize:17, fontWeight:500,
+              fontSize:17, fontWeight: isNext ? 600 : 500,
               fontFamily:"'Inter',system-ui,sans-serif",
               fontVariantNumeric:'tabular-nums',
               fontFeatureSettings:'"tnum" 1',
               letterSpacing:'0.01em',
-              color: isActive ? rowColor : T.textSecondary,
+              color: isActive ? rowColor : isNext ? T.accent : T.textSecondary,
             }}>
               {fmt24(times[name])}
             </div>
