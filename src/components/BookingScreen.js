@@ -3967,17 +3967,23 @@ export default function BookingScreen({
           touchAction:'manipulation',
           animation:'bsSlideUp .28s cubic-bezier(0.32,0.72,0,1)'}}>
           {/* Header */}
-          <div style={{padding:'20px 20px 0',flexShrink:0}}>
+          <div style={{padding:'16px 20px 0',flexShrink:0}}>
+            {/* Tydlig Tillbaka-knapp längst upp */}
+            <button onClick={()=>{setBookingDetail(null);setClickedOccurrenceDate(null);}}
+              style={{
+                display:'flex',alignItems:'center',gap:6,
+                background:'none',border:'none',cursor:'pointer',
+                color:T.accent,fontSize:16,fontWeight:600,
+                padding:'4px 0 12px 0',
+                WebkitTapHighlightColor:'transparent',
+                fontFamily:'system-ui',
+              }}>
+              <svg width="10" height="17" viewBox="0 0 10 17" fill="none">
+                <path d="M9 1L1 8.5L9 16" stroke={T.accent} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+              </svg>
+              Tillbaka
+            </button>
             <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:12}}>
-              <button onClick={()=>{setBookingDetail(null);setClickedOccurrenceDate(null);}}
-                style={{background:'none',border:'none',cursor:'pointer',color:T.accent,
-                  fontSize:16,padding:0,WebkitTapHighlightColor:'transparent',
-                  display:'flex',alignItems:'center',gap:4}}>
-                <svg width="8" height="14" viewBox="0 0 8 14" fill="none">
-                  <path d="M7 1L1 7l6 6" stroke={T.accent} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                </svg>
-                Stäng
-              </button>
               <div style={{display:'flex',alignItems:'center',gap:8}}>
                 {(isOwn||adminMode)&&<div style={{
                   width:10,height:10,borderRadius:'50%',background:sc,flexShrink:0,
