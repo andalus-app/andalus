@@ -3985,18 +3985,20 @@ export default function BookingScreen({
                 Tillbaka
               </button>
               <div style={{display:'flex',alignItems:'center',gap:8}}>
-                {(isOwn||adminMode)&&<div style={{
+                <div style={{
                   width:10,height:10,borderRadius:'50%',background:sc,flexShrink:0,
                   animation:'bsStatusPulse 2s ease-in-out infinite',
                   '--pulse-color':sc,
-                }}/>}
-                {(isOwn||adminMode)&&<Badge status={b.status}/>}
-                {isRecur&&(isOwn||adminMode)&&<RecurBadge recurrence={b.recurrence}/>}
+                }}/>
+                <Badge status={b.status}/>
+                {isRecur&&<RecurBadge recurrence={b.recurrence}/>}
               </div>
             </div>
-            {/* Activity title etc */}
-            {(isOwn||adminMode)&&<div style={{fontSize:19,fontWeight:700,color:T.text,marginBottom:4}}>{b.activity}</div>}
-            {!isOwn&&!adminMode&&<div style={{fontSize:14,color:T.textMuted,marginBottom:4}}>{b.name||'Bokad'} · {b.time_slot}</div>}
+            {/* Aktivitetstitel — alltid synlig för egen bokning + admin, annars namn+tid */}
+            {(isOwn||adminMode)
+              ? <div style={{fontSize:19,fontWeight:700,color:T.text,marginBottom:4}}>{b.activity}</div>
+              : <div style={{fontSize:17,fontWeight:700,color:T.text,marginBottom:4}}>{b.time_slot}</div>
+            }
             {adminMode&&b.name&&<div style={{fontSize:13,color:T.textMuted,marginBottom:2}}>{b.name}{b.phone?` · ${b.phone}`:''}</div>}
             {(isOwn||adminMode)&&b.notes&&<div style={{fontSize:13,color:T.textMuted,fontStyle:'italic',marginBottom:4}}>{b.notes}</div>}
             {(isOwn||adminMode)&&b.admin_comment&&b.status!=='cancelled'&&b.status!=='rejected'&&!b.admin_comment.startsWith('Avbokad av ')&&<div style={{fontSize:12,color:T.textMuted,fontStyle:'italic',marginBottom:4,
