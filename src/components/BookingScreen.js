@@ -902,6 +902,14 @@ function CalendarView({bookings,exceptions,onSelectDate,isAdmin,selectedDate,T,o
     const d=new Date(anchor);
     dir==='next'?d.setMonth(d.getMonth()+1):d.setMonth(d.getMonth()-1);
     setAnchor(d);
+    // Auto-select: today if navigating to current month, else 1st of new month
+    const newY=d.getFullYear(), newM=d.getMonth();
+    const todayY=today.getFullYear(), todayM=today.getMonth();
+    const autoDate = (newY===todayY && newM===todayM)
+      ? new Date(today)
+      : new Date(newY, newM, 1);
+    autoDate.setHours(0,0,0,0);
+    onSelectDate(autoDate);
     // Title slides out (380ms), then update displayAnchor and slide new title in
     setTimeout(()=>{
       setIncomingDir(dir); // new title slides in from the same direction
@@ -1891,6 +1899,12 @@ function AdminAddForm({bookings,exceptions,onSubmit,onClose,onOpenDetail,T}) {
     const d=new Date(anchor);
     dir==='next'?d.setMonth(d.getMonth()+1):d.setMonth(d.getMonth()-1);
     setAnchor(d);
+    // Auto-select today for current month, else 1st of new month
+    const newY=d.getFullYear(),newM=d.getMonth();
+    const todayY=today.getFullYear(),todayM=today.getMonth();
+    const autoDate=(newY===todayY&&newM===todayM)?new Date(today):new Date(newY,newM,1);
+    autoDate.setHours(0,0,0,0);
+    setSelectedDate(autoDate);
     setTimeout(()=>{
       setIncomingDir(dir);setDisplayAnchor(d);setSlideDir(null);
       navInProgressRef.current=false;
