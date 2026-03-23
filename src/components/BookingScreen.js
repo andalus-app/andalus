@@ -1400,12 +1400,22 @@ function BookingForm({date,onSubmit,onBack,loading,bookings,exceptions,T}) {
     return found;
   };
 
+  // Check if the single selected date/time conflicts
+  const hasSingleConflict=useMemo(()=>{
+    if(allDay) return false;
+    const sd=startH+startM/60;
+    for(let i=0;i<durationHours*2;i++){if(bookedBlocks.has(sd*2+i)) return true;}
+    return false;
+  },[bookedBlocks,startH,startM,durationHours,allDay]);
+
   const handleSubmit=()=>{
     if(!activity.trim()){setError('Ange en aktivitet.');return;}
     if(!allDay&&durationHours<=0){setError('Sluttid måste vara efter starttid.');return;}
     if(recurrence.startsWith('custom:')&&parseCustomDays(recurrence).length===0){
       setError('Välj minst en dag för anpassad upprepning.');return;
     }
+    // Block single-date conflicts completely
+    if(hasSingleConflict){setError('Denna tid är upptagen — välj en annan tid.');return;}
     if(recurrence!=='none'){const f=findConflicts();if(f.length>0){setConflicts(f);return;}}
     onSubmit({name:userName,phone:userPhone,activity,notes,date:iso,
       time_slot:slot,duration_hours:durationHours,recurrence,end_date:endDate,skip_dates:[]});
@@ -1467,12 +1477,14 @@ function BookingForm({date,onSubmit,onBack,loading,bookings,exceptions,T}) {
         placeholder="Lägg till anteckningar..." T={T}/>
       {error&&<div style={{fontSize:13,color:T.error,background:`${T.error}18`,
         padding:'10px 14px',borderRadius:8}}>{error}</div>}
-      <button onClick={handleSubmit} disabled={loading}
-        style={{background:loading?T.textMuted:T.accent,color:'#fff',border:'none',
+      <button onClick={handleSubmit} disabled={loading||hasSingleConflict}
+        title={hasSingleConflict?'Denna tid är upptagen — välj en annan tid':''}
+        style={{background:loading||hasSingleConflict?T.textTertiary:T.accent,color:'#fff',border:'none',
           borderRadius:12,padding:'15px',fontSize:16,fontWeight:700,
-          cursor:loading?'default':'pointer',WebkitTapHighlightColor:'transparent',
-          display:'flex',alignItems:'center',justifyContent:'center',gap:8}}>
-        {loading?'Skickar...':'Skicka bokningsförfrågan'}
+          cursor:loading||hasSingleConflict?'not-allowed':'pointer',WebkitTapHighlightColor:'transparent',
+          display:'flex',alignItems:'center',justifyContent:'center',gap:8,
+          opacity:hasSingleConflict?0.5:1,transition:'opacity .2s,background .2s'}}>
+        {hasSingleConflict?'Tiden är upptagen':loading?'Skickar...':'Skicka bokningsförfrågan'}
       </button>
       <p style={{fontSize:11,color:T.textMuted,textAlign:'center',margin:0}}>
         Din förfrågan granskas av en administratör.
@@ -2199,25 +2211,57 @@ function AdminAddForm({bookings,exceptions,onSubmit,onClose,onOpenDetail,T}) {
           </div>
           {/* Submit */}
           <div style={{marginTop:16,paddingBottom:'max(24px,env(safe-area-inset-bottom,16px))'}}>
-            <button onClick={async()=>{
-                if(!form.name.trim()||!form.phone.trim()||!form.activity.trim()){
-                  alert('Namn, telefon och aktivitet krävs.');return;
-                }
-                if(recurrence.startsWith('custom:')&&parseCustomDays(recurrence).length===0){
-                  alert('Välj minst en dag för anpassad upprepning.');return;
-                }
-                setLoading(true);
-                await onSubmit({...form,date:iso,time_slot:slot,duration_hours:Math.round(dH*100)/100,recurrence,end_date:endDate});
-                setLoading(false);
-                closeForm();
-              }}
-              disabled={loading}
-              style={{width:'100%',padding:'14px',borderRadius:12,border:'none',
-                background:loading?T.textTertiary:T.accent,color:'#fff',fontSize:15,fontWeight:700,
-                cursor:loading?'default':'pointer',WebkitTapHighlightColor:'transparent',
-                touchAction:'manipulation'}}>
-              {loading?'Sparar…':'Boka aktivitet'}
-            </button>
+            {(()=>{
+              // Check single-date conflict
+              const sd=startH+startM/60;
+              const singleConflict=recurrence==='none'&&Array.from({length:Math.round(dH*2)},(_,i)=>bookedBlocks.has(sd*2+i)).some(Boolean);
+              return <button onClick={async()=>{
+                  if(singleConflict){alert('Denna tid är upptagen — bokningen krockar med en befintlig bokning. Välj en annan tid.');return;}
+                  if(!form.name.trim()||!form.phone.trim()||!form.activity.trim()){
+                    alert('Namn, telefon och aktivitet krävs.');return;
+                  }
+                  if(recurrence.startsWith('custom:')&&parseCustomDays(recurrence).length===0){
+                    alert('Välj minst en dag för anpassad upprepning.');return;
+                  }
+                  // Check recurring conflicts
+                  if(recurrence!=='none'){
+                    const wEnd=endDate||(()=>{const d=new Date(iso);d.setFullYear(d.getFullYear()+2);return toISO(d);}());
+                    const tempB={id:'__check__',start_date:iso,end_date:endDate||null,recurrence,time_slot:slot,duration_hours:Math.round(dH*100)/100,status:'pending'};
+                    const occs=expandBooking(tempB,iso,wEnd,[]);
+                    const found=[];
+                    for(const occ of occs){
+                      const bb=getBookedBlocks(bookings,exceptions,occ.date);
+                      let clash=false;
+                      for(let i=0;i<Math.round(dH*2);i++){if(bb.has(sd*2+i)){clash=true;break;}}
+                      if(clash) found.push(occ.date);
+                    }
+                    if(found.length>0){
+                      const avail=occs.length-found.length;
+                      const msg=`${found.length} tillfällen krockar med befintliga bokningar.
+${avail} tillfällen är lediga.
+
+Vill du boka bara de ${avail} lediga tillfällena?`;
+                      if(!window.confirm(msg)) return;
+                      setLoading(true);
+                      await onSubmit({...form,date:iso,time_slot:slot,duration_hours:Math.round(dH*100)/100,recurrence,end_date:endDate,skip_dates:found});
+                      setLoading(false);closeForm();return;
+                    }
+                  }
+                  setLoading(true);
+                  await onSubmit({...form,date:iso,time_slot:slot,duration_hours:Math.round(dH*100)/100,recurrence,end_date:endDate,skip_dates:[]});
+                  setLoading(false);
+                  closeForm();
+                }}
+                disabled={loading||singleConflict}
+                title={singleConflict?'Denna tid är upptagen — välj en annan tid':''}
+                style={{width:'100%',padding:'14px',borderRadius:12,border:'none',
+                  background:loading||singleConflict?T.textTertiary:T.accent,color:'#fff',fontSize:15,fontWeight:700,
+                  cursor:loading||singleConflict?'not-allowed':'pointer',WebkitTapHighlightColor:'transparent',
+                  opacity:singleConflict?0.5:1,transition:'opacity .2s,background .2s',
+                  touchAction:'manipulation'}}>
+                {singleConflict?'Krockar med annan bokning':loading?'Sparar…':'Boka aktivitet'}
+              </button>;
+            })()}
           </div>
         </div>
       </div>
