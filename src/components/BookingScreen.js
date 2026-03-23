@@ -3333,6 +3333,7 @@ export default function BookingScreen({
 }) {
   const{theme:T}=useTheme();
   const isPWA=useIsPWA();
+  const[bookings,setBookings]=useState([]);
   const[exceptions,setExceptions]=useState([]);
   const[dbLoading,setDbLoading]=useState(true);
   const[submitLoading,setSubmitLoading]=useState(false);
