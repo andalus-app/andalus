@@ -20,18 +20,16 @@ function ModalSheet({ title, onClose, children, T, topContent }) {
     <div
       style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.65)', zIndex:9999,
         display:'flex', alignItems:'flex-end', justifyContent:'center',
-        /* Prevent keyboard from pushing overlay up on iOS */
         bottom:0, top:0, overscrollBehavior:'none' }}
       onMouseDown={e => { if (e.target === e.currentTarget) onClose(); }}
       onTouchStart={e => { if (e.target === e.currentTarget) onClose(); }}
     >
       <div style={{
         background:T.bgSecondary, borderRadius:'22px 22px 0 0', width:'100%', maxWidth:500,
-        /* Fixed height — never jumps when keyboard opens */
-        height:'72dvh', maxHeight:'72dvh', display:'flex', flexDirection:'column',
+        /* Taller sheet so search results are visible above keyboard */
+        height:'82dvh', maxHeight:'82dvh', display:'flex', flexDirection:'column',
         animation:'fadeUp .25s ease both',
         position:'relative', bottom:0,
-        /* Prevent keyboard from resizing this sheet */
         transform:'translateZ(0)',
       }}
         onMouseDown={e => e.stopPropagation()}
@@ -65,7 +63,7 @@ function ModalSheet({ title, onClose, children, T, topContent }) {
   );
 }
 
-export default function SettingsScreen({ onBack }) {
+export default function SettingsScreen({ onBack, onTabBarHide, onTabBarShow }) {
   const { theme: T, mode, setMode } = useTheme();
   const scrollRef = useRef(null);
   // iOS scroll-restore guard — tvinga scrollTop=0 vid mount
@@ -131,6 +129,7 @@ export default function SettingsScreen({ onBack }) {
 
   const selectCity = (loc) => {
     dispatch({ type:'SET_LOCATION', payload:loc });
+    onTabBarShow?.();
     setCityModal(false); setQuery(''); setResults([]);
   };
 
@@ -219,7 +218,7 @@ export default function SettingsScreen({ onBack }) {
       />
       <Row iconName="mapPoint" label="Nuvarande stad"
         value={location ? location.city : 'Ej angiven'}
-        onClick={() => setCityModal(true)} />
+        onClick={() => { onTabBarHide?.(); setCityModal(true); }} />
       {!settings.autoLocation && (
         <Row iconName="mapArrow" label="Hämta min position nu"
           value={detecting ? 'Söker…' : 'Tryck för att uppdatera med GPS'}
@@ -294,7 +293,7 @@ export default function SettingsScreen({ onBack }) {
 
       {cityModal && (
         <ModalSheet T={T} title="Byt stad"
-          onClose={() => { setCityModal(false); setQuery(''); setResults([]); }}
+          onClose={() => { onTabBarShow?.(); setCityModal(false); setQuery(''); setResults([]); }}
           topContent={
             <div>
               {location?.city && (

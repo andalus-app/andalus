@@ -368,7 +368,7 @@ export default function MoreScreen({ onTabBarHide, onTabBarShow, initialView, ma
 
   if (view === 'dhikr')        return <DhikrScreen onBack={() => { onTabBarShow?.(); backToMenu(); }} />;
   if (view === 'asmaul-husna') return <AsmaulHusnaScreen onBack={() => { onTabBarShow?.(); backToMenu(); }} onMount={() => onTabBarHide?.()} />;
-  if (view === 'settings') return <SettingsScreen onBack={backToMenu} />;
+  if (view === 'settings') return <SettingsScreen onBack={backToMenu} onTabBarHide={onTabBarHide} onTabBarShow={onTabBarShow} />;
   if (view === 'ebooks')   return <EbooksScreen onReaderOpen={() => {}} onReaderClose={() => {}} resetToLibrary={false} onTabBarHide={onTabBarHide} onTabBarShow={onTabBarShow} onBack={backToMenu} />;
   if (view === 'about')    return <AboutScreen onBack={backToMenu} />;
   if (view === 'support')  return <SupportScreen onBack={backToMenu} T={T} />;
